@@ -1,0 +1,187 @@
+/* Contact Section Styling */
+.contact-column {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+/* Circle icon base */
+.contact-icon {
+    display: inline-block;
+    border-radius: 50%;
+    padding: 20px;
+    margin-bottom: 10px;
+    font-size: 36px;
+    text-align: center;
+    transition: all 0.3s ease;
+    text-decoration: none;
+}
+
+/* Individual circle styles */
+.contact-icon.phone {
+    background-color: #DCE6F1;
+    color: #fff; /* Icon color inside phone circle */
+}
+
+.contact-icon.email,
+.contact-icon.zoom,
+.contact-icon.whatsapp {
+    border: 2px solid #DCE6F1;
+    color: #DCE6F1; /* Icon color */
+    background-color: transparent;
+}
+
+/* Hover effects */
+.contact-icon:hover {
+    transform: scale(1.1);
+    text-decoration: none;
+}
+
+.contact-icon.phone:hover {
+    background-color: #b0c4de;
+}
+
+.contact-icon.email:hover,
+.contact-icon.zoom:hover,
+.contact-icon.whatsapp:hover {
+    background-color: #DCE6F1;
+    color: #fff;
+    border-color: #DCE6F1;
+}
+
+/* Optional: headings and text spacing */
+.contact-column h4 {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.contact-column p {
+    margin-bottom: 0;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+
+/* Contact Line (grid version) */
+.xsieben-contact-line {
+  padding: 40px 0;
+}
+
+.contact-column {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.contact-icon {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 70px;
+  height: 70px;
+  margin-bottom: 15px;
+  border-radius: 50%;
+  font-size: 28px;
+  color: #fff;
+  transition: background 0.3s ease, transform 0.3s ease;
+}
+
+.contact-icon:hover {
+  transform: scale(1.1);
+  opacity: 0.9;
+}
+
+/* Compact Contact Block */
+.xsieben-contact-block {
+  display: flex;
+  flex-wrap: wrap;
+  background: #fff;
+ }
+
+.xsieben-contact-block a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  color: #333;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.xsieben-contact-block a:hover {
+  color: #0073e6;
+}
+
+/* Social Links */
+
+
+
+.social-links a {
+  transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.social-links a:hover {
+  color: #000;
+  transform: translateY(-3px);
+}
+
+/* Screen Reader Only */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  border: 0;
+}
+
+/* Contact line overall */
+.xsieben-contact-line {
+  margin: 40px 0;
+}
+
+/* Each contact block */
+.xsieben-contact-line .contact-column {
+  text-align: center;
+  padding: 25px 15px;
+  background: #fff;
+  border: 1px solid #eaeaea;
+  border-radius: 12px;
+  margin-bottom: 30px;
+  transition: transform 0.3s ease;
+}
+
+.xsieben-contact-line .contact-column:hover {
+  transform: translateY(-5px);
+}
+
+/* Icon style */
+.xsieben-contact-line .contact-icon {
+
+  font-size: 48px;
+  margin-bottom: 15px;
+  border-radius: 50%;
+  padding: 20px;
+  border: 2px solid #e0e0e0;
+  transition: all 0.3s ease;
+}
+
+.xsieben-contact-line .contact-icon:hover {
+  transform: scale(1.1);
+  border-color: currentColor;
+}
+
+/* Button under each block */
+.xsieben-contact-line .contact-btn {
+  margin-top: 15px;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+
+
+/* Make buttons text white */
+.xsieben-contact-line .contact-btn {
+  color: #fff !important;
+}
+
+

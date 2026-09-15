@@ -1,0 +1,43 @@
+.slider {
+    min-height: 275px;
+  }
+
+  .carousel-inner {
+	position: relative;
+	width: 95%;
+	overflow: hidden;
+	margin: auto;
+}
+
+a.slider-button {
+    text-decoration: none;
+    color: black;
+    font-size: 20px;
+}
+
+.x-carousel-control {
+	position: absolute;
+	color: green;
+	top: 75px;
+	width: 105%;
+	right: -25px;
+}
+
+
+.x-carousel-caption-title {
+    font-size: 20px;
+    color: black;
+    text-align: center;
+}
+
+h4.x-carousel-caption-title {
+    font-size: large;
+}
+
+.x-carousel-caption {
+    min-height: 5rem;
+}
+
+.active {
+    display: block!important
+}

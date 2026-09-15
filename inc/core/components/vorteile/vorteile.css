@@ -1,0 +1,175 @@
+/* ==========================================================================
+   Vorteile-Leiste & Tooltip-Dropdowns
+   ========================================================================== */
+
+/* 1. Hauptleiste */
+
+.vorteile-tooltips-wrapper {
+    display: flex;
+    justify-content: space-between;
+    text-align: center;
+    padding: 0 30px 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.vorteile-dropdown-wrapper {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  z-index: 1000;
+  background-color: #F3F2EE;
+  transition: transform 0.5s ease-out, opacity 0.5s ease-out;
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.vorteile-dropdown-wrapper.hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 2. Titel-Liste */
+.vorteile-titles {
+  display: inline-flex;
+  min-width: 100%;
+  justify-content: space-between;
+  text-align: center;
+}
+
+.vorteile-titles .vorteile-single {
+  display: inline;
+  position: relative;
+  margin-right: 20px;
+  margin-left: 40px;
+  padding: 10px 0 0;
+  font-size: small;
+  letter-spacing: 0.3px;
+}
+
+.vorteile-exerpt {
+  font-size: 12px;
+  letter-spacing: 0.3px;
+}
+
+.image-hook {
+  margin-right: 6px;
+}
+
+.vorteile-exerpt {
+  font-size: x-small;
+  margin-top: 0px;
+  margin-bottom: 0;
+}
+
+.vorteile-exerpt b {
+  font-weight: 600 !important;
+}
+
+/* ==========================================================================
+   Tooltip-System (ersetzt Dropdowns)
+   ========================================================================== */
+
+/* Tooltip-Wrapper */
+.tooltip-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+/* Trigger (Button / Titel) */
+.tooltip-trigger {
+    background: none;
+    border: none;
+    padding: 8px 0 0;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    transition: color 0.2s ease;
+    font-size: medium;
+}
+
+.tooltip-trigger:hover,
+.tooltip-trigger:focus {
+  color: #000;
+}
+
+/* Tooltip-Inhalt */
+.tooltip-content {
+  display: none;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(100% + 10px);
+  z-index: 9999;
+
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px 24px;
+  width: 320px;
+  max-width: calc(100vw - 30px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  line-height: 1.45;
+  color: #333;
+}
+
+/* Tooltip-Pfeil */
+.tooltip-content::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 7px;
+  border-style: solid;
+  border-color: transparent transparent #ddd transparent;
+}
+.tooltip-content::after {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: transparent transparent #fff transparent;
+}
+
+/* Tooltip-Anzeige bei Hover & Focus */
+.tooltip-wrapper:hover .tooltip-content,
+.tooltip-wrapper:focus-within .tooltip-content {
+  display: block;
+  animation: tooltipFadeIn 0.25s ease-out;
+}
+
+/* Kleine Animation */
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -5px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* Excerpt unterhalb des Buttons */
+.vorteile-excerpt {
+  display: block;
+  color: #666;
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+/* Mobile Tooltip-Anpassung */
+@media (max-width: 480px) {
+  .tooltip-content {
+    width: calc(100vw - 30px);
+    left: 50%;
+    transform: translateX(-50%);
+    top: calc(100% + 6px);
+    padding: 16px;
+  }
+}

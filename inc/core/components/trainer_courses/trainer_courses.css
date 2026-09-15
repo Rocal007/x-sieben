@@ -1,0 +1,42 @@
+.custom-tooltip {
+  position: relative;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.tooltip-box {
+  position: absolute;
+  bottom: 100%;           /* place above the link */
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;     /* space below tooltip */
+  width: 220px;   
+  height: 250px;        /* wider tooltip */
+  background: #fff;
+  color: #333;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 8px 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  z-index: 9999;
+  display: none;
+  font-size: 13px;
+  text-align: left;
+}
+
+
+.tooltip-box img {
+  float: left;
+  margin-right: 10px;
+  min-width: 200px;
+  height: auto;
+  border-radius: 3px;
+}
+
+.tooltip-box p {
+  margin: 0;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 3.9em; /* roughly 3 lines */
+}

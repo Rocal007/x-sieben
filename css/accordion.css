@@ -1,0 +1,74 @@
+/* Allgmeine Container-Stile */
+.accordion-wrapper,
+.panel-group {
+	background-color: #fff;
+}
+
+
+
+.panel-group .panel {
+	margin-bottom: 14px;
+	border-radius: 8px;
+	overflow: hidden;
+	background-color: #fff;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+	border: none;
+	/* Entfernt den Standard-Bootstrap-Border */
+}
+
+/* Stil für den Akkordeon-Header (panel-heading) */
+.panel-group .panel-heading {
+	width: 100%;
+	background-color: #f8f9fa;
+	border: none;
+	padding: 0;
+	/* Padding wird auf den Link angewendet */
+}
+
+.panel-group .panel-title a {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	padding: 18px 24px;
+	text-align: left;
+	font-weight: bold;
+	color: #000;
+	text-decoration: none;
+	transition: background-color 0.3s ease;
+	line-height: 1.5;
+}
+
+.panel-group .panel-title a:hover {
+	background-color: #e2e6ea;
+}
+
+/* Stil für das Icon, falls du ein Font Awesome-Icon verwendest */
+
+
+/* Stil für den Akkordeon-Inhalt (panel-body) */
+.panel-group .panel-body {
+	padding: 20px 24px;
+	border-top: 1px solid #ccc;
+	background-color: #ffffff;
+
+	line-height: 1.75;
+	color: #333;
+}
+
+/* Media Queries für mobile Ansichten */
+@media (max-width: 768px) {
+	.panel-group .panel-title a {
+		font-size: 17px;
+		padding: 16px 20px;
+	}
+
+	.panel-group .panel-title a i {
+		font-size: 18px;
+	}
+
+	.panel-group .panel-body {
+		font-size: 17px;
+		padding: 18px 20px;
+	}
+}

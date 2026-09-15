@@ -1,0 +1,51 @@
+/* ✔ Icon Styling */
+.check-icon {
+  color: #1988be !important;
+  /* Fix für Mobile */
+  font-size: 1.15rem;
+  margin-right: 0.5em;
+  line-height: 1;
+  flex-shrink: 0;
+  transform: translateY(0.15em);
+}
+
+/* Liste ohne Standard-Bullets */
+ul.x7-checklist {
+  list-style: none;
+  padding-left: 0;
+  margin-left: 0;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+/* Flex-Layout für Listenelemente */
+ul.x7-checklist li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+  margin-bottom: 0.75em;
+  line-height: 1.6;
+  text-align: left;
+  font-size: 1rem;
+}
+
+/* Text innerhalb der Liste */
+ul.x7-checklist li span {
+  flex: 1;
+  display: block;
+}
+
+/* Responsive Optimierung für kleine Bildschirme */
+@media (max-width: 480px) {
+  .check-icon {
+    font-size: 1rem;
+    margin-right: 0.4em;
+  }
+
+  ul.x7-checklist li {
+    font-size: 0.95rem;
+    margin-bottom: 1.2em;
+    /* Abstand erhöht */
+    line-height: 1.5;
+  }
+}

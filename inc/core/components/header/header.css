@@ -1,0 +1,332 @@
+/* =========================================
+   X7 Header | Grundlayout
+   ========================================= */
+#x7-top {
+  width: 100%;
+  background: #fff;
+  border-bottom: 1px solid #eee;
+  position: sticky;
+  top: 0;
+  z-index: 3000;
+  transition: transform 0.4s ease, padding 0.4s ease, box-shadow 0.4s ease;
+  transform: translateY(0);
+  padding: 0 0;
+}
+
+#x7-top .navbar-brand {
+  display: flex;
+  align-items: center;
+  margin-right: 20px;
+}
+
+#x7-top .navbar-brand img {
+  height: 70px;
+  transition: height 0.4s ease;
+}
+
+.header-info {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1000;
+  font-size: smaller;
+}
+
+.header_contact_wrapper {
+  background: #fff;
+  padding: 8px 15px;
+  border-radius: 0 0 0 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-size: smaller;
+}
+
+.header_contact_wrapper .contact-item {
+  display: inline-block;
+  margin-left: 15px;
+  font-size: 14px;
+  color: #333;
+}
+
+.header_contact_wrapper .contact-item:first-child {
+  margin-left: 0;
+}
+
+.x7-navbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 15px 20px 20px;
+}
+
+.x7-nav-primary-wrapper {
+  flex: 1;
+}
+
+/* Hamburger Button */
+.x7-hamburger-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    width: 20px;
+    height: 26px;
+}
+
+.x7-hamburger-btn span {
+  display: block;
+  height: 3px;
+  width: 100%;
+  background: #333;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+/* Offcanvas Menü */
+.x7-extra-menu {
+  position: fixed;
+  top: 0;
+  right: -400px;
+  width: 400px;
+  height: 100%;
+  background: #fff;
+  box-shadow: -4px 0 6px rgba(0, 0, 0, 0.1);
+  transition: right 0.3s ease;
+  padding: 50px 20px 20px 20px;
+  z-index: 20000;
+  overflow-y: auto;
+}
+
+.x7-extra-menu.active {
+  right: 0;
+}
+
+.x7-extra-menu-close {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  line-height: 1;
+  color: #333;
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  cursor: pointer;
+  z-index: 1002;
+}
+
+/* Desktop Icons Container */
+.x7-desktop-icons {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-top: 45px;
+}
+
+.x7-icons-wrapper {
+  display: flex;
+  /* align-content: center; */
+  align-items: center;
+  gap: 15px;
+  margin-top: 50px;
+}
+
+.x7-search-btn {
+  background: none;
+  border: none;
+  color: #333;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 8px;
+  transition: color 0.3s ease;
+}
+
+.x7-search-btn:hover,
+.x7-search-btn:focus {
+  color: #0073aa;
+  outline: none;
+}
+
+.x7-search-form {
+  width: 100%;
+  border: 1px solid #e7e7e7;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 1001;
+  display: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.x7-search-form.active {
+  display: block;
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.x7-search-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #333;
+}
+
+.x7-search-close:hover {
+  color: #0073aa;
+}
+
+.x7-navbar {
+  position: relative;
+}
+
+/* =========================================
+   Sticky Header / Slide + Shrink
+   ========================================= */
+#x7-top.x7-hidden {
+  transform: translateY(-100%);
+}
+
+#x7-top.x7-shrink {
+  padding: 8px 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+#x7-top.x7-shrink .navbar-brand img {
+  height: 45px;
+}
+
+#x7-top.x7-shrink .header_contact_wrapper,
+#x7-top.x7-hidden .header_contact_wrapper {
+  display: none !important;
+}
+
+/* Responsive */
+@media (max-width: 991px) {
+  .x7-desktop-hamburger {
+    display: none;
+  }
+
+  .header-info {
+    position: static;
+    text-align: right;
+    padding: 10px 20px;
+    background: #f8f9fa;
+  }
+
+  .header_contact_wrapper {
+    box-shadow: none;
+    padding: 0;
+  }
+
+  .x7-navbar-inner {
+    padding-top: 20px;
+  }
+
+  .x7-icons-wrapper {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 767px) {
+
+  #x7-top .navbar-brand img {
+    height: 40px;
+  }
+
+  #x7-top.x7-shrink {
+    padding: 5px 0;
+  }
+
+  #x7-top.x7-shrink .navbar-brand img {
+    height: 35px;
+  }
+
+  .x7-desktop-icons {
+    display: none;
+  }
+
+  .x7-search-form {
+    width: 100%;
+    right: 0;
+    left: 0;
+  }
+
+  .x7-icons-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    min-width: 80px;
+  }
+}
+
+/* WP Admin Bar Fix */
+body.admin-bar #x7-top {
+  top: 32px;
+}
+
+@media screen and (max-width: 782px) {
+  body.admin-bar #x7-top {
+    top: 46px;
+  }
+}
+
+/* Navbar collapse styling */
+.navbar-collapse {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: #fff;
+  border-top: 1px solid #e7e7e7;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.navbar-toggle {
+  border: none;
+  background: transparent !important;
+}
+
+@media (min-width: 768px) {
+  .navbar-collapse {
+    position: static;
+    background: transparent;
+    border-top: none;
+    box-shadow: none;
+  }
+}
+
+/* Close the media query */
+/* Show the original Bootstrap hamburger on mobile */
+
+
+/* Hide the new custom hamburger on mobile if needed */
+@media (max-width: 760px) {
+  .x7-hamburger-btn {
+    display: none !important;
+  }
+  .navbar-toggle {
+  display: block;
+  position: relative;
+  z-index: 1100;
+  background: transparent;
+  border: none;
+  padding: 8px 10px;
+}
+
+.navbar-toggle .icon-bar {
+  background-color: #333;
+  height: 3px;
+  width: 25px;
+  margin: 4px 0;
+  display: block;
+  border-radius: 2px;
+}
+}

@@ -1,0 +1,38 @@
+.knowledge-graph-box {
+    margin: 2em auto;
+    padding: 1em;
+    border-top: 1px solid var(--color-border);
+    text-align: center;
+    max-width: 600px;
+    font-size: 0.9em;
+    color: var(--color-text-light);
+    background-color: var(--color-card-bg);
+}
+
+.knowledge-graph-logo {
+    max-width: 120px;
+    margin: 0 auto 0.8em auto;
+    display: block;
+}
+
+.knowledge-graph-title {
+    font-size: 1em;
+    display: block;
+    margin-bottom: 0.5em;
+    color: var(--color-text);
+}
+
+.knowledge-graph-text {
+    line-height: 1.5;
+    color: var(--color-text-light);
+}
+
+.knowledge-graph-link {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.knowledge-graph-link:hover {
+    color: var(--color-primary-dark);
+}

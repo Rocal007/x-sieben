@@ -1,0 +1,70 @@
+/* Custom styles */
+
+.content {
+  margin-left: 0;
+  transition: margin-left 0.3s ease-in-out;
+}
+
+.content-slideout {
+  margin-left: 350px;
+}
+
+.content-sidebar {
+  margin-top: 180px;
+}
+
+
+ul#menu-burger_menue {
+  padding-left: 40px;
+
+}
+.flyout li {
+    list-style-type: disclosure-closed;
+ }
+
+.flyout li a {
+  color: black;
+}
+
+
+
+
+.sidebar-open {
+  left: 0; /* Slide in */
+	z-index:-1;
+}
+
+.content-shifted {
+  margin-left: 350px; /* Adjust content margin */
+}
+
+
+/* Hide the checkbox */
+#toggle {
+  display: none;
+}
+
+/* Style the label as a button */
+.toggle-btn {
+  display: block;
+  background-color: #333;
+  color: #fff;
+  padding: 10px 20px;
+  cursor: pointer;
+}
+
+/* Style the sidebar */
+.sidebar {
+  width: 250px;
+  height: 100vh;
+  background-color: #f4f4f4;
+  position: fixed;
+  top: 0;
+  left: -250px; /* Initially hidden */
+  transition: left 0.3s ease;
+}
+
+/* When the checkbox is checked, move the sidebar into view */
+#toggle:checked + .toggle-btn + .sidebar {
+  left: 0;
+}

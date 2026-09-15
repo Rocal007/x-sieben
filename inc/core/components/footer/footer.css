@@ -1,0 +1,178 @@
+/* --- FOOTER BASIS --- */
+#x-sieben-footer {
+    background-color: #e7edf3;
+    color: #1a2a3a;
+    padding: 4rem 1rem 2rem;
+    font-size: 1.2rem !important;
+}
+
+.x-sieben-footer-columns {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    max-width: 1200px;
+    margin: 0 auto;
+    gap: 2rem;
+}
+
+.x-sieben-footer-column {
+    flex: 1 1 200px;
+}
+
+.x-sieben-footer-title {
+    font-weight: bold;
+    margin-bottom: 1.5rem;
+    font-size: 1.3rem !important;
+}
+
+.x-sieben-footer-title-sub {
+    font-weight: bold;
+    margin: 1.5rem 0 0.5rem;
+    font-size: 1.15rem !important;
+}
+
+.x-sieben-footer-list {
+    list-style: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* --- TOUCH TARGETS (48px Regel für Lighthouse) --- */
+.x-sieben-footer-link-dark {
+    color: #000 !important;
+    text-decoration: none !important;
+    display: flex !important;
+    align-items: center;
+    padding: 2px 0;
+    transition: color 0.2s;
+}
+
+.x-sieben-footer-link-dark:hover {
+    color: #1a2a3a !important;
+    text-decoration: underline !important;
+}
+
+.x-sieben-footer-link-dark i {
+    width: 25px;
+    margin-right: 10px;
+    font-size: 1.2rem;
+    text-align: center;
+}
+
+/* --- NEWSLETTER FORM --- */
+.x-sieben-newsletter-form {
+    display: flex;
+    flex-direction: column;
+}
+
+.x-sieben-newsletter-form input {
+    padding: 12px;
+    border: 1px solid #ffffff;
+    background: #ffffff;
+    margin-bottom: 10px;
+    border-radius: 2px;
+}
+
+.x-sieben-footer-newsletter-btn {
+    background: #007c90;
+    color: white !important;
+    border: none;
+    padding: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 4px;
+    text-align: center;
+}
+
+/* --- SOCIAL HOVER COLORS --- */
+.x-sieben-color-instagram:hover { color: #e1306c !important; }
+.x-sieben-color-facebook:hover { color: #3b5998 !important; }
+.x-sieben-color-linkedin:hover { color: #0077b5 !important; }
+.x-sieben-color-youtube:hover { color: #ff0000 !important; }
+
+/* --- BOTTOM AREA --- */
+.x-sieben-footer-bottom-area {
+    margin-top: 3rem;
+    text-align: center;
+    border-top: 1px solid #ccd6dd;
+    padding-top: 2rem;
+}
+
+.x-sieben-footer-logos img {
+    height: 30px;
+    margin: 0 15px;
+    width: auto;
+}
+
+/* --- MOBILE --- */
+
+.x-sieben-footer-bottom-text {
+    margin-top: 1.5rem;
+    font-size: 1rem;
+    color: #666;
+}
+
+@media (max-width: 768px) {
+    .x-sieben-footer-columns {
+        flex-direction: column;
+        gap: 3rem;
+    }
+    .x-sieben-footer-column {
+        flex: 1 1 100%;
+    }
+	.x-sieben-footer-link-dark {
+    min-height: 48px;
+    padding: 2px 0;
+}
+}
+/* ================================
+   LEGAL-BEREICH
+================================ */
+
+.x-sieben-footer-legal {
+    max-width: 1200px;
+    margin: 2.5rem auto 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(26, 42, 58, 0.12);
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .8rem;
+
+    font-size: .95rem;
+}
+
+.x-sieben-footer-legal a {
+    color: #556575;
+    text-decoration: none;
+    transition: color .25s ease;
+}
+
+.x-sieben-footer-legal a:hover {
+    color: #0f5ea8;
+}
+
+.x-sieben-footer-separator {
+    color: #b4bcc5;
+    user-select: none;
+}
+
+@media (max-width: 768px) {
+
+    .x-sieben-footer-legal {
+        gap: .45rem;
+        font-size: .9rem;
+        text-align: center;
+    }
+
+    .x-sieben-footer-separator {
+        display: none;
+    }
+
+    .x-sieben-footer-legal a {
+        width: 100%;
+    }
+
+}

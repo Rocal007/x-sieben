@@ -1,0 +1,52 @@
+/* Kundenlogos Grid Layout */
+.kunden-logos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); /* flexible Spalten */
+    gap: 15px;
+    justify-items: center;
+    align-items: center;
+}
+
+/* Kundenlogos Horizontal Layout */
+.kunden-logos-horizontal {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 15px;
+    overflow-x: auto; /* scrollbar, falls zu viele Logos */
+    padding-bottom: 5px;
+}
+
+/* Kundenlogos Vertical Layout */
+.kunden-logos-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Einzelnes Logo */
+.kunden-logo-item {
+    border: 1px solid #000; /* optional */
+    padding: 5px;
+    background: #fff;
+    border-radius: 6px;
+    flex-shrink: 0;
+    height: 80px; /* einheitliche Höhe */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+/* Logo-Bild */
+.kunden-logo-item img {
+    max-height: 100%; /* passt sich der Höhe an */
+    width: auto;
+    display: block;
+}
+
+/* Hover Effekt */
+.kunden-logo-item:hover {
+    transform: scale(1.05);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+}

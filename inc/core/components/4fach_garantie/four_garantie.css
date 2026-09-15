@@ -1,0 +1,26 @@
+.finger {
+    background-image: url(/wp-content/uploads/2020/08/hand.gif);
+    background-size: 30px;
+}
+
+.vierfachgarantie ul {
+    list-style: none;
+    margin-top: 5px;
+}
+
+.vierfachgarantie li {
+    position: relative;
+    margin-left: -10px;
+    padding: 10px 0px;
+}
+
+.vierfachgarantie li:before {
+    position: absolute;
+    top: 8px;
+    margin: 0 15px 0 -26px;
+    vertical-align: middle;
+    display: inline-block;
+    content: "→";
+    font-size: 18px;
+    color: #E2BB00;
+}

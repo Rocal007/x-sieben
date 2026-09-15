@@ -1,0 +1,43 @@
+header,footer,.courses-section,.section-before-footer, #courses-sidebar,.weitere-kursinfo, #respond {
+    display:none;
+}
+
+#printlogo {
+    text-align:center;
+    width:100%;
+    margin-bottom:10px;
+}
+
+#printlogo img {
+    max-width:200px;
+    height:auto;
+    display:block;
+    margin:0 auto;
+}
+
+#printhead {
+    display:block;
+    text-align:center;
+    font-weight:700;
+    font-family:"Roboto Slab",sans-serif;
+    font-size:40px;
+    line-height:1.3em;
+}
+
+#printexclusive {
+    display:block;
+}
+
+.cpanel {
+    max-height:inherit !important;
+    overflow:visible;
+}
+
+.courses-ca-item img {
+    max-width:200px;
+    height:auto !important;
+}
+
+.before-footer-socials {
+    display:none;
+}

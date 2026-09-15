@@ -1,0 +1,117 @@
+/* --- HERO SECTION STYLES (Füge dies in deine CSS-Datei ein) --- */
+
+/* 1. Basis Container */
+.top-picture-section {
+    position: relative;
+    overflow-x: hidden;
+    /* Verhindert Scrollbalken durch das breite Bild */
+    width: 100%;
+    padding: 0;
+    /* Abstand zum Content darunter */
+}
+
+/* 2. Flex Wrapper */
+.top-picture-flex-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+/* 3. Text Bereich (Links) */
+.top-picture-title {
+    position: relative;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-right: 30px;
+}
+
+/* Teaser Styling (aus deinem PHP Aufruf) */
+.top-picture-title .teaser {
+    margin-top: 15px;
+    font-size: 1.1em;
+    line-height: 1.5;
+}
+
+/* 4. Bild Wrapper & Bild */
+.top-picture-image-wrapper {
+    position: relative;
+    padding: 0;
+    margin: 0;
+}
+
+.top-picture-image-wrapper img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+}
+
+/* 5. Logos Overlay */
+.top-picture-logos-overlay {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 10;
+    display: flex;
+    gap: 10px;
+}
+
+/* --- DESKTOP: INFINITE RIGHT (ab 992px) --- */
+@media (min-width: 992px) {
+    .top-picture-flex-wrapper {
+        flex-direction: row;
+    }
+
+    .top-picture-title {
+        min-height: 400px;
+        /* Mindesthöhe Hero */
+        width: 50%;
+    }
+
+    /* Der "Breakout"-Effekt */
+    .top-picture-image-wrapper {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: 0;
+        width: 50%;
+        /* Exakt die rechte Bildschirmhälfte */
+        z-index: 1;
+    }
+
+    .top-picture-image-wrapper img {
+        position: absolute;
+        /* Verankert das Bild links, damit es sauber am Text anschließt */
+        object-position: left center;
+    }
+}
+
+/* --- MOBILE: REVERSE ORDER (bis 991px) --- */
+@media (max-width: 991px) {
+
+    /* Dreht die Reihenfolge um: Bild zuerst, dann Text */
+    .top-picture-flex-wrapper {
+        flex-direction: column-reverse;
+    }
+
+    .top-picture-title {
+        width: 100%;
+        padding: 30px 15px;
+    }
+
+    .top-picture-image-wrapper {
+        width: 100%;
+        height: auto;
+        /* Passt sich der Bildhöhe an */
+    }
+
+    .top-picture-image-wrapper img {
+        position: relative;
+        /* Normaler Fluss */
+        height: auto;
+        /* Verhindert Verzerrung */
+        width: 100%;
+    }
+}

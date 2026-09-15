@@ -1,0 +1,106 @@
+/* Sidebar Icons */
+.courses-sidebar-icon {
+	width: 34px;
+	height: 34px;
+	background-repeat: no-repeat;
+	float: left;
+	margin-right: 10px;
+	background-position: center center;
+}
+
+.courses-sidebar-icon.zertifikat {
+	background-image: url(/wp-content/uploads/2020/08/zertifikate.gif);
+	background-size: 30px;
+}
+
+.courses-sidebar-icon.pdf {
+	background-image: url(/wp-content/uploads/2020/08/pdf.gif);
+	background-size: 30px;
+}
+
+.courses-sidebar-icon.phone {
+	background-image: url(/wp-content/uploads/2020/08/phone.gif);
+	background-size: 30px;
+}
+
+.courses-sidebar-icon.star {
+	background-image: url(/wp-content/uploads/2020/08/star.gif);
+	background-size: 30px;
+}
+
+.courses-sidebar-icon.share {
+	background-image: url(/wp-content/uploads/2020/08/share.gif);
+	background-size: 30px;
+}
+
+.courses-sidebar-icon.clock {
+	background-image: url(/wp-content/uploads/2020/08/uhr.gif);
+	background-size: 30px;
+}
+
+/* Sidebar Elements */
+.courses-sidebar-element {
+	padding: 12px 0;
+	border-bottom: 1px solid #ccc;
+	font-size: 13px;
+}
+
+.courses-sidebar-element span {
+	vertical-align: top;
+}
+
+.courses-sidebar-element-inner {
+    float: left;
+    width: calc(100% - 44px);
+    margin-top: 7px;
+}
+
+/* Sidebar Container */
+#courses-sidebar {
+	margin-top: 7px;
+	font-size: 0.7em;
+	line-height: 2.3em;
+}
+
+.sidebar-inner-container {
+	padding: .8em 0 5em 0;
+	margin-bottom: 0.7em;
+}
+
+.sidebar-heading {
+	border-bottom: 1px lightgrey solid;
+	padding-bottom: 18px;
+}
+
+/* Sidebar Buttons */
+.sidebar-button {
+	background-color: #04B3CE;
+	padding: 10px;
+	text-align: center;
+	border-radius: 5px;
+	margin-bottom: 10px;
+	cursor: pointer;
+}
+
+.proven-experts-sidebar {
+	padding: 10px 0 7px 0;
+}
+
+/* Share Buttons */
+.share-buttons-horizontal li {
+	list-style-type: none;
+	display: inline-flex;
+}
+
+.shariff {
+	display: block!important;
+	clear: both;
+	margin-left: -22px;
+}
+
+/* Sidebar Links */
+.sidebar-link {
+	display: inline;
+	text-decoration: underline;
+	color: #04b3ce;
+}

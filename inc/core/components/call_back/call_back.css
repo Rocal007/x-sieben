@@ -1,0 +1,16 @@
+.list-hook li {
+	position: relative;
+	list-style-type: none;
+	padding-left: 20px
+}
+
+.list-hook li:before {
+	content: "";
+	position: absolute;
+	top: 5px;
+	left: -10px;
+	width: 20px;
+	height: 20px;
+	background-image: url(/wp-content/uploads/2020/04/hook_small.png);
+	background-repeat: no-repeat
+}

@@ -1,0 +1,1891 @@
+.btn,
+.btn-primary,
+.btn-info,
+.wpforms-submit,
+.wpforms-page-button {
+  background-color: #57677a !important;
+  /* Neue Hintergrundfarbe */
+  border-color: #57677a !important;
+  /* Neue Rahmenfarbe */
+  color: #ffffff !important;
+  /* Schriftfarbe auf Weiß setzen */
+}
+
+.accordion-row,
+.caccordion {
+  background-color: #f3f2ed !important;
+  /* Hellgrauer Hintergrund */
+  color: #000 !important;
+  /* Schwarzer Text */
+  border-radius: 8px !important;
+  /* Abgerundete Ecken */
+  border: 1px solid #d4d3ce !important;
+  /* Dezenter Rand */
+}
+
+.accordion-row p,
+.accordion-row h1,
+.accordion-row h2,
+.accordion-row h3,
+.accordion-row h4,
+.accordion-row h5,
+.accordion-row h6,
+.accordion-row span,
+.accordion-row div,
+.accordion-row a,
+.caccordion p,
+.caccordion h1,
+.caccordion h2,
+.caccordion h3,
+.caccordion h4,
+.caccordion h5,
+.caccordion h6,
+.caccordion span,
+.caccordion div,
+.caccordion a {
+  color: #000 !important;
+  /* Schwarzer Text */
+}
+
+ul li::before {
+  display: none !important;
+}
+
+/* Fließtext & Basis-Stil */
+body,
+p {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: #222;
+}
+
+/* H1 bis H3 – klare Hierarchie */
+h1 {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-bottom: 20px;
+}
+
+h2 {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: 16px;
+}
+
+h3 {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+/* Mobile Optimierung */
+@media (max-width: 768px) {
+  h1 {
+    font-size: 32px;
+  }
+
+  h2 {
+    font-size: 26px;
+  }
+
+  h3 {
+    font-size: 20px;
+  }
+
+  body,
+  p {
+    font-size: 16px;
+  }
+}
+
+/* Zusätzlicher Abstand über dem Bereich "Agile4Unternehmen" (nur mobil) */
+@media (max-width: 768px) {
+  .fusion-builder-row-5 {
+    /* Bereich mit "Agile4Unternehmen" */
+    margin-top: 60px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .fusion-builder-row-10 {
+    margin-top: 60px !important;
+  }
+}
+
+/* ==============================
+   Optimierte Feature-Liste für Mobile (x-sieben.at)
+   ============================== */
+@media (max-width: 768px) {
+  .fusion-builder-row-3 {
+    display: flex;
+    flex-direction: column;
+    background-color: #f7f7f7;
+    padding: 30px 15px;
+    gap: 20px;
+  }
+
+  .fusion-builder-row-3 .fusion-column {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center;
+    gap: 15px;
+    padding: 10px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    text-decoration: none;
+  }
+
+  .fusion-builder-row-3 .fusion-column a {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    width: 100%;
+    color: #222;
+    text-decoration: none;
+  }
+
+  .fusion-builder-row-3 .fusion-column img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+
+  .fusion-builder-row-3 .fusion-column h3,
+  .fusion-builder-row-3 .fusion-column .fusion-title-heading {
+    font-size: 16px !important;
+    font-weight: bold;
+    margin: 0;
+    line-height: 1.4;
+    text-align: left;
+  }
+}
+
+/* ========================================
+   Farb-Optimierung für www.x-sieben.at
+   ======================================== */
+
+/* 1. Hintergrundfarbe heller gestalten */
+body {
+  background-color: #ffffff;
+  /* Reines Weiß als Grundton */
+}
+
+/* 2. Bessere Lesbarkeit: Textfarbe neutraler */
+body,
+p,
+h1,
+h2,
+h3,
+h4,
+h5 {
+  color: #222222;
+  /* Dunkles Grau statt tiefem Schwarz */
+}
+
+/* 3. Call-to-Action Buttons optimieren */
+.fusion-button,
+.fusion-button-default,
+.fusion-button.button-default {
+  background-color: #0097a7;
+  /* Türkis-Blau als markanter CTA-Ton */
+  color: #ffffff;
+  border: none;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 4px;
+}
+
+.fusion-button:hover {
+  background-color: #007c91;
+  /* Dunklere Variante beim Hover */
+  color: #ffffff;
+}
+
+/* 4. Sektionen mit zu dunklem Hintergrund aufhellen */
+.fusion-fullwidth.fullwidth-box.dark-background,
+.fusion-builder-row.fusion-row.dark-bg {
+  background-color: #f5f5f5 !important;
+  /* Hellgrauer, luftigerer Hintergrund */
+}
+
+/* 5. Boxen / Feature-Kacheln visuell abheben */
+.fusion-column-wrapper {
+  background-color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  padding: 20px;
+  border-radius: 8px;
+}
+
+/* 6. Linkfarbe modernisieren */
+a {
+  color: #007c91;
+  text-decoration: none;
+}
+
+a:hover {
+  color: #005e6e;
+  text-decoration: underline;
+}
+
+/* CTA-Buttons modernisieren – Fusion + Elementor + Custom */
+.fusion-button,
+.fusion-button-default,
+.fusion-button.button-default,
+.elementor-button,
+.button,
+.btn {
+  background-color: #0097a7;
+  color: #ffffff;
+  border: none;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 4px;
+  text-transform: none;
+  box-shadow: none;
+  transition: background-color 0.3s ease;
+}
+
+.fusion-button:hover,
+.fusion-button-default:hover,
+.fusion-button.button-default:hover,
+.elementor-button:hover,
+.button:hover,
+.btn:hover {
+  background-color: #007c91;
+  color: #ffffff;
+}
+
+/* Manuelles Styling für Buttons mit .btn.btn-primary */
+.btn.btn-primary {
+  background-color: #0097a7;
+  color: #ffffff;
+  padding: 12px 24px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-align: center;
+  display: inline-block;
+  transition: background-color 0.3s ease;
+  text-decoration: none;
+}
+
+/* Hover-Effekt */
+.btn.btn-primary:hover {
+  background-color: #007c91;
+  color: #ffffff;
+}
+
+/* Erzwinge Farbe für .btn.btn-primary */
+a .btn.btn-primary {
+  background-color: #0097a7 !important;
+  color: #ffffff !important;
+  padding: 12px 24px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-align: center;
+  display: inline-block;
+  text-decoration: none;
+  transition: background-color 0.3s ease;
+}
+
+/* Hover-Zustand */
+a .btn.btn-primary:hover {
+  background-color: #007c91 !important;
+  color: #ffffff !important;
+}
+
+/* Hauptbutton: Trendkurse buchen */
+.btn.btn-primary {
+  background-color: #0097a7 !important;
+  color: #ffffff !important;
+  border: none;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 4px;
+  text-align: center;
+  transition: background-color 0.3s ease;
+  text-decoration: none;
+}
+
+.btn.btn-primary:hover {
+  background-color: #007c91 !important;
+  color: #ffffff !important;
+}
+
+/* Sekundärbutton: Kurse entdecken */
+.btn.btn-info {
+  background-color: #006978 !important;
+  /* dunkleres Petrol als Variation */
+  color: #ffffff !important;
+  border: none;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 4px;
+  text-align: center;
+  transition: background-color 0.3s ease;
+  text-decoration: none;
+}
+
+.btn.btn-info:hover {
+  background-color: #004d59 !important;
+  color: #ffffff !important;
+}
+
+/* WPForms Submit-Button – Türkis mit Hover */
+.wpforms-submit {
+  background-color: #0097a7 !important;
+  color: #ffffff !important;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.3s ease;
+}
+
+.wpforms-submit:hover {
+  background-color: #007c91 !important;
+  color: #ffffff !important;
+}
+
+/* WPForms Submit-Button – kräftiges Türkis */
+.wpforms-container .wpforms-submit,
+.wpforms-container button[type="submit"] {
+  background-color: #0097a7 !important;
+  color: #ffffff !important;
+  border: none !important;
+  padding: 12px 24px !important;
+  border-radius: 4px !important;
+  font-weight: 600 !important;
+  font-size: 16px !important;
+  cursor: pointer !important;
+  transition: background-color 0.3s ease !important;
+  text-align: center !important;
+}
+
+.wpforms-container .wpforms-submit:hover,
+.wpforms-container button[type="submit"]:hover {
+  background-color: #007c91 !important;
+  color: #ffffff !important;
+}
+
+.wpforms-submit {
+  background-color: #0097a7 !important;
+  color: #ffffff !important;
+  border-radius: 4px;
+  padding: 12px 24px;
+  font-weight: 600;
+  transition: background-color 0.3s ease;
+}
+
+.wpforms-submit:hover {
+  background-color: #007c91 !important;
+}
+
+/* Nur den Absende-Button in Türkis färben – absolut sicher */
+.wpforms-submit.btn-tuerkis {
+  background-color: #0097a7 !important;
+  color: #ffffff !important;
+  border-radius: 4px;
+  padding: 12px 24px;
+  font-weight: 600;
+  font-size: 16px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  text-align: center;
+}
+
+.wpforms-submit.btn-tuerkis:hover {
+  background-color: #007c91 !important;
+}
+
+@media (max-width: 768px) {
+  .wp-block-columns.is-layout-flex {
+    flex-wrap: wrap;
+    gap: 16px !important;
+  }
+
+  .wp-block-column {
+    flex-basis: 48% !important;
+    margin-bottom: 20px !important;
+  }
+
+  .wp-block-image img {
+    max-width: 64px;
+    margin: 0 auto 10px;
+    display: block;
+  }
+
+  .wp-block-column p {
+    text-align: center;
+    font-size: 15px;
+    margin: 0;
+  }
+}
+
+@media (max-width: 768px) {
+
+  section,
+  .wp-block-group,
+  .wp-block-columns,
+  .wp-block-cover,
+  .wp-block-media-text {
+    padding-top: 30px !important;
+    padding-bottom: 30px !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  .wp-block-spacer {
+    height: 20px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  a.kontakt-mobile-button {
+    background-color: #00a3d9;
+    color: #ffffff;
+    padding: 14px 24px;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 6px;
+    display: block;
+    text-align: center;
+    margin-top: 20px;
+  }
+
+  a.kontakt-mobile-button:hover {
+    background-color: #0274be;
+  }
+}
+
+@media (max-width: 768px) {
+  .kontakt-mobile-button {
+    background-color: #00a3d9;
+    /* X SIEBEN Türkis */
+    color: #ffffff;
+    padding: 14px 24px;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 6px;
+    display: block;
+    text-align: center;
+    margin-top: 20px;
+    font-size: 16px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease-in-out;
+  }
+
+  .kontakt-mobile-button:hover {
+    background-color: #0274be;
+    /* Hover Blau */
+    color: #ffffff;
+  }
+}
+
+@media (max-width: 768px) {
+  a.x7-kontakt-button-mobil {
+    background-color: #00a3d9 !important;
+    color: #ffffff !important;
+    padding: 14px 24px !important;
+    font-weight: 600 !important;
+    text-decoration: none !important;
+    border-radius: 6px !important;
+    display: block !important;
+    text-align: center !important;
+    margin-top: 20px !important;
+    font-size: 16px !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
+    border: none !important;
+  }
+
+  a.x7-kontakt-button-mobil:hover {
+    background-color: #0274be !important;
+  }
+}
+
+@media (max-width: 768px) {
+  a.x7-kontakt-button-mobil {
+    background-color: #007c90 !important;
+    color: #ffffff !important;
+    padding: 14px 24px !important;
+    font-weight: 600 !important;
+    text-decoration: none !important;
+    border-radius: 6px !important;
+    display: block !important;
+    text-align: center !important;
+    margin-top: 20px !important;
+    font-size: 16px !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
+    border: none !important;
+  }
+
+  a.x7-kontakt-button-mobil:hover {
+    background-color: #005f70 !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .accordion-row {
+    margin-bottom: 10px !important;
+    /* vorher vermutlich zu viel */
+  }
+
+  .box-content {
+    padding: 12px !important;
+    /* reduziert innenliegende Inhalte */
+  }
+
+  .box {
+    margin-bottom: 12px !important;
+    /* verringert Abstand zw. Boxen */
+  }
+}
+
+@media (max-width: 768px) {
+  .accordion .box {
+    margin-bottom: 10px !important;
+  }
+
+  .accordion-row.mrb5 {
+    margin-bottom: 10px !important;
+  }
+
+  .box-content {
+    padding-bottom: 10px !important;
+  }
+
+  .accordion .row {
+    margin-bottom: 5px !important;
+  }
+}
+
+@media (max-width: 768px) {
+
+  /* reduziert Abstand zwischen den Akkordeons */
+  section.box {
+    margin-bottom: 8px !important;
+    padding-bottom: 0 !important;
+  }
+
+  .accordion-row.mrb5 {
+    margin-bottom: 4px !important;
+  }
+
+  .box-content {
+    padding: 10px 10px !important;
+  }
+
+  /* optional: untersten Abstand vom letzten Akkordeon verringern */
+  .accordion .cblast {
+    margin-bottom: 0 !important;
+  }
+}
+
+@media (max-width: 768px) {
+
+  /* Minimale Abstände zwischen Akkordeons */
+  section.box {
+    margin-bottom: 4px !important;
+    padding-bottom: 0 !important;
+  }
+
+  .accordion-row.mrb5 {
+    margin-bottom: 2px !important;
+  }
+
+  .box-content {
+    padding: 8px 10px !important;
+  }
+
+  /* Kein zusätzlicher Abstand beim letzten Akkordeon */
+  .accordion .cblast {
+    margin-bottom: 0 !important;
+  }
+}
+
+@media (max-width: 768px) {
+  section.box {
+    margin-bottom: 1px !important;
+    padding-bottom: 0 !important;
+    border-bottom: 1px solid #e0e0e0 !important;
+    /* dezente Trennung */
+  }
+
+  .accordion-row.mrb5 {
+    margin-bottom: 0 !important;
+  }
+
+  .box-content {
+    padding: 10px 12px !important;
+  }
+
+  .accordion .cblast {
+    margin-bottom: 0 !important;
+  }
+}
+
+@media (max-width: 768px) {
+  section.box {
+    margin-bottom: 0 !important;
+    padding: 0 !important;
+    border-bottom: 1px solid #ddd !important;
+    /* feine Linie zur Trennung */
+  }
+
+  .accordion-row.mrb5 {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .box-content {
+    padding: 6px 10px !important;
+  }
+
+  .accordion .cblast {
+    margin-bottom: 0 !important;
+  }
+
+  .accordion .row {
+    margin: 0 !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .mobile-heading {
+    margin-top: 24px !important;
+    /* Erhöht Abstand nach oben */
+  }
+}
+
+@media (max-width: 768px) {
+  .mobile-contact-teaser {
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    color: #007c90 !important;
+    /* Türkis – passend zur CI */
+    text-align: center !important;
+    line-height: 1.4 !important;
+    margin-bottom: 12px !important;
+    margin-top: 20px !important;
+  }
+
+  .x7-kontakt-button-mobil {
+    margin-top: 0 !important;
+    /* Reduziert Abstand zum Textblock */
+  }
+}
+
+@media (max-width: 768px) {
+  .mobile-contact-teaser {
+    font-size: 17px !important;
+    font-weight: 600 !important;
+    color: #000000 !important;
+    /* schwarz */
+    text-align: center !important;
+    line-height: 1.5 !important;
+    margin-bottom: 8px !important;
+    margin-top: 24px !important;
+  }
+
+  .x7-kontakt-button-mobil {
+    margin-top: 0 !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .x7-kontakt-button-mobil {
+    margin-bottom: 12px !important;
+  }
+
+  .vortragende-desktop {
+    margin-top: 8px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .container-fluid img {
+    width: 100% !important;
+    height: auto !important;
+    object-fit: contain !important;
+    object-position: top center !important;
+    display: block;
+  }
+}
+
+@media (max-width: 768px) {
+  .container-fluid img {
+    width: 100% !important;
+    height: auto !important;
+    object-fit: contain !important;
+    object-position: top center !important;
+    display: block !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .vc_row.vc_row-o-equal-height.vc_row-flex {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    /* vorher 20px – jetzt kompakter */
+    padding: 0 10px;
+    margin-bottom: 10px;
+  }
+
+  .vc_row.vc_row-o-equal-height.vc_row-flex .vc_column-inner {
+    text-align: center;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .vc_row.vc_row-o-equal-height.vc_row-flex .vc_column-inner img {
+    max-width: 50px;
+    margin-bottom: 4px;
+  }
+
+  .vc_row.vc_row-o-equal-height.vc_row-flex .vc_column-inner p {
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0;
+  }
+}
+
+@media (max-width: 768px) {
+
+  .x7-icon-row,
+  .x7-icon-grid {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .vc_row.vc_row-o-equal-height.vc_row-flex.vc_custom_1708367789382 {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .vc_row.vc_custom_1708367789382 {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .vc_custom_1708367789382 {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+
+  .x7-icon-grid,
+  .x7-icon-grid * {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .x7-agile-wrapper {
+    flex-direction: column !important;
+    gap: 32px;
+    /* schöner Abstand zwischen den beiden Boxen */
+  }
+
+  .x7-agile-wrapper .wpb_column {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .x7-agile-wrapper img {
+    width: 100% !important;
+    height: auto !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .x7-agile-box {
+    flex-direction: column !important;
+    gap: 32px !important;
+    display: flex !important;
+    flex-wrap: wrap;
+  }
+
+  .x7-agile-box .wpb_column {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-bottom: 20px;
+  }
+
+  .x7-agile-box img {
+    width: 100% !important;
+    height: auto !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .agile-boxen {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 32px !important;
+  }
+
+  .agile-boxen .wpb_column {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-bottom: 20px;
+  }
+
+  .agile-boxen img {
+    width: 100% !important;
+    height: auto !important;
+    display: block;
+  }
+}
+
+@media (max-width: 768px) {
+  .agile-mobile-fix {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: wrap;
+    gap: 24px !important;
+  }
+
+  .agile-mobile-fix>.wpb_column {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-bottom: 20px !important;
+  }
+
+  .agile-mobile-fix img {
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .x7-agilezeile {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 24px;
+  }
+
+  .x7-agilezeile>.wpb_column {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-bottom: 16px !important;
+  }
+
+  .x7-agilezeile img {
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
+  }
+}
+
+div.accordion-section {
+  background-color: #ffffff !important;
+  border: 2px solid #b8c8dc !important;
+  border-radius: 6px !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05) !important;
+  margin-bottom: 20px !important;
+  overflow: hidden !important;
+  color: #000 !important;
+  font-family: Arial, sans-serif !important;
+  font-size: 18px !important;
+  line-height: 1.8 !important;
+}
+
+div.accordion-section input {
+  display: none !important;
+}
+
+div.accordion-section label.accordion-label {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 18px 24px !important;
+  font-weight: bold !important;
+  cursor: pointer !important;
+  background-color: #f2f9ff !important;
+  color: #003366 !important;
+  border-radius: 6px 6px 0 0 !important;
+}
+
+div.accordion-section label.accordion-label:hover {
+  background-color: #e2f0ff !important;
+}
+
+div.accordion-section label.accordion-label::after {
+  content: "▼" !important;
+  font-size: 14px !important;
+  transition: transform 0.3s ease !important;
+}
+
+div.accordion-section input:checked+label.accordion-label::after {
+  transform: rotate(-180deg) !important;
+}
+
+div.accordion-section .accordion-content {
+  max-height: 0 !important;
+  overflow: hidden !important;
+  background-color: #ffffff !important;
+  padding: 0 24px !important;
+  transition: all 0.4s ease !important;
+  color: #000 !important;
+  border-top: 1px solid #c0c0c0 !important;
+}
+
+div.accordion-section input:checked~.accordion-content {
+  max-height: 700px !important;
+  padding: 16px 24px !important;
+}
+
+/* Reinweiße Darstellung des Akkordeon-Containers trotz WPBakery-Hintergrundfarbe */
+.vc_row[style*="background-color: #f1f8ff;"],
+.vc_row[data-vc-full-width-init="true"][style*="background-color: #f1f8ff;"],
+.vc_column-inner[style*="background-color: #f1f8ff;"] {
+  background-color: #ffffff !important;
+}
+
+
+
+/* HEAD-Bereich fixen */
+
+#menubar {
+  background-color: #e7edf3 !important;
+}
+
+#menubar .header-info,
+#menubar .header-info a,
+#menubar .header-info i {
+  color: #90a4ae !important;
+  font-size: 1.15rem !important;
+  font-weight: 400 !important;
+}
+
+#menubar .header-info a:hover,
+#menubar .header-info a:focus,
+#menubar .header-info i:hover {
+  color: #007c90 !important;
+}
+
+/* Hauptfarbe im Header statt Weiß */
+#menubar a,
+#headerMenue a,
+.navbar-nav>li>a,
+.nav-category>li>a,
+.header-info,
+.header-info a {
+  color: #007c90 !important;
+}
+
+.fill-white {
+  fill: #007c90 !important;
+}
+
+.header-logo img {
+  background-color: #007c90;
+  padding: 6px;
+  border-radius: 6px;
+}
+
+/* Header-Kontaktinfos oben rechts deutlich größer und klarer */
+.header-info,
+.header-info a,
+.header_contact_wrapper {
+  font-size: 1.3rem !important;
+  font-weight: 600 !important;
+  line-height: 1.6 !important;
+  color: #007c90 !important;
+}
+
+.header-info i {
+  font-size: 1.3rem !important;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+@media (max-width: 767px) {
+
+  .header-info,
+  .header-info a,
+  .header_contact_wrapper {
+    font-size: 1.1rem !important;
+    font-weight: 600 !important;
+    line-height: 1.4 !important;
+    text-align: right;
+    margin-right: 10px;
+  }
+
+  .header-info i {
+    font-size: 1.2rem !important;
+    margin-right: 4px;
+  }
+
+  #header-logo img {
+    width: 180px !important;
+    height: auto;
+  }
+}
+
+#menubar {
+  border-bottom: 1px solid #c0d0d8;
+  /* hellgrau-blau passend zur Übergangsfläche */
+}
+
+.vorteile-dropdown-wrapper {
+  background-color: #f3f2ed !important;
+}
+
+.close-sidebar {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #007c90;
+  cursor: pointer;
+  z-index: 9999;
+}
+
+.wpforms-submit-spinner {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+@media (max-width: 767px) {
+
+  /* Mobile Header-Hintergrundfarbe wie im Footer */
+  .navbar-mobile {
+    background-color: #e7edf2 !important;
+  }
+
+  /* Hamburger-Icon-Balken (3 Linien) wie Textfarbe im Footer */
+  .navbar-toggle .icon-bar {
+    background-color: #007c90 !important;
+  }
+
+  @media (max-width: 767px) {
+
+    /* Hintergrund des mobilen Headers wie Desktop */
+    .navbar-mobile {
+      background-color: #007c90 !important;
+      /* dunkler Hintergrund */
+    }
+
+    /* Hamburger-Menüfarbe wie Footer-Links */
+    .navbar-toggle .icon-bar {
+      background-color: #ffffff !important;
+      /* weiß für Kontrast */
+    }
+
+    /* Logo wie auf Desktop – keine Filter, maximal 180px Breite */
+    #header-logo img {
+      filter: none !important;
+      max-width: 180px;
+      height: auto;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .mobile-heading {
+      margin-top: 16px !important;
+      /* Vorher: 42px */
+    }
+
+    .fusion-builder-row-1 {
+      padding-top: 0px !important;
+      margin-top: 0px !important;
+    }
+
+    @media (max-width: 768px) {
+      .fusion-builder-row-1 {
+        padding-top: 20px !important;
+        margin-top: 0 !important;
+      }
+    }
+
+    @media (max-width: 768px) {
+      #menubar {
+        border-bottom: none !important;
+      }
+    }
+
+    @media (max-width: 768px) {
+
+      /* Abstand unter dem Header (Hauptüberschrift) reduzieren */
+      .mobile-heading {
+        margin-top: 12px !important;
+      }
+
+      /* Abstand zwischen Textblock und Button-Container erhöhen */
+      .wp-block-buttons {
+        margin-top: 24px !important;
+      }
+    }
+
+    /* Schriftgrößen & Hierarchie gezielt anpassen */
+    h1,
+    h1.elementor-heading-title,
+    h2,
+    h2.elementor-heading-title,
+    h3,
+    h3.elementor-heading-title {
+      font-family: 'Poppins', sans-serif !important;
+      color: #111 !important;
+      line-height: 1.4 !important;
+      font-weight: 600 !important;
+    }
+
+    h1,
+    h1.elementor-heading-title {
+      font-size: 2.2em !important;
+      margin-bottom: 0.5em !important;
+    }
+
+    h2,
+    h2.elementor-heading-title {
+      font-size: 1.8em !important;
+      margin-bottom: 0.5em !important;
+    }
+
+    h3,
+    h3.elementor-heading-title {
+      font-size: 1.5em !important;
+      margin-bottom: 0.5em !important;
+    }
+
+    /* Fließtext */
+    body,
+    p,
+    .elementor-widget-text-editor,
+    .wpb_text_column p {
+      font-family: 'Open Sans', sans-serif !important;
+      font-size: 1em !important;
+      line-height: 1.8 !important;
+      color: #222 !important;
+      margin-bottom: 1.2em !important;
+    }
+
+    /* Mobile Optimierung */
+    @media (max-width: 768px) {
+
+      h1,
+      h1.elementor-heading-title {
+        font-size: 1.6em !important;
+      }
+
+      h2,
+      h2.elementor-heading-title {
+        font-size: 1.4em !important;
+      }
+
+      h3,
+      h3.elementor-heading-title {
+        font-size: 1.2em !important;
+      }
+
+      body {
+        font-size: 15px !important;
+      }
+    }
+
+    /* Hero-Abschnitt */
+    .x7-hero-section {
+      background-color: #e7edf2;
+      padding: 50px 20px;
+      text-align: center;
+    }
+
+    .x7-hero-container h1 {
+      font-size: 32px;
+      font-weight: 700;
+      color: #00324a;
+      margin-bottom: 16px;
+    }
+
+    .x7-hero-container .subheadline {
+      font-size: 18px;
+      color: #444;
+      margin-bottom: 10px;
+    }
+
+    .x7-hero-container .subtext {
+      font-size: 16px;
+      color: #444;
+    }
+
+    .x7-btn-primary {
+      display: inline-block;
+      margin-top: 24px;
+      background-color: #007c90;
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: bold;
+      text-decoration: none;
+      transition: background-color 0.3s ease;
+    }
+
+    .x7-btn-primary:hover {
+      background-color: #005f6b;
+    }
+
+    /* Benefit-Bereich */
+    .x7-benefit-section {
+      background-color: #ffffff;
+      padding: 50px 20px;
+    }
+
+    .x7-benefit-container {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .x7-benefit-image {
+      flex: 1;
+      min-width: 300px;
+      max-width: 450px;
+      padding: 20px;
+    }
+
+    .x7-benefit-image img {
+      width: 100%;
+      border-radius: 12px;
+    }
+
+    .x7-benefit-text {
+      flex: 1;
+      min-width: 300px;
+      max-width: 550px;
+      padding: 20px;
+    }
+
+    .x7-benefit-text h2 {
+      font-size: 24px;
+      color: #00324a;
+      margin-bottom: 16px;
+    }
+
+    .x7-benefit-text ul {
+      list-style: none;
+      padding: 0;
+      font-size: 16px;
+      color: #333;
+    }
+
+    .x7-benefit-text ul li {
+      margin-bottom: 12px;
+    }
+
+    /* HERO-Bereich */
+    .x7-hero-section {
+      background-color: #e7edf2;
+      padding: 50px 20px;
+      text-align: center;
+    }
+
+    .x7-hero-container h1 {
+      font-size: 32px;
+      font-weight: 700;
+      color: #00324a;
+      margin-bottom: 16px;
+    }
+
+    .x7-hero-container .subheadline {
+      font-size: 18px;
+      color: #444;
+      margin-bottom: 10px;
+    }
+
+    .x7-hero-container .subtext {
+      font-size: 16px;
+      color: #444;
+    }
+
+    .x7-btn-primary {
+      display: inline-block;
+      margin-top: 24px;
+      background-color: #007c90;
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: bold;
+      text-decoration: none;
+      transition: background-color 0.3s ease;
+    }
+
+    .x7-btn-primary:hover {
+      background-color: #005f6b;
+    }
+
+    /* Illustration + Nutzen */
+    .x7-benefit-section {
+      padding: 50px 20px;
+      background-color: #ffffff;
+    }
+
+    .x7-benefit-container {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 40px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .x7-benefit-text,
+    .x7-benefit-image {
+      flex: 1 1 45%;
+      max-width: 48%;
+    }
+
+    .x7-benefit-image img {
+      width: 100%;
+      border-radius: 12px;
+    }
+
+    .x7-benefit-text h2 {
+      font-size: 24px;
+      color: #00324a;
+      margin-bottom: 20px;
+    }
+
+    .x7-benefit-text ul {
+      list-style: none;
+      padding: 0;
+      font-size: 16px;
+      color: #333;
+    }
+
+    .x7-benefit-text ul li {
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+    }
+
+    /* Mobile Ansicht */
+    @media (max-width: 768px) {
+
+      .x7-benefit-text,
+      .x7-benefit-image {
+        max-width: 100%;
+        flex: 1 1 100%;
+        text-align: center;
+      }
+
+      .x7-benefit-text ul {
+        text-align: left;
+        display: inline-block;
+      }
+    }
+
+    /* X7 Kurskachel FLEX Design */
+    .x7-courses-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 24px;
+      padding: 40px 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 768px) {
+      .vc_row:first-of-type {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .x7-card {
+        margin-bottom: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .x7-card .x7-img-wrapper {
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        border: 3px solid #007c90;
+        overflow: hidden;
+        box-sizing: border-box;
+        margin-bottom: 0.6rem;
+      }
+
+      .x7-card img,
+      img.x7-img.entered.lazyloaded {
+        width: 100%;
+        height: 100%;
+        object-fit: cover !important;
+        border-radius: 50% !important;
+        display: block;
+      }
+
+      .x7-name,
+      .x7-role {
+        text-align: center;
+        font-size: 0.85rem !important;
+        color: #1a2a3a;
+        line-height: 1.4;
+      }
+
+      .x7-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+      }
+
+      h2.x7-grid-title {
+        font-size: 1.3rem !important;
+        line-height: 1.4 !important;
+        margin-bottom: 1.2rem !important;
+      }
+    }
+
+    /* Optional: Doppelte Lazyload-Platzhalterbilder ausblenden */
+    img[data]() img[data-lazy-src]:not([src]):not(.x7-img) {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      position: absolute !important;
+      pointer-events: none !important;
+      z-index: -999 !important;
+    }
+
+    .x7-vcenter {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      height: 100%;
+    }
+
+    /* === Layout-Optimierung für Seite ID 66319 – Unternehmen & Karriere 2025 === */
+
+    /* 1. Breitere Seitenanzeige für größere Bildschirme */
+    .page-id-66319 .container,
+    .page-id-66319 .vc_row.wpb_row {
+      max-width: 1440px !important;
+      width: 100%;
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+
+    /* 2. Responsive Optimierung auf kleineren Geräten */
+    @media (max-width: 768px) {
+      .page-id-66319 .vc_row.wpb_row {
+        padding-left: 1rem;
+        padding-right: 1rem;
+      }
+    }
+
+    /* 3. Ausrichtung: Text mittig, Icons zentriert, harmonische Abstände */
+    .page-id-66319 h2,
+    .page-id-66319 h3,
+    .page-id-66319 p {
+      text-align: center;
+    }
+
+    /* 4. Vereinheitlichte Icon-Größe */
+    .page-id-66319 img[src*=\"icon\"] {
+      max-height: 60px;
+      margin-bottom: 0.8rem;
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* 5. Buttons optisch angleichen */
+    .page-id-66319 a.vc_btn3 {
+      border-radius: 8px !important;
+      font-weight: bold;
+      font-size: 1rem;
+    }
+
+    /* Mehr Abstand oberhalb des Seitentitels */
+    .page-id-66319 h1 {
+      margin-top: 2rem;
+      font-size: 2.8rem;
+      font-weight: 700;
+    }
+
+    /* Abstand unter dem Titel */
+    .page-id-66319 h1+p {
+      margin-bottom: 1.5rem;
+    }
+
+    /* Gemeinsame linke & rechte Spaltenstruktur optisch angleichen */
+    .page-id-66319 .vc_row.vc_row-has-fill>.vc_column_container {
+      padding-top: 1.5rem !important;
+      padding-bottom: 1.5rem !important;
+    }
+
+    /* Bild rechts nicht zu gedrängt darstellen */
+    .page-id-66319 img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 0.5rem;
+    }
+
+    /* ICON-Darstellung optimieren: Vertikal mittig + Abstand oben */
+    .x7-icon-wrapper img {
+      display: block;
+      margin: 0 auto;
+      padding-top: 0.5rem;
+      max-height: 90px;
+      height: auto;
+      object-fit: contain;
+    }
+
+    /* Überschriften */
+    .page-id-66319 h2 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #035d6e;
+      margin-bottom: 1rem;
+    }
+
+    /* Fließtexte */
+    .page-id-66319 p {
+      font-size: 1.125rem;
+      line-height: 1.8;
+      color: #1a2a3a;
+      margin-bottom: 1rem;
+      max-width: 900px;
+      margin-left: auto;
+      margin-right: auto;
+      text-align: center;
+    }
+
+    .x7-partner-logos {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+      padding: 2rem 0;
+    }
+
+    @media (max-width: 768px) {
+      .x7-topblock {
+        flex-direction: column !important;
+      }
+    }
+
+    /* === Nur für Landingpage mit Page-ID 66319 === */
+    body.page-id-66319 .x7-section {
+      padding-top: 4rem;
+      padding-bottom: 4rem;
+    }
+
+    body.page-id-66319 .x7-section h2 {
+      font-size: 2.5rem;
+      color: #035d6e;
+      font-weight: 700;
+      margin-bottom: 2.5rem;
+      line-height: 1.3;
+      text-align: center;
+    }
+
+    body.page-id-66319 .x7-section h3 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: #035d6e;
+      margin-bottom: 1.8rem;
+      text-align: center;
+    }
+
+    body.page-id-66319 .x7-section p {
+      font-size: 1.25rem;
+      line-height: 1.8;
+      margin-bottom: 2rem;
+      color: #1a2a3a;
+    }
+
+    body.page-id-66319 .x7-section .x7-cta {
+      margin-top: 2rem;
+      margin-bottom: 3rem;
+    }
+
+    body.page-id-66319 .x7-section img {
+      margin-bottom: 2rem;
+      height: auto;
+      max-width: 100%;
+    }
+
+    @media (max-width: 768px) {
+      body.page-id-66319 .x7-section {
+        padding-top: 2.5rem;
+        padding-bottom: 2.5rem;
+      }
+
+      body.page-id-66319 .x7-section h2 {
+        font-size: 2rem;
+      }
+
+      body.page-id-66319 .x7-section p {
+        font-size: 1.125rem;
+      }
+    }
+
+    body.page-id-66319 .cta-box {
+      background-color: #eaf3f5;
+      padding: 3rem 2rem;
+      border: 1px solid #ccd6d9;
+      border-radius: 8px;
+      margin-top: 3rem;
+      margin-bottom: 4rem;
+    }
+
+    /* =========================
+   Einheitlicher CTA-Stil – nur für Seite 66319
+   ========================= */
+
+    /* Allgemeine CTA-Buttons innerhalb von .x7-section */
+    body.page-id-66319 .x7-section a.button,
+    body.page-id-66319 .x7-section a.cta-button,
+    body.page-id-66319 .x7-section .wpb_wrapper a {
+      display: inline-block;
+      padding: 0.9rem 1.8rem;
+      background-color: #007c90;
+      color: #fff;
+      font-size: 1.1rem;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      margin-top: 1rem;
+    }
+
+    body.page-id-66319 .x7-section a.button:hover,
+    body.page-id-66319 .x7-section a.cta-button:hover,
+    body.page-id-66319 .x7-section .wpb_wrapper a:hover {
+      background-color: #035d6e;
+    }
+
+    /* WPBakery Buttons */
+    body.page-id-66319 .vc_btn3,
+    body.page-id-66319 .vc_general.vc_btn3 {
+      font-size: 1.1rem !important;
+      font-weight: 600 !important;
+      padding: 0.9rem 1.8rem !important;
+      border-radius: 6px !important;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Farbvariante: WPBakery Blau (z. B. Jetzt Kontakt aufnehmen) */
+    body.page-id-66319 .vc_btn3.vc_btn3-color-blue {
+      background-color: #007c90 !important;
+      color: #fff !important;
+    }
+
+    body.page-id-66319 .vc_btn3.vc_btn3-color-blue:hover {
+      background-color: #035d6e !important;
+    }
+
+    /* Optional: Rahmenbuttons (z. B. „Mehr über X SIEBEN erfahren“) */
+    body.page-id-66319 .vc_btn3.vc_btn3-style-outline {
+      border-width: 2px !important;
+      font-size: 1.1rem !important;
+      font-weight: 600 !important;
+      padding: 0.9rem 1.8rem !important;
+    }
+
+    body.page-id-66319 .x7-button-big {
+      font-size: 1.1rem !important;
+      font-weight: 600 !important;
+      padding: 0.9rem 1.8rem !important;
+      border-radius: 6px !important;
+      background-color: #007c90 !important;
+      color: #fff !important;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    body.page-id-66319 .x7-button-big:hover {
+      background-color: #035d6e !important;
+    }
+
+    body.page-id-66319 .vc_btn3 .vc_btn3-content {
+      font-size: 1.1rem !important;
+      font-weight: 600 !important;
+    }
+
+    body.page-id-66319 .btn-fix .vc_btn3-content {
+      font-size: 18px !important;
+      font-weight: 600 !important;
+      line-height: 1.3 !important;
+    }
+
+    /* === Optimierung für Landingpage Unternehmen & Karriere – 2025 === */
+    body.page-id-66319 .x7-section {
+      padding-top: 4rem;
+      padding-bottom: 4rem;
+    }
+
+    /* Überschriften */
+    body.page-id-66319 .x7-section h2 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      color: #035d6e;
+      margin-bottom: 2.5rem;
+      line-height: 1.3;
+      text-align: center;
+    }
+
+    body.page-id-66319 .x7-section h3 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: #035d6e;
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    /* Fließtext */
+    body.page-id-66319 .x7-section p {
+      font-size: 1.125rem;
+      line-height: 1.8;
+      margin-bottom: 2rem;
+      color: #1a2a3a;
+      text-align: center;
+    }
+
+    /* CTA-Buttons */
+    body.page-id-66319 .x7-section a,
+    body.page-id-66319 .x7-section a.button,
+    body.page-id-66319 .x7-section a.cta-button {
+      display: inline-block;
+      padding: 0.9rem 1.8rem;
+      font-size: 1.1rem;
+      font-weight:
+
+      /* Einheitliche Buttongestaltung für alle relevanten CTAs auf Seite 66319 */
+      body.page-id-66319 a[href*="kontakt"],
+      body.page-id-66319 a[href*="weiterbildung-uebersicht"],
+      body.page-id-66319 a[href*="trendkurse"],
+      body.page-id-66319 a[href*="kurse-entdecken"],
+      body.page-id-66319 a[href*="mehr-ueber-x-sieben"],
+      body.page-id-66319 a[href*="kontaktieren-sie-uns"] {
+        display: inline-block !important;
+        padding: 0.9rem 1.8rem !important;
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        color: #ffffff !important;
+        background-color: #007c90 !important;
+        text-decoration: none !important;
+        border-radius: 6px !important;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1) !important;
+        text-align: center !important;
+        margin: 0.8rem 0.4rem !important;
+      }
+
+      div.btn.btn-outline {
+        background-color: transparent !important;
+        border: 2px solid #007c90 !important;
+        color: #007c90 !important;
+      }
+
+      div.btn.btn-outline:hover {
+        background-color: #007c90 !important;
+        color: white !important;
+      }
+
+      .x7-logo-row {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 2rem;
+        flex-shrink: 0;
+      }
+
+      .x7-logo-row img {
+        height: 60px;
+        width: auto;
+        max-width: 100%;
+        transition: transform 0.2s ease-in-out;
+      }
+
+      /* Lokale Einbindung von Montserrat */
+      @font-face {
+        font-family: 'Montserrat';
+        src: url('/wp-content/uploads/fonts-final/Montserrat-Regular.woff2') format('woff2');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'Montserrat';
+        src: url('/wp-content/uploads/fonts-final/Montserrat-SemiBold.woff2') format('woff2');
+        font-weight: 600;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: 'Montserrat';
+        src: url('/wp-content/uploads/fonts-final/Montserrat-Bold.woff2') format('woff2');
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @media (max-width: 767px) {
+        #header_info {
+          position: static !important;
+          margin: 10px auto !important;
+          padding: 10px 15px;
+          text-align: center;
+          background: #ffffff;
+          width: 100%;
+          display: block !important;
+          float: none !important;
+          clear: both;
+          font-size: 15px !important;
+          line-height: 1.4;
+        }
+
+        #header_info .header_contact_wrapper {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .visually-hidden {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          clip: rect(0 0 0 0);
+          white-space: nowrap;
+          border: 0;
+          padding: 0;
+          margin: 0;
+        }
+      }

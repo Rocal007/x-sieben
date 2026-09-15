@@ -1,0 +1,33 @@
+.layout-list .course-item {
+    padding: 20px 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+.list-header {
+    padding: 20px 0;
+}
+.list-item {
+    margin: 10px 0;
+}
+
+.sort-btn {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sort-btn i {
+    transition: transform 0.3s ease;
+    display: inline-block;
+}
+
+.sort-btn[data-order="asc"] i {
+    transform: rotate(0deg);
+}
+
+.sort-btn[data-order="desc"] i {
+    transform: rotate(180deg);
+}

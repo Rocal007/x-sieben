@@ -1,0 +1,35 @@
+.x7-faq-soft details {
+  background: var(--bg);
+  border: 1px solid var(--b);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  transition: background .2s, border-color .2s
+}
+
+.x7-faq-soft details+details {
+  margin-top: var(--gap)
+}
+
+.x7-faq-soft details[open] {
+  background: var(--bgopen);
+  border-color: #d9e7ea
+}
+
+.x7-faq-soft summary {
+  cursor: pointer;
+  list-style: none;
+  outline: none
+}
+
+.x7-faq-soft summary::-webkit-details-marker {
+  display: none
+}
+
+.x7-faq-soft .q {
+  font-weight: 600;
+  color: #2f2f2f
+}
+
+.x7-faq-soft .a {
+  margin-top: 8px
+}

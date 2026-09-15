@@ -1,0 +1,31 @@
+.simple-breadcrumb {
+  background-color: #E7EDF3;
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-size: 14px;
+  /* Smaller font size as requested */
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.simple-breadcrumb a {
+  color: #333;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease-in-out;
+}
+
+.simple-breadcrumb a:hover {
+  color: #007bff;
+}
+
+.simple-breadcrumb .separator {
+  color: #6c757d;
+  margin: 0 8px;
+}
+
+.simple-breadcrumb .current {
+  color: #000;
+  font-weight: 600;
+}

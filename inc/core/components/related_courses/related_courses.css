@@ -1,0 +1,22 @@
+.related-courses-heading::before {
+    content: url(/wp-content/uploads/2020/08/finger-e1596819761464.gif);
+    float: left;
+    margin-right: 13px;
+    font-size: 20px;
+    margin-top: -8px;
+}
+
+.related-courses-img {
+    height: 200px;
+    width: 100%;
+    overflow: hidden;
+    max-height: 200px;
+    max-width: 100%;
+    margin-top: 1em;
+}
+
+.related-courses-title a {
+    padding: 0 20px;
+    color: black;
+    text-decoration: none;
+}

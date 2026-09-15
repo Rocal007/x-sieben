@@ -1,0 +1,36 @@
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Sieben\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2020-08-11 10:32+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: \n"
+"Language: \n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Loco https://localise.biz/\n"
+"X-Loco-Version: 2.4.2; wp-5.4.2"
+
+#. Author of the theme
+msgid "Anonymous"
+msgstr ""
+
+#. Name of the template
+msgid "full width"
+msgstr ""
+
+#. Name of the theme
+msgid "Sieben"
+msgstr ""
+
+#. Description of the theme
+msgid ""
+"Sieben is a professional looking, high quality WordPress theme for news or "
+"blog websites. It is mobile responsive so it looks amazingly awesome in "
+"mobiles and tablets. Colors etc can be easily changed from Customize section "
+"of WordPress admin panel. Version: 1.12"
+msgstr ""

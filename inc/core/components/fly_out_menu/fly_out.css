@@ -1,0 +1,60 @@
+/* Custom styles */
+
+ul#menu-burger_menue {
+  padding-left: 40px;
+}
+
+.flyout li {
+  list-style: none;
+  position: relative;
+  padding-left: 1.2em;
+}
+
+.flyout li::before {
+  content: "▶"; /* custom bullet marker */
+  position: absolute;
+  left: 0;
+}
+
+.flyout li a {
+  color: black;
+}
+
+/* Hide the checkbox */
+#toggle {
+  display: none;
+}
+
+/* Style the label as a button (This will be your burger icon/toggle) */
+.toggle-btn {
+  display: block;
+  padding: 13px 25px 0 0;
+  cursor: pointer;
+  color: black;
+  /* Important: set position for stacking context, usually relative or fixed/absolute */
+  position: relative; 
+  z-index: 10000; /* Keep the toggle on top */
+}
+
+/* Style the flyout menu container */
+.flyout-container {
+  background-color: #f5f5f5;
+  width: 380px;
+  height: 100vh;
+  position: fixed;
+  top: 0; /* Changed from 177px to 0 for full screen height */
+  right: -380px; /* Initially hidden, positioned outside the viewport */
+  transition: right 0.3s ease; /* Smooth transition */
+  padding-top: 50px;
+  z-index: 9999; /* Keep above page content, but below the toggle button */
+}
+
+/* When the checkbox is checked, move the flyout menu into view */
+/* IMPORTANT: This selector assumes the following HTML structure: 
+   <input type="checkbox" id="toggle">
+   <label for="toggle" class="toggle-btn"></label>
+   <div class="flyout-container">...</div>
+*/
+#toggle:checked + .toggle-btn + .flyout-container {
+  right: 0; /* Slide in */
+}
