@@ -1,4 +1,21 @@
 <?php
+/**
+ * X-SIEBEN CRM - Kurszeitenbestätigung (KB) PDF Generator
+ *
+ * Generiert die Kurszeitenbestätigung via TCPDF.
+ * Alle visuellen HTML-Fragmente wurden nach MVC- und Autarkie-Kriterien
+ * in eigenständige Elemente (elements/kb-*.php) ausgelagert.
+ *
+ * @package X_SIEBEN_CRM
+ * @version 2.18.13
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+require_once __DIR__ . '/elements/kb-elements.php';
+
 function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_browser = true, $custom_sections = null)
 {
     // Model laden
@@ -27,8 +44,8 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
     $kursart_t        = $course->kursart_t;
     $kursart_a        = $course->kursart_a;
     $kursart_we       = $course->kursart_we;
-    $kurszeiten       = $course->kurszeiten;    // now a key-value array
-    $selbststudium    = $course->selbststudium;  // now a key-value array
+    $kurszeiten       = $course->kurszeiten;    // key-value array
+    $selbststudium    = $course->selbststudium;  // key-value array
     $kurszeiten_datum = date('d.m.Y');
 
     // Assets-Pfade (autark, mit URL-Fallback für Live-Server)
@@ -39,8 +56,6 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
     $safe_nachname = sanitize_file_name($nachname ?: 'Teilnehmer');
     $token         = function_exists('crm_generate_pdf_token') ? crm_generate_pdf_token($entry_id, 'kb') : '';
     $pdfName       = "Kurszeitenbestaetigung_" . $safe_vorname . "_" . $safe_nachname . "_" . ($token ? $token . '_' : '') . $file_title . ".pdf";
-
-    $table_style = 'style="border: 1px solid black;"';
 
     // Dynamische Texte aus dem CRM Model (PDF Editor) mit Default-Fallback
     $default_kb_institut = !empty($course->company_name) ? $course->company_name : 'X SIEBEN Wirtschaftstraining GmbH';
@@ -56,120 +71,52 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
     // --- Modular HTML Sections for Dynamic Ordering ---
     require_once dirname(__DIR__) . '/helpers/crm-pdf-sections.php';
 
-    // 1. Titel
-    $sec_titel = '
-<div style="font-size:14pt">&nbsp;</div>
-<table cellspacing="0" cellpadding="0" style="width: 100%;">
-    <tr>
-        <td style="font-size:16pt; font-weight: bold; text-align: center;">
-            <span>' . htmlspecialchars($kb_title) . '</span>
-        </td>
-    </tr>
-</table>
-<div style="font-size:18pt">&nbsp;</div>';
+    // Generierung der HTML-Elemente über CRM_Pdf_Kb_Elements
+    $sec_titel          = CRM_Pdf_Kb_Elements::render_titel($kb_title);
+    $kb_institut_subs   = CRM_Pdf_Kb_Elements::get_institut_subs($kb_institut, $kb_ort, $display_title, $startdatum, $enddatum);
+    $kb_teilnehmer_subs = CRM_Pdf_Kb_Elements::get_teilnehmer_subs($vorname, $nachname, $svr);
+    $sec_kurstyp        = CRM_Pdf_Kb_Elements::render_kurstyp($kursart_t, $kursart_a, $kursart_we);
+    $sec_kurszeiten     = CRM_Pdf_Kb_Elements::render_kurszeiten($kurszeiten, $selbststudium);
+    $sec_hinweis        = CRM_Pdf_Kb_Elements::render_hinweis($kb_hinweis);
+    $sec_signatur       = CRM_Pdf_Kb_Elements::render_signatur($stempel_file, $kb_sig_institut, $kb_sig_kunde);
 
-    // 2. Kursinstitut (Subsections: name, ort, bezeichnung, zeitraum)
-    $kb_institut_subs = [
-        'name'        => '<tr><td style="font-size:10pt; padding-bottom: 3pt; border-bottom: 1px solid black;">Name des Kursinstituts: ' . htmlspecialchars($kb_institut) . '</td></tr><tr><td style="font-size: 5pt;">&nbsp;</td></tr>',
-        'ort'         => '<tr><td style="font-size:10pt; padding-bottom: 3pt; border-bottom: 1px solid black;">Schulungsort (Adresse): ' . htmlspecialchars($kb_ort) . '</td></tr><tr><td style="font-size: 5pt;">&nbsp;</td></tr>',
-        'bezeichnung' => '<tr><td style="font-size:10pt; padding-bottom: 3pt; border-bottom: 1px solid black;">Kursbezeichnung: ' . htmlspecialchars($display_title) . '</td></tr><tr><td style="font-size: 5pt;">&nbsp;</td></tr>',
-        'zeitraum'    => '<tr><td style="font-size:10pt; padding-bottom: 3pt; border-bottom: 1px solid black;">Kurs von-bis: ' . htmlspecialchars($startdatum) . ' bis ' . htmlspecialchars($enddatum) . '</td></tr><tr><td style="font-size: 5pt;">&nbsp;</td></tr>',
+    $kb_subsections = [
+        'titel'      => ['haupttitel' => $sec_titel],
+        'institut'   => $kb_institut_subs,
+        'teilnehmer' => $kb_teilnehmer_subs,
+        'kurstyp'    => ['kurstyp_box' => $sec_kurstyp],
+        'kurszeiten' => ['kurszeiten_box' => $sec_kurszeiten],
+        'hinweis'    => ['hinweis_box' => $sec_hinweis],
+        'signatur'   => ['signatur_box' => $sec_signatur],
     ];
 
-    // 3. KursteilnehmerIn (Subsections: name_svr_row)
-    $kb_teilnehmer_subs = [
-        'name_svr_row' => '<tr>
-            <td style="width: 50%; font-size:10pt; padding-bottom: 3pt; border-bottom: 1px solid black;">
-                Name: ' . htmlspecialchars($vorname . ' ' . $nachname) . '
-            </td>
-            <td style="width: 4%;"></td>
-            <td style="width: 46%; font-size:10pt; padding-bottom: 3pt; border-bottom: 1px solid black;">
-                SV-Nummer:' . (!empty($svr) ? ' ' . htmlspecialchars((string)$svr) : '') . '
-            </td>
-        </tr>',
-    ];
-
-    // 4. Kurstyp
-    $sec_kurstyp = '
-<table cellspacing="0" cellpadding="6" style="width: 100%; border: 1px solid black; font-size: 10pt;">
-    <tr>
-        <td style="width: 34%;">Kurstyp: Tageskurs ' . $kursart_t . '</td>
-        <td style="width: 33%;">Abendkurs ' . $kursart_a . '</td>
-        <td style="width: 33%;">Wochenendkurs ' . $kursart_we . '</td>
-    </tr>
-</table>
-<div style="font-size:20pt">&nbsp;</div>';
-
-    // 5. Dynamische Tabelle Kurszeiten
-    $weekdays = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
-    $sec_kurszeiten = '<table border="1" cellpadding="5" cellspacing="0" style="width: 100%; border-collapse: collapse; border: 1px solid black; font-size: 9.5pt;">
-        <thead>
-            <tr style="background-color: #f1f5f9;">
-                <th style="border: 1px solid black; width: 20%; font-weight: bold; text-align: left;">Kurstage</th>
-                <th style="border: 1px solid black; width: 26%; font-weight: bold; text-align: center;">Kurszeit (von - bis)<br><span style="font-size: 8pt; color: #475569; font-weight: normal;">exkl. Mittagspause</span></th>
-                <th style="border: 1px solid black; width: 27%; font-weight: bold; text-align: center;">Tele-/Selbstlernzeit<br><span style="font-size: 8pt; color: #475569; font-weight: normal;">bei und unter Aufsicht</span></th>
-                <th style="border: 1px solid black; width: 27%; font-weight: bold; text-align: center;">Tele-/Selbstlernzeit<br><span style="font-size: 8pt; color: #475569; font-weight: normal;">außerhalb des Kursinstitutes</span></th>
-            </tr>
-        </thead>
-        <tbody>';
-
-    foreach ($weekdays as $day) {
-        $key        = strtolower($day);
-        $kurszeit   = isset($kurszeiten[$key]) ? $kurszeiten[$key] : '';
-        $selbstzeit = isset($selbststudium[$key]) ? $selbststudium[$key] : '';
-
-        $sec_kurszeiten .= '<tr>
-                    <td style="border: 1px solid black; width: 20%;"><strong>' . htmlspecialchars($day) . '</strong></td>
-                    <td style="border: 1px solid black; width: 26%; text-align: center;">' . htmlspecialchars($kurszeit) . '</td>
-                    <td style="border: 1px solid black; width: 27%; text-align: center;">' . htmlspecialchars($selbstzeit) . '</td>
-                    <td style="border: 1px solid black; width: 27%; text-align: center;"></td>
-                </tr>';
-    }
-    $sec_kurszeiten .= '</tbody></table>';
-
-    // 6. Hinweistext
-    $sec_hinweis = '<div style="font-size:8pt">&nbsp;</div>
-    <div style="font-size:8.5pt; color: #334155;">' . htmlspecialchars($kb_hinweis) . '</div>
-    <div style="font-size:32pt">&nbsp;</div>';
-
-    // 7. Stampiglie & Unterschrift (exakt ausgerichtete Zeilen)
-    $sec_signatur = '
-    <table cellspacing="0" cellpadding="0" style="width: 100%;">
-        <tr>
-            <td style="width: 46%; vertical-align: bottom;">
-                <img src="' . esc_attr($stempel_file) . '" width="180px">
-            </td>
-            <td style="width: 8%;"></td>
-            <td style="width: 46%; vertical-align: bottom;">
-                &nbsp;
-            </td>
-        </tr>
-        <tr>
-            <td style="width: 46%; vertical-align: top;">
-                <div style="border-top: 1px solid black; font-size: 2pt;">&nbsp;</div>
-                <span style="font-size: 9pt;">' . $kb_sig_institut . '</span>
-            </td>
-            <td style="width: 8%;"></td>
-            <td style="width: 46%; vertical-align: top;">
-                <div style="border-top: 1px solid black; font-size: 2pt;">&nbsp;</div>
-                <span style="font-size: 9pt;">' . $kb_sig_kunde . '</span>
-            </td>
-        </tr>
-    </table>';
-
-    // Holen der hierarchischen Abschnitte
-    $all_sections = crm_get_pdf_section_order('kb', $entry_id);
-
-    if (is_array($custom_sections) && !empty($custom_sections)) {
-        $allowed_keys = is_string(reset($custom_sections)) ? $custom_sections : array_column($custom_sections, 'key');
-        $filtered = [];
-        foreach ($all_sections as $sec) {
-            if (in_array($sec['key'], $allowed_keys, true)) {
-                $filtered[] = $sec;
+    $flattened_sub_generators = [];
+    foreach ($kb_subsections as $sec_k => $subs) {
+        if (is_array($subs)) {
+            foreach ($subs as $sub_k => $sub_gen) {
+                $flattened_sub_generators[$sub_k] = $sub_gen;
             }
         }
-        $all_sections = $filtered;
     }
+
+    // Holen der hierarchischen Abschnitte
+    if (is_array($custom_sections) && !empty($custom_sections) && is_array(reset($custom_sections)) && isset(reset($custom_sections)['key'])) {
+        $all_sections = $custom_sections;
+    } else {
+        $all_sections = crm_get_pdf_section_order('kb', $entry_id);
+        // Filter falls $custom_sections als Key-Liste übergeben wurde
+        if (is_array($custom_sections) && !empty($custom_sections)) {
+            $allowed_keys = is_string(reset($custom_sections)) ? $custom_sections : array_column($custom_sections, 'key');
+            $filtered = [];
+            foreach ($all_sections as $sec) {
+                if (in_array($sec['key'], $allowed_keys, true)) {
+                    $filtered[] = $sec;
+                }
+            }
+            $all_sections = $filtered;
+        }
+    }
+    $global_spacing = function_exists('crm_get_pdf_elements_spacing') ? crm_get_pdf_elements_spacing() : ['spacing_top' => 0, 'spacing_bottom' => 0];
 
     $html = '';
     foreach ($all_sections as $sec) {
@@ -177,28 +124,62 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
             continue;
         }
 
-        $sec_key   = $sec['key'];
-        $is_custom = !empty($sec['is_custom']);
+        $sec_key     = $sec['key'];
+        $is_custom   = !empty($sec['is_custom']);
+        $sec_spacing = function_exists('crm_get_pdf_effective_spacing')
+            ? crm_get_pdf_effective_spacing($sec, $global_spacing)
+            : ['top' => 0, 'bottom' => 0];
+        $sec_prefix  = function_exists('crm_get_pdf_spacing_html') ? crm_get_pdf_spacing_html($sec_spacing['top']) : '';
+        $sec_suffix  = function_exists('crm_get_pdf_spacing_html') ? crm_get_pdf_spacing_html($sec_spacing['bottom']) : '';
+        $sec_content = '';
 
         if ($is_custom) {
-            $html .= '<div style="margin-bottom:12px; font-size:10pt; line-height:1.6;">';
+            $sec_content .= '<div style="margin-bottom:12px; font-size:10pt; line-height:1.6;">';
             if (!empty($sec['title'])) {
-                $html .= '<strong>' . esc_html($sec['title']) . '</strong><br>';
+                $sec_content .= '<strong>' . esc_html($sec['title']) . '</strong><br>';
             }
             if (!empty($sec['content'])) {
-                $html .= crm_replace_pdf_placeholders($sec['content'], $course);
+                $sec_content .= crm_replace_pdf_placeholders($sec['content'], $course);
             }
             if (!empty($sec['subsections'])) {
                 foreach ($sec['subsections'] as $sub) {
-                    if (!empty($sub['enabled']) && !empty($sub['content'])) {
-                        $html .= '<div style="margin-top:6px;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
+                    if (empty($sub['enabled'])) continue;
+                    $sub_sp_top = isset($sub['spacing_top']) && is_numeric($sub['spacing_top']) ? floatval($sub['spacing_top']) : 0.0;
+                    $sub_sp_bottom = isset($sub['spacing_bottom']) && is_numeric($sub['spacing_bottom']) ? floatval($sub['spacing_bottom']) : 0.0;
+                    $sub_prefix = ($sub_sp_top > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_top) : '';
+                    $sub_suffix = ($sub_sp_bottom > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_bottom) : '';
+
+                    $sk = $sub['key'] ?? '';
+                    $sub_html = '';
+                    if (!empty($sub['is_custom'])) {
+                        if (!empty($sub['title'])) {
+                            $sub_html .= '<div style="font-size:10pt; font-weight:bold; margin-top:6px;">' . esc_html($sub['title']) . '</div>';
+                        }
+                        if (!empty($sub['content'])) {
+                            $sub_html .= '<div style="margin-top:4px;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
+                        }
+                    } elseif (isset($flattened_sub_generators[$sk])) {
+                        $def_sub = $flattened_sub_generators[$sk];
+                        if (!empty($sub['content']) && $sub['content'] !== '{standard}') {
+                            $custom = (strpos($sub['content'], '{standard}') !== false)
+                                ? str_replace('{standard}', $def_sub, $sub['content'])
+                                : $sub['content'];
+                            $sub_html .= crm_replace_pdf_placeholders($custom, $course);
+                        } else {
+                            $sub_html .= $def_sub;
+                        }
+                    } elseif (!empty($sub['content'])) {
+                        $sub_html .= '<div style="margin-top:4px;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
+                    }
+                    if (!empty($sub_html)) {
+                        $sec_content .= $sub_prefix . $sub_html . $sub_suffix;
                     }
                 }
             }
-            $html .= '</div><div style="font-size:16pt">&nbsp;</div>';
+            $sec_content .= '</div><div style="font-size:16pt">&nbsp;</div>';
 
         } elseif ($sec_key === 'titel') {
-            $html .= $sec_titel;
+            $sec_content .= $sec_titel;
 
         } elseif ($sec_key === 'institut') {
             $rows_html = '';
@@ -208,8 +189,8 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
                     $sk = $sub['key'];
                     if (!empty($sub['is_custom']) && !empty($sub['content'])) {
                         $rows_html .= '<tr><td style="font-size:10pt; padding-bottom: 3pt; border-bottom: 1px solid black;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</td></tr><tr><td style="font-size: 5pt;">&nbsp;</td></tr>';
-                    } elseif (isset($kb_institut_subs[$sk])) {
-                        $def_sub = $kb_institut_subs[$sk];
+                    } elseif (isset($kb_institut_subs[$sk]) || isset($flattened_sub_generators[$sk])) {
+                        $def_sub = $kb_institut_subs[$sk] ?? $flattened_sub_generators[$sk];
                         if (!empty($sub['content'])) {
                             if (strpos($sub['content'], '{standard}') !== false) {
                                 $custom = str_replace('{standard}', $def_sub, $sub['content']);
@@ -226,7 +207,7 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
                 $rows_html = implode('', $kb_institut_subs);
             }
 
-            $html .= '<table cellspacing="0" cellpadding="0" style="width: 100%;">
+            $sec_content .= '<table cellspacing="0" cellpadding="0" style="width: 100%;">
                 <tr>
                     <td style="font-size:11pt; font-weight: bold; padding-bottom: 6px;">
                         Kursinstitut
@@ -243,8 +224,8 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
                     $sk = $sub['key'];
                     if (!empty($sub['is_custom']) && !empty($sub['content'])) {
                         $rows_html .= '<tr><td colspan="3" style="font-size:10pt; padding-bottom: 3pt; border-bottom: 1px solid black;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</td></tr><tr><td style="font-size: 5pt;">&nbsp;</td></tr>';
-                    } elseif (isset($kb_teilnehmer_subs[$sk])) {
-                        $def_sub = $kb_teilnehmer_subs[$sk];
+                    } elseif (isset($kb_teilnehmer_subs[$sk]) || isset($flattened_sub_generators[$sk])) {
+                        $def_sub = $kb_teilnehmer_subs[$sk] ?? $flattened_sub_generators[$sk];
                         if (!empty($sub['content'])) {
                             if (strpos($sub['content'], '{standard}') !== false) {
                                 $custom = str_replace('{standard}', $def_sub, $sub['content']);
@@ -261,7 +242,7 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
                 $rows_html = implode('', $kb_teilnehmer_subs);
             }
 
-            $html .= '<table cellspacing="0" cellpadding="0" style="width: 100%;">
+            $sec_content .= '<table cellspacing="0" cellpadding="0" style="width: 100%;">
                 <tr>
                     <td colspan="3" style="font-size:11pt; font-weight: bold; padding-bottom: 6px;">
                         KursteilnehmerIn:
@@ -283,7 +264,7 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
                     }
                 }
             }
-            $html .= $sec_out;
+            $sec_content .= $sec_out;
 
         } elseif ($sec_key === 'kurszeiten') {
             $sec_out = $sec_kurszeiten;
@@ -298,7 +279,7 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
                     }
                 }
             }
-            $html .= $sec_out;
+            $sec_content .= $sec_out;
 
         } elseif ($sec_key === 'hinweis') {
             $sec_out = $sec_hinweis;
@@ -313,7 +294,7 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
                     }
                 }
             }
-            $html .= $sec_out;
+            $sec_content .= $sec_out;
 
         } elseif ($sec_key === 'signatur') {
             $sec_out = $sec_signatur;
@@ -328,7 +309,11 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
                     }
                 }
             }
-            $html .= $sec_out;
+            $sec_content .= $sec_out;
+        }
+
+        if (!empty($sec_content)) {
+            $html .= $sec_prefix . $sec_content . $sec_suffix;
         }
     }
 
@@ -410,3 +395,11 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
         return $pdf_url;
     }
 }
+
+if (!function_exists('xsieben_kb_pdf')) {
+    function xsieben_kb_pdf($entry_id, $course_id, $output_to_browser = true, $custom_sections = null)
+    {
+        return xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_browser, $custom_sections);
+    }
+}
+

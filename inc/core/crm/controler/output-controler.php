@@ -3,118 +3,557 @@
 require_once dirname(__DIR__) . '/helpers/crm-status.php';
 require_once dirname(__DIR__) . '/helpers/normalize.php';
 require_once dirname(__DIR__) . '/helpers/crm-pdf-sections.php';
+if (file_exists(dirname(__DIR__) . '/helpers/crm-friedelin.php')) {
+    require_once dirname(__DIR__) . '/helpers/crm-friedelin.php';
+}
+if (file_exists(dirname(__DIR__) . '/crm-model.php')) {
+    require_once dirname(__DIR__) . '/crm-model.php';
+}
+
+/**
+ * Rendert den gehirn-gerechten 3-Punkte-Spickzettel (Birkenbihl 3-Sekunden-Orientierung)
+ * im Kopfbereich von Screen 2 (Vorschau & Mail-Editor).
+ *
+ * @param int $entry_id
+ * @param int $course_id
+ * @return string HTML
+ */
+function crm_render_screen2_spickzettel(int $entry_id, int $course_id): string
+{
+    if (!$entry_id && !$course_id) {
+        return '';
+    }
+
+    $model = class_exists('CRM_Model') ? new CRM_Model($course_id, $entry_id) : null;
+    if (!$model) {
+        return '';
+    }
+
+    // 1. Wer? (Kunde & Firma)
+    $client_name = trim(($model->titel ? $model->titel . ' ' : '') . $model->vorname . ' ' . $model->nachname);
+    if (empty($client_name)) {
+        $client_name = __('Interessent / Kunde', 'custom-crm');
+    }
+    $client_company = !empty($model->customer_company) ? $model->customer_company : (!empty($model->kunden_firma) ? $model->kunden_firma : '');
+    $client_email = $model->email ?: '';
+    $client_phone = $model->telefon ?: '';
+    $client_city = trim(($model->zip_code ? $model->zip_code . ' ' : '') . $model->city);
+    $client_street = trim(($model->street ?: '') . ' ' . ($model->house_number ?: ''));
+    $client_svr = $model->svr ?: '';
+
+    // Original-Formulardaten & Kundennachricht
+    $entry_fields = [];
+    if (!empty($model->entry_data) && is_array($model->entry_data)) {
+        $entry_fields = $model->entry_data;
+    } elseif ($entry_id && function_exists('wpforms')) {
+        $raw_entry = wpforms()->entry->get($entry_id);
+        if ($raw_entry && !empty($raw_entry->fields)) {
+            $entry_fields = is_string($raw_entry->fields) ? json_decode($raw_entry->fields, true) : $raw_entry->fields;
+        }
+    }
+
+    $customer_message = '';
+    if (!empty($entry_fields) && is_array($entry_fields)) {
+        foreach ($entry_fields as $f) {
+            $fname = isset($f['name']) ? mb_strtolower(trim((string)$f['name']), 'UTF-8') : '';
+            if (strpos($fname, 'nachricht') !== false || strpos($fname, 'freitext') !== false || strpos($fname, 'anmerkung') !== false) {
+                $val = is_array($f['value'] ?? '') ? implode(', ', $f['value']) : (string)($f['value'] ?? '');
+                if (!empty($val)) {
+                    $customer_message = $val;
+                    break;
+                }
+            }
+        }
+    }
+
+    // 2. Was & Wann? (Kurs & Termine)
+    $status_data = function_exists('crm_get_entry_status') ? crm_get_entry_status($entry_id) : null;
+    $inquiry_type = $status_data['inquiry_type'] ?? 'course';
+    $custom_title = $status_data['custom_title'] ?? '';
+
+    if ($inquiry_type === 'freie_anfrage') {
+        $course_title = $custom_title ?: __('Freie Geschäftsanfrage / Inhouse', 'custom-crm');
+        $course_dates = (!empty($status_data['course_start_date']) ? $status_data['course_start_date'] : __('Termine nach Vereinbarung', 'custom-crm'));
+        if (!empty($status_data['course_start_date']) && !empty($status_data['course_end_date']) && strtotime($status_data['course_start_date']) && strtotime($status_data['course_end_date'])) {
+            $course_dates = date_i18n('d.m.Y', strtotime($status_data['course_start_date'])) . ' – ' . date_i18n('d.m.Y', strtotime($status_data['course_end_date']));
+        }
+        $course_location = __('Inhouse / Nach Vereinbarung', 'custom-crm');
+        $course_le = '';
+    } else {
+        $course_title = $model->title ?: __('Kein Kurs zugeordnet', 'custom-crm');
+        $course_dates = trim(($model->start_datum ?: '') . ($model->end_datum ? ' – ' . $model->end_datum : ''));
+        $course_location = $model->schulungsort ?: ($model->ort ?: __('Wien & Online', 'custom-crm'));
+        $course_le = $model->anzahl_le ? ($model->anzahl_le . ' LE') : '';
+    }
+
+    // 3. Wieviel & Förderung? (Finanzen)
+    $preis_netto = is_numeric($model->preis_netto) ? floatval($model->preis_netto) : 0.0;
+    $cert_price = 0.0;
+    if (function_exists('crm_resolve_course_certification')) {
+        $certs = crm_resolve_course_certification($entry_id, $course_id);
+        if (!empty($certs) && isset($certs[0]['price'])) {
+            $p_str = str_replace('.', '', $certs[0]['price']);
+            $p_str = str_replace(',', '.', $p_str);
+            $cert_price = floatval($p_str);
+        }
+    }
+    $total_price = $preis_netto + $cert_price;
+
+    $foerd = function_exists('crm_get_entry_foerderung') ? crm_get_entry_foerderung($entry_id) : ['ams' => false, 'waff' => false];
+    $foerd_label = __('Selbstzahler / Direkt', 'custom-crm');
+    if (!empty($foerd['ams']) && !empty($foerd['waff'])) {
+        $foerd_label = 'AMS & WAFF Förderung';
+    } elseif (!empty($foerd['ams'])) {
+        $foerd_label = 'AMS Förderung';
+    } elseif (!empty($foerd['waff'])) {
+        $foerd_label = 'WAFF Förderung';
+    }
+
+    // Status
+    $status_data = function_exists('crm_get_entry_status') ? crm_get_entry_status($entry_id) : null;
+    $status_label = $status_data['status_label'] ?? __('Neu / Anfrage', 'custom-crm');
+    $status_key = $status_data['status_key'] ?? 'neu';
+
+    ob_start();
+    ?>
+    <div class="crm-spickzettel-box" style="flex: 1 1 100%; width: 100%; background: #ffffff; border: 1px solid #cbd5e1; border-left: 5px solid #0284c7; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); margin-bottom: 18px; padding: 14px 18px;">
+        <div class="crm-spickzettel-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <div class="crm-spickzettel-title" style="font-size: 13.5px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                <span class="dashicons dashicons-portfolio" style="color: #0284c7; font-size: 17px; width: 17px; height: 17px;"></span>
+                <span><?php esc_html_e('Geschäftsvorfall & 3-Punkte-Spickzettel', 'custom-crm'); ?></span>
+                <span style="font-size: 11px; font-weight: 500; color: #64748b; background: #f1f5f9; padding: 2px 8px; border-radius: 12px;">
+                    Eintrag #<?php echo esc_html($entry_id); ?>
+                </span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span style="font-size: 11.5px; font-weight: 600; color: #475569;">
+                    Status: <strong style="color: #0284c7;"><?php echo esc_html($status_label); ?></strong>
+                </span>
+                <button type="button" class="button button-small crm-history-btn" data-entry-id="<?php echo esc_attr($entry_id); ?>" title="<?php esc_attr_e('Status-Verlauf & Historie anzeigen', 'custom-crm'); ?>" style="display: inline-flex; align-items: center; gap: 3px; font-size: 11px;">
+                    <span class="dashicons dashicons-backup" style="font-size: 14px; width: 14px; height: 14px;"></span>
+                    <?php esc_html_e('Verlauf', 'custom-crm'); ?>
+                </button>
+                <button type="button" class="button button-small crm-snapshots-btn" data-entry-id="<?php echo esc_attr($entry_id); ?>" title="<?php esc_attr_e('Dokument- & Daten-Archiv anzeigen', 'custom-crm'); ?>" style="display: inline-flex; align-items: center; gap: 3px; font-size: 11px;">
+                    <span class="dashicons dashicons-archive" style="font-size: 14px; width: 14px; height: 14px;"></span>
+                    <?php esc_html_e('Archiv', 'custom-crm'); ?>
+                </button>
+                <a href="<?php echo esc_url(admin_url('admin.php?page=custom-crm')); ?>" class="button button-small" style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; margin-left: 4px;">
+                    <span class="dashicons dashicons-arrow-left-alt" style="font-size: 14px; width: 14px; height: 14px;"></span>
+                    <?php esc_html_e('Zurück zur Tabelle', 'custom-crm'); ?>
+                </a>
+            </div>
+        </div>
+
+        <div class="crm-spickzettel-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
+            <!-- Spalte 1: WER? -->
+            <div class="crm-spickzettel-col" style="display: flex; flex-direction: column; gap: 3px;">
+                <div class="crm-spickzettel-col-title" style="font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; display: flex; align-items: center; justify-content: space-between; gap: 5px;">
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <span class="dashicons dashicons-admin-users" style="font-size: 14px; width: 14px; height: 14px; color: #0284c7;"></span>
+                        <span><?php esc_html_e('1. Wer? (Kunde)', 'custom-crm'); ?></span>
+                    </div>
+                    <button type="button" class="button-link crm-quick-edit-btn" data-entry-id="<?php echo esc_attr($entry_id); ?>" data-course-id="<?php echo esc_attr($course_id); ?>" title="<?php esc_attr_e('Kundendaten bearbeiten', 'custom-crm'); ?>" style="font-size: 11px; text-decoration: none; color: #0284c7; display: inline-flex; align-items: center; gap: 2px;">
+                        <span class="dashicons dashicons-edit" style="font-size: 12px; width: 12px; height: 12px;"></span> <?php esc_html_e('Bearbeiten', 'custom-crm'); ?>
+                    </button>
+                </div>
+                <div class="crm-spickzettel-val-main" style="font-size: 14px; font-weight: 700; color: #1e293b;">
+                    <?php echo esc_html($client_name); ?>
+                </div>
+                <?php if ($client_company): ?>
+                    <div style="font-size: 11.5px; font-weight: 600; color: #475569;">
+                        🏢 <?php echo esc_html($client_company); ?>
+                    </div>
+                <?php endif; ?>
+                <div class="crm-spickzettel-val-sub" style="font-size: 11.5px; color: #64748b; line-height: 1.4;">
+                    <?php if ($client_email): ?>
+                        <div>✉️ <a href="mailto:<?php echo esc_attr($client_email); ?>" style="color: #0284c7; text-decoration: none;"><?php echo esc_html($client_email); ?></a></div>
+                    <?php endif; ?>
+                    <?php if ($client_phone): ?>
+                        <div>📞 <?php echo esc_html($client_phone); ?></div>
+                    <?php endif; ?>
+                    <?php if ($client_street): ?>
+                        <div>🏠 <?php echo esc_html($client_street); ?></div>
+                    <?php endif; ?>
+                    <?php if ($client_city): ?>
+                        <div>📍 <?php echo esc_html($client_city); ?></div>
+                    <?php endif; ?>
+                    <?php if ($client_svr): ?>
+                        <div style="margin-top: 2px;">🆔 SV-Nr: <strong><?php echo esc_html($client_svr); ?></strong></div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Spalte 2: WAS? -->
+            <div class="crm-spickzettel-col" style="display: flex; flex-direction: column; gap: 3px;">
+                <div class="crm-spickzettel-col-title" style="font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; display: flex; align-items: center; justify-content: space-between; gap: 5px;">
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <span class="dashicons <?php echo ($inquiry_type === 'freie_anfrage') ? 'dashicons-businessman' : 'dashicons-welcome-learn-more'; ?>" style="font-size: 14px; width: 14px; height: 14px; color: <?php echo ($inquiry_type === 'freie_anfrage') ? '#d97706' : '#7c3aed'; ?>;"></span>
+                        <span><?php echo ($inquiry_type === 'freie_anfrage') ? esc_html__('2. Freie Geschäftsanfrage / Inhouse', 'custom-crm') : esc_html__('2. Was & Wann? (Kurs)', 'custom-crm'); ?></span>
+                    </div>
+                    <button type="button" class="button-link crm-link-course-btn" data-entry-id="<?php echo $entry_id; ?>" data-course-id="<?php echo $course_id; ?>" data-inquiry-type="<?php echo esc_attr($inquiry_type); ?>" data-custom-title="<?php echo esc_attr($custom_title); ?>" title="<?php esc_attr_e('Kurs wechseln oder Geschäftsanfrage anpassen', 'custom-crm'); ?>" style="font-size: 11px; text-decoration: none; color: #0284c7; display: inline-flex; align-items: center; gap: 2px;">
+                        <span class="dashicons dashicons-edit" style="font-size: 12px; width: 12px; height: 12px;"></span> <?php esc_html_e('Ändern', 'custom-crm'); ?>
+                    </button>
+                </div>
+                <div class="crm-spickzettel-val-main" style="font-size: 13.5px; font-weight: 700; color: #1e293b; line-height: 1.3;">
+                    <?php echo esc_html($course_title); ?>
+                </div>
+                <div class="crm-spickzettel-val-sub" style="font-size: 11.5px; color: #475569; margin-top: 2px; line-height: 1.4;">
+                    <?php if ($course_dates): ?>
+                        <div>📅 <strong><?php echo esc_html($course_dates); ?></strong> <?php if ($course_le) echo '· ' . esc_html($course_le); ?></div>
+                    <?php endif; ?>
+                    <div>📍 <?php echo esc_html($course_location); ?></div>
+                </div>
+                <?php
+                if ($course_id > 0) {
+                    $dossier_certs = function_exists('crm_get_course_available_certifications') ? crm_get_course_available_certifications($course_id, $entry_id) : [];
+                    if (!empty($dossier_certs)) {
+                        echo function_exists('crm_render_course_cert_badges') ? crm_render_course_cert_badges($dossier_certs, 'dossier', $entry_id, $course_id) : '';
+                    } else {
+                        echo '<div class="crm-spickzettel-certs-box crm-spickzettel-certs-none" style="margin-top:6px; padding:6px 8px; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:4px; font-size:11px; color:#64748b;"><span class="dashicons dashicons-welcome-learn-more" style="font-size:12px; width:12px; height:12px; line-height:12px;"></span> ' . esc_html__('X-SIEBEN Diplom (keine externe Zertifizierung)', 'custom-crm') . '</div>';
+                    }
+                }
+                ?>
+                <?php if (!$course_id && $inquiry_type !== 'freie_anfrage'): ?>
+                    <div style="margin-top: 6px;">
+                        <button type="button" class="button button-primary button-small crm-link-course-btn" data-entry-id="<?php echo $entry_id; ?>" style="font-size: 11px; padding: 2px 8px; height: 26px; display: inline-flex; align-items: center; gap: 4px;">
+                            <span class="dashicons dashicons-admin-links"></span> <?php esc_html_e('Kurs / Geschäftsanfrage verknüpfen', 'custom-crm'); ?>
+                        </button>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Spalte 3: WIEVIEL & FÖRDERUNG? -->
+            <div class="crm-spickzettel-col" style="display: flex; flex-direction: column; gap: 3px;">
+                <div class="crm-spickzettel-col-title" style="font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; display: flex; align-items: center; gap: 5px;">
+                    <span class="dashicons dashicons-money-alt" style="font-size: 14px; width: 14px; height: 14px; color: #059669;"></span>
+                    <?php esc_html_e('3. Wieviel & Förderung?', 'custom-crm'); ?>
+                </div>
+                <div class="crm-spickzettel-price-highlight" style="font-size: 15px; font-weight: 800; color: #047857;">
+                    <?php echo esc_html(number_format($total_price, 2, ',', '.') . ' €'); ?>
+                    <span style="font-size: 10px; font-weight: 500; color: #64748b; margin-left: 4px;">(USt-frei gem. § 6 Abs 1 Z 11a UStG)</span>
+                </div>
+                <div style="font-size: 11px; color: #475569; display: flex; align-items: center; gap: 6px; margin-top: 2px; flex-wrap: wrap;">
+                    <span style="display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10.5px; font-weight: 600; background: #e0f2fe; color: #0369a1;">
+                        🏛️ <?php echo esc_html($foerd_label); ?>
+                    </span>
+                    <?php if ($cert_price > 0): ?>
+                        <span style="font-size: 10.5px; color: #6b21a8; background: #f3e8ff; padding: 2px 6px; border-radius: 4px;">
+                            + Zert: <?php echo esc_html(number_format($cert_price, 2, ',', '.') . ' €'); ?>
+                        </span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
+        <?php if ($customer_message): ?>
+            <div class="crm-spickzettel-message-box" style="margin-top: 14px; padding: 10px 14px; background: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 6px; font-size: 12px; color: #334155;">
+                <div style="font-weight: 700; color: #92400e; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                    <span class="dashicons dashicons-format-chat" style="font-size: 15px; width: 15px; height: 15px; color: #d97706;"></span>
+                    <span><?php esc_html_e('Kundennachricht / Anfrage-Anmerkung:', 'custom-crm'); ?></span>
+                </div>
+                <div style="font-style: italic; line-height: 1.5; color: #451a03; white-space: pre-line;">
+                    <?php echo esc_html($customer_message); ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!empty($entry_fields) && is_array($entry_fields)): ?>
+            <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
+                <button type="button" class="button button-small" onclick="const w=document.getElementById('crm-all-fields-<?php echo esc_js($entry_id); ?>'); if(w.style.display==='none'){w.style.display='block'; this.innerHTML='<span class=\'dashicons dashicons-arrow-up-alt2\'></span> <?php echo esc_js(__('Alle Formularfelder ausblenden', 'custom-crm')); ?>';}else{w.style.display='none'; this.innerHTML='<span class=\'dashicons dashicons-list-view\'></span> <?php echo esc_js(__('Alle Formularfelder des Geschäftsvorfalls anzeigen', 'custom-crm')); ?>';}" style="font-size: 11px; display: inline-flex; align-items: center; gap: 4px;">
+                    <span class="dashicons dashicons-list-view" style="font-size: 13px; width: 13px; height: 13px;"></span>
+                    <span><?php esc_html_e('Alle Formularfelder des Geschäftsvorfalls anzeigen', 'custom-crm'); ?></span>
+                </button>
+            </div>
+            <div id="crm-all-fields-<?php echo esc_attr($entry_id); ?>" style="display: none; margin-top: 10px; border-top: 1px dashed #cbd5e1; padding-top: 10px;">
+                <table class="widefat striped" style="font-size: 11.5px; border-radius: 4px; overflow: hidden;">
+                    <tbody>
+                        <?php foreach ($entry_fields as $f): 
+                            if (empty($f['name']) && empty($f['value'])) continue;
+                            $f_label = $f['name'] ?? ('Feld #' . ($f['id'] ?? ''));
+                            $f_val   = is_array($f['value'] ?? '') ? implode(', ', $f['value']) : (string)($f['value'] ?? '');
+                        ?>
+                            <tr>
+                                <th style="width: 28%; font-weight: 600; color: #475569; padding: 6px 10px;"><?php echo esc_html($f_label); ?></th>
+                                <td style="color: #1e293b; padding: 6px 10px;"><?php echo esc_html($f_val); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </div>
+    <?php
+    return ob_get_clean();
+}
 
 /**
  * Display a PDF preview with action buttons in WP Admin, or switch to the email mailer.
  */
 function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'xsieben_angebot', $second_pdf_url = null)
 {
-  $is_dual = ($context === 'xsieben_angebot_und_kurszeiten' || $context === 'xsieben_angebot_kurszeiten' || !empty($second_pdf_url));
-  $offer_url = $pdf_url;
-  $kb_url    = $second_pdf_url;
-  if (is_array($pdf_url)) {
-    $offer_url = $pdf_url['offer'] ?? ($pdf_url[0] ?? '');
-    $kb_url    = $pdf_url['kb'] ?? ($pdf_url[1] ?? '');
-    $is_dual   = true;
+  $foerd = ($entry_id && function_exists('crm_get_entry_foerderung')) ? crm_get_entry_foerderung($entry_id) : ['ams' => false, 'waff' => false];
+  $is_foerd_active = !empty($foerd['ams']) || !empty($foerd['waff']);
+
+  $offer_basis_url = '';
+  $offer_zert_url  = '';
+  $kb_url          = $second_pdf_url ?: '';
+  $tb_url          = '';
+  $diplom_url      = '';
+
+  // Context mapping and initial active document
+  if ($context === 'xsieben_diplom' || $context === 'diplom') {
+    $active_doc = 'diplom';
+    $diplom_url = $pdf_url;
+  } elseif ($context === 'teilnahmebestaetigung' || $context === 'xsieben_teilnahmebestaetigung') {
+    $active_doc = 'tb';
+    $tb_url = $pdf_url;
+  } elseif ($context === 'kurszeitenbestaetigung' || $context === 'xsieben_kurszeitenbestaetigung') {
+    $active_doc = 'kb';
+    $kb_url = $pdf_url;
+  } elseif (is_array($pdf_url)) {
+    $active_doc = 'angebot_basis';
+    $offer_basis_url = $pdf_url['offer'] ?? ($pdf_url[0] ?? '');
+    $kb_url = $pdf_url['kb'] ?? ($pdf_url[1] ?? $kb_url);
+  } else {
+    $active_doc = 'angebot_basis';
+    $offer_basis_url = $pdf_url;
+    if ($is_foerd_active && empty($kb_url) && function_exists('xsieben_kurszeitenbestaetigung_pdf')) {
+      $kb_url = xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, false);
+    }
   }
+
+  // Angebot 2 (Inkl. Zertifizierung): Nur prüfen/generieren wenn der Kurs eine echte Zertifizierungs-Option hat
+  $has_cert_option = false;
+  $cid_check = $course_id;
+  if ((!$cid_check || $cid_check == 47) && class_exists('CRM_Model') && $entry_id) {
+    $tmp_model = new CRM_Model(0, $entry_id);
+    $cid_check = $tmp_model->post_id;
+  }
+  if ($entry_id && function_exists('crm_resolve_course_certification')) {
+    $resolved_cert = crm_resolve_course_certification((int)$entry_id, (int)$cid_check);
+    $has_cert_option = !empty($resolved_cert);
+  }
+
+  $save_dir = function_exists('crm_get_pdf_storage_dir') ? crm_get_pdf_storage_dir() : (get_template_directory() . '/angebote/');
+  $storage_url = function_exists('crm_get_pdf_storage_url') ? crm_get_pdf_storage_url() : (get_template_directory_uri() . '/angebote/');
+
+  if ($has_cert_option && empty($offer_zert_url) && $entry_id) {
+    // 1. Suche nach vorhandener Angebot 2 PDF-Datei auf dem Server
+    $matching_files = glob($save_dir . 'A_' . $entry_id . '-*_Angebot_2_*.pdf');
+    if (!empty($matching_files)) {
+      $latest_file = end($matching_files);
+      $offer_zert_url = $storage_url . rawurlencode(basename($latest_file));
+    } elseif ($cid_check && function_exists('xsieben_offer_pdf')) {
+      // 2. Falls noch nicht generiert: Angebot 2 sofort autark vorrendern
+      try {
+        $offer_zert_url = xsieben_offer_pdf($entry_id, $cid_check, false, null, 'mit_zertifikat');
+      } catch (\Throwable $e) {
+        error_log('CRM Auto Angebot 2 Error: ' . $e->getMessage());
+      }
+    }
+  }
+
+  // 3. Suche nach bereits vorhandener Kurszeitenbestätigung (KB)
+  if (empty($kb_url) && $entry_id) {
+    $kb_token = function_exists('crm_generate_pdf_token') ? crm_generate_pdf_token($entry_id, 'kb') : '';
+    $matching_kb = !empty($kb_token) ? glob($save_dir . 'Kurszeitenbestaetigung_*' . $kb_token . '*.pdf') : [];
+    if (!empty($matching_kb)) {
+      $kb_url = $storage_url . rawurlencode(basename(end($matching_kb)));
+    }
+  }
+
+  // 4. Suche nach bereits vorhandener Teilnahmebestätigung (TB)
+  if (empty($tb_url) && $entry_id) {
+    $tb_token = function_exists('crm_generate_pdf_token') ? crm_generate_pdf_token($entry_id, 'tb') : '';
+    $matching_tb = !empty($tb_token) ? glob($save_dir . 'Teilnahmebestaetigung_*' . $tb_token . '*.pdf') : [];
+    if (!empty($matching_tb)) {
+      $tb_url = $storage_url . rawurlencode(basename(end($matching_tb)));
+    }
+  }
+
+  // 5. Suche nach bereits vorhandenem Diplom
+  if (empty($diplom_url) && $entry_id) {
+    $diplom_token = function_exists('crm_generate_pdf_token') ? crm_generate_pdf_token($entry_id, 'diplom') : '';
+    $matching_diplom = !empty($diplom_token) ? glob($save_dir . 'Diplom_*' . $diplom_token . '*.pdf') : [];
+    if (!empty($matching_diplom)) {
+      $diplom_url = $storage_url . rawurlencode(basename(end($matching_diplom)));
+    }
+  }
+
   $cache_ts = time();
   $add_cache_buster = function ($url) use ($cache_ts) {
     if (empty($url)) return '';
     return $url . (strpos($url, '?') !== false ? '&' : '?') . 't=' . $cache_ts;
   };
-  $offer_embed_url = $add_cache_buster($offer_url);
-  $kb_embed_url    = $add_cache_buster($kb_url);
-  $single_embed_url= $add_cache_buster($pdf_url);
-  $email_pdf_param = $is_dual ? ($offer_url . ',' . $kb_url) : $pdf_url;
-?>
-  <div id="x-sieben-container" class="wp-clearfix" style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
 
-    <div id="x-sieben-pdf-preview" style="flex: 0 0 65%; min-width: 300px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+  $active_url = '';
+  $active_title = 'Angebot 1: Basis';
+  if ($active_doc === 'diplom') {
+    $active_url = $diplom_url;
+    $active_title = 'Diplom';
+  } elseif ($active_doc === 'tb') {
+    $active_url = $tb_url;
+    $active_title = 'Teilnahmebestätigung (TB)';
+  } elseif ($active_doc === 'kb') {
+    $active_url = $kb_url;
+    $active_title = 'Kurszeiten (KB)';
+  } else {
+    $active_url = $offer_basis_url;
+    $active_title = 'Angebot 1: Basis';
+  }
+
+  $active_embed_url = $add_cache_buster($active_url);
+  $email_pdf_param  = !empty($kb_url) ? ($active_url . ',' . $kb_url) : $active_url;
+
+  // Status-Badges für die 5 Dokumenten-Tabs (Birkenbihl: Erkennen statt Raten)
+  $badge_basis  = !empty($offer_basis_url) ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
+  $badge_zert   = !empty($offer_zert_url)  ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
+  $badge_kb     = !empty($kb_url)          ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
+  $badge_tb     = !empty($tb_url)          ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
+  $badge_diplom = !empty($diplom_url)      ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
+?>
+  <div id="x-sieben-container" class="wp-clearfix" style="display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap;">
+
+    <?php echo crm_render_screen2_spickzettel((int)$entry_id, (int)$course_id); ?>
+
+    <div id="x-sieben-pdf-preview" style="flex: 1 1 65%; min-width: 480px; position:relative;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
         <h2 class="title" style="margin:0; font-size:16px; display:flex; align-items:center; gap:8px;">
-          <span class="dashicons dashicons-media-document"></span>
-          Vorschau
+          <span class="dashicons dashicons-media-document" style="color:#007C90;"></span>
+          <strong><?php esc_html_e('Dokument-Vorschau & Simulation', 'custom-crm'); ?></strong>
         </h2>
-        <?php if ($is_dual) : ?>
-          <div class="crm-preview-doc-tabs" style="display:flex; gap:6px;">
-            <button type="button" class="button crm-preview-switch-embed active" data-url="<?php echo esc_url($offer_embed_url); ?>" data-doc="angebot" style="border-color:#7c3aed; color:#6d28d9; font-weight:600; font-size:12px;">
-              <span class="dashicons dashicons-media-document" style="font-size:13px; vertical-align:text-top;"></span> 📄 Angebot
-            </button>
-            <button type="button" class="button crm-preview-switch-embed" data-url="<?php echo esc_url($kb_embed_url); ?>" data-doc="kb" style="color:#0f766e; font-size:12px;">
-              <span class="dashicons dashicons-calendar-alt" style="font-size:13px; vertical-align:text-top;"></span> 📅 Kurszeiten (KB)
-            </button>
-          </div>
-        <?php endif; ?>
+        <div class="crm-preview-doc-tabs" style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+          <button type="button" class="button crm-preview-switch-embed <?php echo ($active_doc === 'angebot_basis') ? 'active' : ''; ?>"
+                  data-entry-id="<?php echo absint($entry_id); ?>"
+                  data-course-id="<?php echo absint($course_id); ?>"
+                  data-doc="angebot"
+                  data-variant="basis"
+                  data-label="Angebot 1: Basis"
+                  data-url="<?php echo esc_url($add_cache_buster($offer_basis_url)); ?>"
+                  style="<?php echo ($active_doc === 'angebot_basis') ? 'border-color:#7c3aed; color:#6d28d9; background:#faf5ff; font-weight:700;' : 'color:#334155;'; ?> font-size:12px; height:28px; line-height:26px; padding:0 10px;">
+            <span>📑 <?php esc_html_e('Angebot 1: Basis', 'custom-crm'); ?></span>
+            <?php echo $badge_basis; ?>
+          </button>
+
+          <?php if ($has_cert_option) : ?>
+          <button type="button" class="button crm-preview-switch-embed <?php echo ($active_doc === 'angebot_zert') ? 'active' : ''; ?>"
+                  data-entry-id="<?php echo absint($entry_id); ?>"
+                  data-course-id="<?php echo absint($course_id); ?>"
+                  data-doc="angebot"
+                  data-variant="mit_zertifikat"
+                  data-label="Angebot 2: Inkl. Zertifizierung"
+                  data-url="<?php echo esc_url($add_cache_buster($offer_zert_url)); ?>"
+                  style="<?php echo ($active_doc === 'angebot_zert') ? 'border-color:#7c3aed; color:#6d28d9; background:#faf5ff; font-weight:700;' : 'color:#334155;'; ?> font-size:12px; height:28px; line-height:26px; padding:0 10px;">
+            <span>📑 <?php esc_html_e('Angebot 2: Inkl. Zert.', 'custom-crm'); ?></span>
+            <?php echo $badge_zert; ?>
+          </button>
+          <?php endif; ?>
+
+          <button type="button" class="button crm-preview-switch-embed <?php echo ($active_doc === 'kb') ? 'active' : ''; ?>"
+                  data-entry-id="<?php echo absint($entry_id); ?>"
+                  data-course-id="<?php echo absint($course_id); ?>"
+                  data-doc="kb"
+                  data-label="Kurszeitenbestätigung (KB)"
+                  data-url="<?php echo esc_url($add_cache_buster($kb_url)); ?>"
+                  style="<?php echo ($active_doc === 'kb') ? 'border-color:#0f766e; color:#0f766e; background:#f0fdfa; font-weight:700;' : 'color:#334155;'; ?> font-size:12px; height:28px; line-height:26px; padding:0 10px;">
+            <span>📅 <?php esc_html_e('Kurszeiten (KB)', 'custom-crm'); ?></span>
+            <?php echo $badge_kb; ?>
+            <?php if ($is_foerd_active) : ?>
+              <span style="font-size:10px; background:#ccfbf1; color:#0f766e; padding:1px 5px; border-radius:10px; margin-left:3px;">Förderung</span>
+            <?php endif; ?>
+          </button>
+
+          <button type="button" class="button crm-preview-switch-embed <?php echo ($active_doc === 'tb') ? 'active' : ''; ?>"
+                  data-entry-id="<?php echo absint($entry_id); ?>"
+                  data-course-id="<?php echo absint($course_id); ?>"
+                  data-doc="tb"
+                  data-label="Teilnahmebestätigung (TB)"
+                  data-url="<?php echo esc_url($add_cache_buster($tb_url)); ?>"
+                  style="<?php echo ($active_doc === 'tb') ? 'border-color:#047857; color:#047857; background:#ecfdf5; font-weight:700;' : 'color:#334155;'; ?> font-size:12px; height:28px; line-height:26px; padding:0 10px;">
+            <span>📜 <?php esc_html_e('Teilnahmebestätigung (TB)', 'custom-crm'); ?></span>
+            <?php echo $badge_tb; ?>
+          </button>
+
+          <button type="button" class="button crm-preview-switch-embed <?php echo ($active_doc === 'diplom') ? 'active' : ''; ?>"
+                  data-entry-id="<?php echo absint($entry_id); ?>"
+                  data-course-id="<?php echo absint($course_id); ?>"
+                  data-doc="diplom"
+                  data-label="Diplom & Abschluss"
+                  data-url="<?php echo esc_url($add_cache_buster($diplom_url)); ?>"
+                  style="<?php echo ($active_doc === 'diplom') ? 'border-color:#b45309; color:#b45309; background:#fffbeb; font-weight:700;' : 'color:#334155;'; ?> font-size:12px; height:28px; line-height:26px; padding:0 10px;">
+            <span>🎓 <?php esc_html_e('Diplom', 'custom-crm'); ?></span>
+            <?php echo $badge_diplom; ?>
+          </button>
+        </div>
       </div>
-      <embed src="<?php echo esc_url($is_dual ? $offer_embed_url : $single_embed_url); ?>" type="application/pdf" width="100%" height="450px" style="border: 1px solid #cbd5e1; border-radius: 6px;" />
+
+      <div id="crm-embed-loading-overlay" style="display:none; position:absolute; top:48px; left:0; width:100%; height:680px; background:rgba(255,255,255,0.9); backdrop-filter:blur(3px); z-index:10; border-radius:8px; border:1px solid #cbd5e1; align-items:center; justify-content:center; flex-direction:column; gap:12px;">
+        <span class="dashicons dashicons-update spin" style="font-size:38px; width:38px; height:38px; color:#6d28d9;"></span>
+        <strong style="font-size:15px; color:#1e293b;"><?php esc_html_e('Dokument wird generiert & simuliert...', 'custom-crm'); ?></strong>
+        <span style="font-size:12.5px; color:#64748b;"><?php esc_html_e('PDF wird erstellt und direkt im großen Arbeitsbereich angezeigt.', 'custom-crm'); ?></span>
+      </div>
+
+      <embed id="crm-active-pdf-embed" src="<?php echo esc_url($active_embed_url); ?>" type="application/pdf" width="100%" height="680px" style="border: 1px solid #cbd5e1; border-radius: 8px; min-height: 650px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); background:#f8fafc;" />
     </div>
 
-    <div id="x-sieben-button-row" style="flex: 0 0 30%; display:flex; flex-direction:column; gap:10px; margin-top:<?php echo $is_dual ? '40px' : '70px'; ?>;">
+    <div id="x-sieben-button-row" style="flex: 0 0 310px; min-width: 280px; display:flex; flex-direction:column; gap:12px; margin-top:40px;">
 
       <ul style="list-style: none; margin: 0; padding: 0;">
-        <?php if ($is_dual) : ?>
-          <li style="margin-bottom: 8px;">
-            <a href="<?php echo esc_url($offer_embed_url); ?>" download class="button" data-doc-download="angebot" style="display:flex; align-items:center; gap:6px; font-weight:600; width:100%; justify-content:center;">
-              <span class="dashicons dashicons-download"></span>
-              Angebot herunterladen
-            </a>
-          </li>
-          <li style="margin-bottom: 12px;">
-            <a href="<?php echo esc_url($kb_embed_url); ?>" download class="button" data-doc-download="kb" style="display:flex; align-items:center; gap:6px; font-weight:600; width:100%; justify-content:center;">
-              <span class="dashicons dashicons-download"></span>
-              Kurszeiten (KB) herunterladen
-            </a>
-          </li>
-        <?php else : ?>
-          <li style="margin-bottom: 10px;">
-            <a href="<?php echo esc_url($single_embed_url); ?>" download>
-              <span class="dashicons dashicons-download"></span>
-              PDF herunterladen
-            </a>
-          </li>
-        <?php endif; ?>
+        <li style="margin-bottom: 8px;">
+          <a id="crm-preview-download-btn" href="<?php echo esc_url($active_embed_url); ?>" download class="button button-primary" style="display:flex; align-items:center; gap:6px; font-weight:600; width:100%; justify-content:center; height:34px;">
+            <span class="dashicons dashicons-download"></span>
+            <span class="crm-btn-text"><?php echo esc_html($active_title); ?> <?php esc_html_e('herunterladen', 'custom-crm'); ?></span>
+          </a>
+        </li>
+        <li style="margin-bottom: 12px;">
+          <a id="crm-preview-external-btn" href="<?php echo esc_url($active_embed_url); ?>" target="_blank" class="button" style="display:flex; align-items:center; gap:6px; width:100%; justify-content:center; height:32px;">
+            <span class="dashicons dashicons-external"></span>
+            <span><?php esc_html_e('In neuem Tab ansehen', 'custom-crm'); ?></span>
+          </a>
+        </li>
 
-        <li style="margin-bottom: 10px;">
-          <a href="#" class="x-sieben-email-btn"
+        <li style="margin-bottom: 8px;">
+          <a href="#" class="x-sieben-email-btn button"
             data-pdf="<?php echo esc_attr($email_pdf_param); ?>"
             data-course="<?php echo absint($course_id); ?>"
             data-entry="<?php echo absint($entry_id); ?>"
-            data-context="<?php echo esc_attr($context); ?>">
+            data-context="<?php echo esc_attr($context); ?>"
+            style="display:flex; align-items:center; gap:6px; width:100%; justify-content:center; height:34px; background:#faf5ff; color:#6d28d9; border-color:#c4b5fd; font-weight:600;">
             <span class="dashicons dashicons-email"></span>
-            <?php echo $is_dual ? 'E-Mail bearbeiten & senden (beide PDFs)' : 'E-Mail bearbeiten & senden'; ?>
+            <span><?php esc_html_e('E-Mail bearbeiten & senden', 'custom-crm'); ?></span>
           </a>
         </li>
-        <li style="margin-bottom: 10px;">
-          <a href="#" class="x-sieben-email-btn"
+        <li style="margin-bottom: 12px;">
+          <a href="#" class="x-sieben-email-btn button"
             data-pdf="<?php echo esc_attr($email_pdf_param); ?>"
             data-course="<?php echo absint($course_id); ?>"
             data-entry="<?php echo absint($entry_id); ?>"
             data-context="<?php echo esc_attr($context); ?>"
             data-focus-test="1"
-            style="color:#0284c7; font-weight:600;">
+            style="display:flex; align-items:center; gap:6px; width:100%; justify-content:center; height:32px; color:#0284c7; font-weight:600;">
             <span class="dashicons dashicons-email-alt" style="color:#0284c7;"></span>
-            🧪 Test-Mail vorbereiten
+            <span>🧪 <?php esc_html_e('Test-Mail vorbereiten', 'custom-crm'); ?></span>
           </a>
         </li>
         <?php if ($entry_id) : ?>
-          <li style="margin-bottom: 10px;">
-            <a href="<?php echo esc_url(admin_url('admin.php?page=wpforms-entries&view=edit&entry_id=' . absint($entry_id))); ?>">
+          <li style="margin-bottom: 6px;">
+            <button type="button" class="button crm-quick-edit-btn" data-entry-id="<?php echo absint($entry_id); ?>" data-course-id="<?php echo absint($course_id); ?>" style="display:flex; align-items:center; gap:6px; width:100%; justify-content:center; font-size:12px;">
               <span class="dashicons dashicons-edit"></span>
-              Kundendaten bearbeiten
-            </a>
+              <span><?php esc_html_e('Kundendaten bearbeiten', 'custom-crm'); ?></span>
+            </button>
           </li>
         <?php endif; ?>
         <?php if ($course_id) : ?>
           <li style="margin-bottom: 10px;">
-            <a href="<?php echo esc_url(get_edit_post_link($course_id)); ?>">
+            <a href="<?php echo esc_url(get_edit_post_link($course_id)); ?>" class="button" style="display:flex; align-items:center; gap:6px; width:100%; justify-content:center; font-size:12px;">
               <span class="dashicons dashicons-admin-page"></span>
-              Kurs bearbeiten
+              <span><?php esc_html_e('Kurs bearbeiten', 'custom-crm'); ?></span>
             </a>
           </li>
         <?php endif; ?>
       </ul>
 
-      <?php if ($context === 'xsieben_diplom') : 
+      <?php 
         $current_success = 'erfolgreich';
         if ($entry_id && class_exists('CRM_Model')) {
           $temp_course = new CRM_Model($course_id, $entry_id);
@@ -126,7 +565,7 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
         $is_gut           = !$is_sehr_gut && strpos($current_success_clean, 'gut') !== false;
         $is_erfolgreich   = !$is_ausgezeichnet && !$is_sehr_gut && !$is_gut;
       ?>
-        <div class="crm-diplom-success-box" style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:14px; margin-top:5px; margin-bottom:15px; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+        <div id="crm-diplom-success-container" class="crm-diplom-success-box" style="<?php echo ($active_doc === 'diplom' || $context === 'xsieben_diplom') ? '' : 'display:none;'; ?> background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:14px; margin-top:5px; margin-bottom:15px; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
           <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
             <span class="dashicons dashicons-awards" style="color:#d97706; font-size:18px;"></span>
             Abschluss-Erfolg auswählen
@@ -157,10 +596,9 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
           </button>
           <div class="crm-diplom-success-feedback" style="display:none; font-size:11.5px; color:#16a34a; font-weight:600; margin-top:8px; text-align:center;"></div>
         </div>
-      <?php endif; ?>
       <?php
       // PDF-Abschnitte Manager (Drag & Drop) in der Eintrags-Vorschau
-      if ($is_dual && function_exists('crm_render_pdf_sections_manager')) : ?>
+      if (function_exists('crm_render_pdf_sections_manager')) : ?>
         <div class="crm-pdf-sections-preview-box crm-dual-sections-preview-box"
              data-context="<?php echo esc_attr($context); ?>"
              data-course="<?php echo absint($course_id); ?>"
@@ -171,52 +609,34 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
             <span>Abschnitte anordnen (Drag & Drop)</span>
           </div>
           
-          <div class="crm-dual-sec-tabs" style="display:flex; gap:6px; margin-bottom:10px;">
-            <button type="button" class="button crm-dual-sec-tab-btn active" data-target="crm-dual-sec-angebot" style="border-color:#7c3aed; color:#6d28d9; font-weight:600; font-size:11px; height:24px; line-height:22px; padding:0 8px;">
+          <div class="crm-dual-sec-tabs" style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+            <button type="button" class="button crm-dual-sec-tab-btn <?php echo in_array($active_doc, ['angebot_basis', 'angebot_zert', 'angebot']) ? 'active' : ''; ?>" data-target="crm-dual-sec-angebot" style="<?php echo in_array($active_doc, ['angebot_basis', 'angebot_zert', 'angebot']) ? 'border-color:#7c3aed; color:#6d28d9; font-weight:600;' : ''; ?> font-size:11px; height:24px; line-height:22px; padding:0 8px;">
               Angebot
             </button>
-            <button type="button" class="button crm-dual-sec-tab-btn" data-target="crm-dual-sec-kb" style="color:#0f766e; font-size:11px; height:24px; line-height:22px; padding:0 8px;">
+            <button type="button" class="button crm-dual-sec-tab-btn <?php echo ($active_doc === 'kb') ? 'active' : ''; ?>" data-target="crm-dual-sec-kb" style="<?php echo ($active_doc === 'kb') ? 'border-color:#0f766e; color:#0f766e; font-weight:600;' : 'color:#0f766e;'; ?> font-size:11px; height:24px; line-height:22px; padding:0 8px;">
               Kurszeiten (KB)
+            </button>
+            <button type="button" class="button crm-dual-sec-tab-btn <?php echo ($active_doc === 'tb') ? 'active' : ''; ?>" data-target="crm-dual-sec-tb" style="<?php echo ($active_doc === 'tb') ? 'border-color:#047857; color:#047857; font-weight:600;' : 'color:#047857;'; ?> font-size:11px; height:24px; line-height:22px; padding:0 8px;">
+              Teilnahme (TB)
+            </button>
+            <button type="button" class="button crm-dual-sec-tab-btn <?php echo ($active_doc === 'diplom') ? 'active' : ''; ?>" data-target="crm-dual-sec-diplom" style="<?php echo ($active_doc === 'diplom') ? 'border-color:#b45309; color:#b45309; font-weight:600;' : 'color:#b45309;'; ?> font-size:11px; height:24px; line-height:22px; padding:0 8px;">
+              Diplom
             </button>
           </div>
 
-          <div id="crm-dual-sec-angebot" class="crm-dual-sec-pane">
+          <div id="crm-dual-sec-angebot" class="crm-dual-sec-pane" style="<?php echo in_array($active_doc, ['angebot_basis', 'angebot_zert', 'angebot']) ? '' : 'display:none;'; ?>">
             <?php crm_render_pdf_sections_manager('angebot', $entry_id, true); ?>
           </div>
-          <div id="crm-dual-sec-kb" class="crm-dual-sec-pane" style="display:none;">
+          <div id="crm-dual-sec-kb" class="crm-dual-sec-pane" style="<?php echo ($active_doc === 'kb') ? '' : 'display:none;'; ?>">
             <?php crm_render_pdf_sections_manager('kb', $entry_id, true); ?>
           </div>
-        </div>
-      <?php else :
-        $sec_doc_type = null;
-        if ($context === 'xsieben_angebot' || $context === 'angebot') {
-            $sec_doc_type = 'angebot';
-        } elseif ($context === 'kurszeitenbestaetigung' || $context === 'xsieben_kurszeitenbestaetigung') {
-            $sec_doc_type = 'kb';
-        } elseif ($context === 'teilnahmebestaetigung' || $context === 'xsieben_teilnahmebestaetigung') {
-            $sec_doc_type = 'tb';
-        } elseif ($context === 'diplom' || $context === 'xsieben_diplom') {
-            $sec_doc_type = 'diplom';
-        } elseif ($context === 'invoice' || $context === 'xsieben_invoice') {
-            $sec_doc_type = 'invoice';
-        }
-
-        if ($sec_doc_type && function_exists('crm_render_pdf_sections_manager')) : ?>
-          <div class="crm-pdf-sections-preview-box"
-               data-context="<?php echo esc_attr($context); ?>"
-               data-course="<?php echo absint($course_id); ?>"
-               data-entry="<?php echo absint($entry_id); ?>"
-               style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:14px; margin-top:12px; margin-bottom:15px; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-            <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
-              <span class="dashicons dashicons-menu" style="color:#007C90; font-size:18px;"></span>
-              <span>Abschnitte anordnen (Drag & Drop)</span>
-            </div>
-            <p style="font-size:11.5px; color:#64748b; margin:0 0 10px 0; line-height:1.35;">
-              Reihenfolge per Ziehen anpassen oder Abschnitte abwählen:
-            </p>
-            <?php crm_render_pdf_sections_manager($sec_doc_type, $entry_id, true); ?>
+          <div id="crm-dual-sec-tb" class="crm-dual-sec-pane" style="<?php echo ($active_doc === 'tb') ? '' : 'display:none;'; ?>">
+            <?php crm_render_pdf_sections_manager('tb', $entry_id, true); ?>
           </div>
-        <?php endif; ?>
+          <div id="crm-dual-sec-diplom" class="crm-dual-sec-pane" style="<?php echo ($active_doc === 'diplom') ? '' : 'display:none;'; ?>">
+            <?php crm_render_pdf_sections_manager('diplom', $entry_id, true); ?>
+          </div>
+        </div>
       <?php endif; ?>
 
       <div style="margin-top: 10px; font-style: italic; font-size: 0.9em;">
@@ -301,7 +721,19 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
       break;
 
     case 'xsieben_angebot':
-      $body = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><tr><td>' . $data->angebot_email . '</td></tr></table>';
+    case 'xsieben_angebot_kurszeiten':
+    case 'xsieben_angebot_und_kurszeiten':
+    case 'kurszeitenbestaetigung':
+      require_once dirname(__DIR__) . '/helpers/crm-email-sections.php';
+      if (function_exists('crm_build_standard_offer_email')) {
+        $std_offer = crm_build_standard_offer_email($entry_id, $course_id, ['context' => $context]);
+        $body = $std_offer['body'];
+        if (empty($subject)) {
+          $subject = $std_offer['subject'];
+        }
+      } else {
+        $body = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><tr><td>' . $data->angebot_email . '</td></tr></table>';
+      }
       break;
 
     case 'xsieben_diplom':
@@ -310,12 +742,6 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
 
     case 'teilnahmebestaetigung':
       $body = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><tr><td>' . $data->teilnahmebestaetigung_email . '</td></tr></table>';
-      break;
-
-    case 'xsieben_angebot_kurszeiten':
-    case 'xsieben_angebot_und_kurszeiten':
-    case 'kurszeitenbestaetigung':
-      $body = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><tr><td>' . $data->angebot_email . '</td></tr></table>';
       break;
 
     default:
@@ -328,10 +754,34 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
       break;
   }
 
+  // Check if Friedelin AI draft exists for this entry
+  $friedelin_draft = function_exists('crm_friedelin_get_entry_draft') ? crm_friedelin_get_entry_draft($entry_id) : null;
+  if ($friedelin_draft) {
+    if (!empty($friedelin_draft['subject'])) {
+      $subject = $friedelin_draft['subject'];
+    }
+    if (!empty($friedelin_draft['body'])) {
+      $body = $friedelin_draft['body'];
+    }
+    if (!empty($friedelin_draft['all_pdf_param'])) {
+      $pdf_url = $friedelin_draft['all_pdf_param'];
+    }
+  }
+
   // Ensure subject and body are parsed with all course and placeholder data
   if (method_exists($data, 'parse_string_with_data')) {
     $subject = $data->parse_string_with_data($subject);
     $body    = $data->parse_string_with_data($body);
+  }
+
+  // Double-ensure NO internal AI notices/Friedelin tags enter the email editor
+  if (function_exists('crm_strip_internal_ai_notices')) {
+    $body = crm_strip_internal_ai_notices($body);
+  }
+
+  // Normalisierung und Anna-Brauer-Signaturschutz
+  if (function_exists('crm_prepare_email_html_for_sending')) {
+    $body = crm_prepare_email_html_for_sending($body);
   }
 
   // Default test email from settings or current WP user
@@ -346,7 +796,35 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
 
   // Left: Email form & Editor
   echo '<div id="x-sieben-email-editor" style="flex:2;">';
+
+  // Friedelin Banner
+  if ($friedelin_draft) {
+    echo '<div class="crm-friedelin-banner" style="background:#f5f3ff; border:2px solid #8b5cf6; border-radius:8px; padding:12px 16px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; gap:12px; box-shadow:0 1px 3px rgba(124,58,237,0.1);">';
+    echo '  <div style="display:flex; align-items:center; gap:10px;">';
+    echo '    <span class="dashicons dashicons-email-alt2" style="color:#7c3aed; font-size:24px; width:24px; height:24px;"></span>';
+    echo '    <div>';
+    echo '      <strong style="color:#5b21b6; font-size:13px;">📦 Für den Versand vorbereitet</strong>';
+    echo '      <p style="margin:2px 0 0 0; font-size:12px; color:#6d28d9;">' . esc_html($friedelin_draft['ai_summary']) . ' &bull; <em>Bitte prüfen & manuell freigeben.</em></p>';
+    echo '    </div>';
+    echo '  </div>';
+    echo '  <span style="font-size:11px; background:#7c3aed; color:#fff; padding:4px 10px; border-radius:12px; font-weight:700; white-space:nowrap;">Freigabe erforderlich</span>';
+    echo '</div>';
+  }
+
+  // Foerderung (AMS / WAFF) Badges Bar
+  $foerderung_data = function_exists('crm_get_entry_foerderung') ? crm_get_entry_foerderung($entry_id) : ['ams' => false, 'waff' => false];
+  $badges_html = function_exists('crm_render_foerderung_badges') ? crm_render_foerderung_badges($entry_id, $course_id, $foerderung_data) : '';
+
+  echo '<div class="crm-mailer-foerderung-bar" style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 12px; margin-bottom:14px;">';
+  echo '  <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#475569; font-weight:600;">';
+  echo '    <span class="dashicons dashicons-businessman" style="color:#0284c7; font-size:16px;"></span>';
+  echo '    <span>' . esc_html__('Förderstelle / Kundentyp:', 'custom-crm') . '</span>';
+  echo '  </div>';
+  echo '  <div>' . $badges_html . '</div>';
+  echo '</div>';
+
   echo '<p><label for="x_sieben_recipient">Empfänger:</label><br><input type="email" id="x_sieben_recipient" class="regular-text" value="' . esc_attr($recipient) . '"></p>';
+
 
   // --- CRM Subject Box (Editable with Chips) ---
   echo '<div class="crm-mailer-subject-box" style="margin-bottom:16px; background:#ffffff; border:1px solid #cbd5e1; border-left:4px solid #0284c7; border-radius:6px; padding:12px 14px; box-shadow:0 1px 3px rgba(0,0,0,0.03);">';
@@ -451,7 +929,7 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
   echo '    </ul>';
   echo '  </li>';
   if ($entry_id) {
-    echo '  <li style="margin-bottom:10px;"><a href="' . esc_url(admin_url('admin.php?page=wpforms-entries&view=edit&entry_id=' . absint($entry_id))) . '" class="button" style="display:flex; align-items:center; gap:5px; font-size:12px; width:100%; justify-content:center;"><span class="dashicons dashicons-edit"></span> Kundendaten bearbeiten</a></li>';
+    echo '  <li style="margin-bottom:10px;"><button type="button" class="button crm-quick-edit-btn" data-entry-id="' . absint($entry_id) . '" data-course-id="' . absint($course_id) . '" style="display:flex; align-items:center; gap:5px; font-size:12px; width:100%; justify-content:center;"><span class="dashicons dashicons-edit"></span> ' . esc_html__('Kundendaten bearbeiten', 'custom-crm') . '</button></li>';
   }
   if ($course_id) {
     echo '  <li style="margin-bottom:10px;"><a href="' . esc_url(get_edit_post_link($course_id)) . '" class="button" style="display:flex; align-items:center; gap:5px; font-size:12px; width:100%; justify-content:center;"><span class="dashicons dashicons-admin-page"></span> Kurs bearbeiten</a></li>';
@@ -494,7 +972,10 @@ add_action('wp_ajax_x_sieben_send_mail', function () {
   if (!current_user_can('manage_options')) {
     wp_send_json_error(['message' => __('Nicht autorisierter Zugriff.', 'custom-crm')], 403);
   }
-  check_ajax_referer('x_sieben_mailer_nonce', 'security');
+  $nonce = $_POST['security'] ?? ($_POST['nonce'] ?? '');
+  if (!wp_verify_nonce($nonce, 'x_sieben_mailer_nonce') && !wp_verify_nonce($nonce, 'crm_ajax_nonce')) {
+    wp_send_json_error(['message' => __('Sicherheitsprüfung fehlgeschlagen. Bitte laden Sie die Seite neu.', 'custom-crm')], 403);
+  }
 
   $recipient      = isset($_POST['x_sieben_recipient']) ? sanitize_email($_POST['x_sieben_recipient']) : '';
   $subject        = isset($_POST['x_sieben_subject']) ? sanitize_text_field($_POST['x_sieben_subject']) : '';
@@ -512,14 +993,14 @@ add_action('wp_ajax_x_sieben_send_mail', function () {
   // Validation
   if ($is_test_mode) {
     if (empty($test_recipient) || !is_email($test_recipient)) {
-      wp_send_json_error('Bitte geben Sie eine gültige Test-E-Mail-Adresse an.');
+      wp_send_json_error(['message' => __('Bitte geben Sie eine gültige Test-E-Mail-Adresse an.', 'custom-crm')]);
     }
     if ($test_mode_type === 'both' && (empty($recipient) || !is_email($recipient))) {
-      wp_send_json_error('Für den Versand an Kunde & Test wird auch eine gültige Kunden-E-Mail-Adresse benötigt.');
+      wp_send_json_error(['message' => __('Für den Versand an Kunde & Test wird auch eine gültige Kunden-E-Mail-Adresse benötigt.', 'custom-crm')]);
     }
   } else {
     if (empty($recipient) || !is_email($recipient)) {
-      wp_send_json_error('Bitte geben Sie eine gültige Kunden-E-Mail-Adresse an.');
+      wp_send_json_error(['message' => __('Bitte geben Sie eine gültige Kunden-E-Mail-Adresse an.', 'custom-crm')]);
     }
   }
 
@@ -749,7 +1230,7 @@ add_action('wp_ajax_x_sieben_send_mail', function () {
       'actions_html'   => function_exists('crm_render_entry_actions') ? crm_render_entry_actions($entry_id, $course_id, $status_key) : '',
     ]);
   } else {
-    wp_send_json_error('Fehler beim Senden der E-Mail. Bitte Mail-Konfiguration prüfen.');
+    wp_send_json_error(['message' => __('Fehler beim Senden der E-Mail. Bitte Mail-Konfiguration prüfen.', 'custom-crm')]);
   }
 });
 

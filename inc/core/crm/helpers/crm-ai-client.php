@@ -431,3 +431,126 @@ function crm_ai_healthcheck(): array
         'count'   => count($models),
     ];
 }
+
+/**
+ * Friedelin Lead-Vorbereitungs-Pipeline (Workflow Version 1).
+ *
+ * Analysiert einen neuen WPForms-Eintrag, ermittelt den passenden Kurs,
+ * generiert die erforderlichen PDF-Dokumente (Angebot bzw. Kombi Angebot + KB)
+ * und setzt den Status auf "KI vorbereitet – Freigabe erforderlich".
+ *
+ * Human-in-the-Loop: Kein automatischer Versand an Kunden!
+ *
+ * @param int $entry_id WPForms Entry ID
+ * @param int $form_id  WPForms Form ID (Standard: 60468)
+ * @return array
+ */
+function crm_friedelin_prepare_lead(int $entry_id, int $form_id = 60468): array
+{
+    global $wpdb;
+
+    if ($entry_id <= 0) {
+        return ['success' => false, 'error' => 'Ungültige Entry-ID'];
+    }
+
+    require_once dirname(__DIR__) . '/crm-model.php';
+    require_once dirname(__DIR__) . '/helpers/crm-status.php';
+    require_once dirname(__DIR__) . '/helpers/normalize.php';
+    require_once dirname(__DIR__) . '/pdf/offer.php';
+    require_once dirname(__DIR__) . '/pdf/kurszeitenbestaetigung.php';
+    require_once dirname(__DIR__) . '/pdf/angebot_kurszeiten.php';
+
+    // 1. WPForms-Eintrag auslesen
+    $entry = null;
+    if (class_exists('wpdb') && isset($wpdb)) {
+        $table_entries = $wpdb->prefix . 'wpforms_entries';
+        $entry = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table_entries} WHERE entry_id = %d", $entry_id));
+    }
+
+    $fields = [];
+    if ($entry && !empty($entry->fields)) {
+        $fields = is_string($entry->fields) ? json_decode($entry->fields, true) : $entry->fields;
+    }
+
+    // 2. Kurs-ID ermitteln
+    $course_id = 0;
+    if (!empty($fields)) {
+        $course_title = get_field_value($fields, 'Verborgenes Feld');
+        $course_id = find_course_id_by_title_exact($course_title);
+
+        if (!$course_id) {
+            $kurs_id_raw = get_field_value($fields, 'Kurs ID');
+            if ($kurs_id_raw && preg_match('/(\d+)/', (string)$kurs_id_raw, $m)) {
+                $candidate_id = intval($m[1]);
+                if (get_post_type($candidate_id) === 'courses') {
+                    $course_id = $candidate_id;
+                }
+            }
+        }
+    }
+
+    // Fallback auf 0 wenn kein Kurs zuordenbar
+    $course = new CRM_Model($course_id, $entry_id);
+
+    // 3. Lead-Analyse: Förderfall / AMS / WAFF erkennen
+    $foerderung_data = function_exists('crm_get_entry_foerderung') ? crm_get_entry_foerderung($entry_id, $fields) : ['ams' => false, 'waff' => false];
+    $message_raw    = (string) get_field_value($fields, 'Nachricht / Freitext');
+    $foerderung_raw = (string) get_field_value($fields, 'Förderung');
+    $combined_text  = mb_strtolower($message_raw . ' ' . $foerderung_raw . ' ' . ($course->title ?? ''), 'UTF-8');
+
+    $is_ams_foerderfall = !empty($foerderung_data['ams']) || !empty($foerderung_data['waff']);
+    if (
+        !$is_ams_foerderfall && (
+            str_contains($combined_text, 'ams') ||
+            str_contains($combined_text, 'waff') ||
+            str_contains($combined_text, 'kurszeiten') ||
+            str_contains($combined_text, 'kostenvoranschlag') ||
+            str_contains($combined_text, 'förderung') ||
+            str_contains($combined_text, 'foerderung') ||
+            str_contains($combined_text, 'bildungsförderung')
+        )
+    ) {
+        $is_ams_foerderfall = true;
+    }
+
+    // 4. Dokumente über bestehende CRM-Generatoren erzeugen
+    $generated_docs = [];
+    $context = 'xsieben_angebot';
+
+    // PDF Angebot immer generieren
+    if (function_exists('xsieben_offer_pdf')) {
+        $offer_url = xsieben_offer_pdf($entry_id, $course_id, false);
+        $generated_docs['angebot'] = $offer_url;
+    }
+
+    // Bei AMS / Förderfall: Kurszeitenbestätigung (KB) zusätzlich generieren
+    if ($is_ams_foerderfall && function_exists('xsieben_kb_pdf')) {
+        $kb_url = xsieben_kb_pdf($entry_id, $course_id, false);
+        $generated_docs['kb'] = $kb_url;
+        $context = 'xsieben_angebot_und_kurszeiten';
+    }
+
+    // 5. Status im CRM setzen & auditieren
+    $note = $is_ams_foerderfall
+        ? '🤖 Friedelin Lead-Analyse: AMS-/Förderfall erkannt. Angebot + Kurszeitenbestätigung (KB) generiert. Versandfreigabe durch Hannes erforderlich.'
+        : '🤖 Friedelin Lead-Analyse: Reguläres Kursangebot generiert. Versandfreigabe durch Hannes erforderlich.';
+
+    if (function_exists('crm_set_entry_status')) {
+        crm_set_entry_status($entry_id, 'ai_prepared', $note, null, 0, $form_id);
+    }
+
+    return [
+        'success'            => true,
+        'entry_id'           => $entry_id,
+        'course_id'          => $course_id,
+        'course_title'       => $course->title ?? '',
+        'customer_name'      => trim(($course->salutation ?? '') . ' ' . ($course->vorname ?? '') . ' ' . ($course->nachname ?? '')),
+        'customer_email'     => $course->email ?? '',
+        'is_ams_foerderfall' => $is_ams_foerderfall,
+        'context'            => $context,
+        'status'             => 'ai_prepared',
+        'status_label'       => '🤖 KI vorbereitet – Freigabe erforderlich',
+        'docs'               => $generated_docs,
+        'note'               => $note,
+    ];
+}

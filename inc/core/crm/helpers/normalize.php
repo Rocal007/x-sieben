@@ -19,6 +19,52 @@ function normalize_string($str) {
 }
 
 /**
+ * Strips all internal AI preparation notices, Friedelin tags, and approval disclaimers
+ * from email bodies and templates. These notices are strictly for internal CRM review
+ * and must NEVER be visible to the customer or present in outgoing emails.
+ *
+ * @param string $html
+ * @return string Cleaned HTML / text without internal AI notices.
+ */
+function crm_strip_internal_ai_notices($html) {
+    if (empty($html) || !is_string($html)) {
+        return '';
+    }
+
+    // 1. Remove <span> elements containing Friedelin / KI-Assistent / Vorbereitet von / Freigabe disclaimers
+    $html = preg_replace('/<span\b[^>]*>(?:(?!<\/span>).)*(?:Vorbereitet\s+von|Friedelin|KI-Assistent|Gepr(?:ü|&uuml;)ft\s*&(?:amp;)?\s*freigegeben|Manuelle\s+Pr(?:ü|&uuml;)fung)(?:(?!<\/span>).)*<\/span>/isu', '', $html);
+
+    // 2. Remove dedicated Friedelin <div> or <p> containers if class or id contains friedelin
+    $html = preg_replace('/<(?:div|p)\b[^>]*(?:class|id)=["\'][^"\']*friedelin[^"\']*["\'][^>]*>.*?<\/(?:div|p)>/isu', '', $html);
+
+    // 3. Remove any remaining plaintext badge text without touching sender names or greetings
+    $pattern_text = [
+        '/(?:🤖\s*)?Vorbereitet\s+von\s+(?:<strong>)?Friedelin(?:<\/strong>)?(?:\s*\([^)]*\))?\s*(?:&bull;|•|-)?\s*(?:<em>)?(?:Gepr(?:ü|&uuml;)ft\s*&(?:amp;)?\s*freigegeben[^<\r\n]*|Manuelle\s+Pr(?:ü|&uuml;)fung[^<\r\n]*)?(?:<\/em>)?/iu',
+        '/(?:🤖\s*)?Vorbereitet\s+von\s+Friedelin[^<\r\n]*/iu',
+        '/(?:&bull;|•|-)?\s*(?:<em>)?\s*Gepr(?:ü|&uuml;)ft\s*&(?:amp;)?\s*freigegeben\s+von\s+Mag\.\s+Dr\.\s+Johannes\s+Gasberger\s*(?:<\/em>)?/iu',
+        '/(?:&bull;|•|-)?\s*(?:<em>)?\s*Manuelle\s+Pr(?:ü|&uuml;)fung\s*&(?:amp;)?\s*Freigabe\s+durch\s+Gesch(?:ä|&auml;)ftsf(?:ü|&uuml;)hrung\s*(?:<\/em>)?/iu',
+    ];
+    $html = preg_replace($pattern_text, '', $html);
+
+    // 4. Clean up any trailing breaks before closing paragraph or excessive breaks
+    $html = preg_replace('#(<br\s*/?>\s*)+(</p>)#i', '$2', $html);
+    $html = preg_replace('#<p>\s*</p>#i', '', $html);
+    $html = preg_replace('#(<br\s*/?>\s*){3,}#i', '<br><br>', $html);
+
+    return $html;
+}
+
+if (!has_filter('wp_mail', 'crm_filter_strip_internal_ai_notices_from_mail')) {
+    function crm_filter_strip_internal_ai_notices_from_mail($args) {
+        if (isset($args['message']) && is_string($args['message'])) {
+            $args['message'] = crm_strip_internal_ai_notices($args['message']);
+        }
+        return $args;
+    }
+    add_filter('wp_mail', 'crm_filter_strip_internal_ai_notices_from_mail', 9999);
+}
+
+/**
  * Normalizes HTML for transactional and CRM outgoing emails.
  *
  * Ensures all image sources (src) and hyperlinks (href) use full, valid, canonical HTTPS URLs
@@ -34,10 +80,30 @@ function crm_prepare_email_html_for_sending($body) {
         return '';
     }
 
+    // 0a. Strip any internal AI preparation notices / Friedelin badges (MUST NEVER appear in emails)
+    $body = crm_strip_internal_ai_notices($body);
+
     $canonical_host = 'https://x-sieben.at';
 
-    // 0. Strip TinyMCE editor artifacts globally before attribute parsing
+    // 0b. Strip TinyMCE editor artifacts globally before attribute parsing
     $body = preg_replace('/\s*data-mce-[a-z0-9_-]+=["\'][^"\']*["\']/i', '', $body);
+
+    // 0c. Replace any legacy Dr. Gasberger signatures in customer-facing offer/consultation emails with Anna Brauer
+    if (stripos($body, 'Mag. Dr. Johannes Gasberger') !== false && stripos($body, 'Geschäftsführer') !== false) {
+        $sig_field = '';
+        if (function_exists('crm_get_merged_custom_fields')) {
+            $c_fields = crm_get_merged_custom_fields();
+            foreach ($c_fields as $cf) {
+                if (strcasecmp(trim($cf['title'] ?? ''), 'E-Mail Signatur') === 0 && !empty($cf['content'])) {
+                    $sig_field = $cf['content'];
+                    break;
+                }
+            }
+        }
+        $anna_brauer_sig = !empty($sig_field) ? $sig_field : '<p style="margin:0; line-height:1.4;">Herzliche Grüße<br><br><strong>Anna Brauer</strong><br><span style="color:#64748b; font-size:12px;">Kundenbetreuung &amp; Lehrgangsmanagement | X SIEBEN Wirtschaftstraining GmbH</span><br><span style="color:#007C90; font-size:11px;">Gebührenfrei: 0800 / 700 170 &bull; <a href="https://x-sieben.at" style="color:#007C90; text-decoration:none;">www.x-sieben.at</a></span></p>';
+        $body = preg_replace('/<p[^>]*>\s*(?:Mit besten Grüßen|Herzliche Grüße|Freundliche Grüße)[\s\S]*?Mag\.\s*Dr\.\s*Johannes\s*Gasberger[\s\S]*?<\/p>/iu', $anna_brauer_sig, $body);
+        $body = preg_replace('/(?:Mit besten Grüßen|Herzliche Grüße|Freundliche Grüße)[,\s]*<br\s*\/?>\s*<br\s*\/?>\s*<strong>\s*Mag\.\s*Dr\.\s*Johannes\s*Gasberger\s*<\/strong>[\s\S]*?(?:FN\s*550277\s*g|<div|<\/p)/iu', $anna_brauer_sig, $body);
+    }
 
     // 1. Convert WordPress emoji smiley images back to their text emoji (e.g. 🧪)
     // to prevent broken image boxes or cookie banner interception on smilies

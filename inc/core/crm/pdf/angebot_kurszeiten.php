@@ -19,8 +19,8 @@ function xsieben_angebot_kurszeiten_pdf($entry_id, $course_id, $output_to_browse
     $offer_sections = (is_array($custom_sections) && isset($custom_sections['angebot'])) ? $custom_sections['angebot'] : null;
     $kb_sections    = (is_array($custom_sections) && isset($custom_sections['kb'])) ? $custom_sections['kb'] : null;
 
-    // 1. Generate Offer PDF
-    $offer_pdf_url = xsieben_offer_pdf($entry_id, $course_id, false, $offer_sections);
+    // 1. Generate Offer 1 (Basis) PDF
+    $offer_pdf_url = xsieben_offer_pdf($entry_id, $course_id, false, $offer_sections, 'basis');
 
     // 2. Generate Course Times Confirmation PDF
     $kb_pdf_url = xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, false, $kb_sections);

@@ -53,217 +53,70 @@ function xsieben_teilnahmebestaetigung_pdf($entry_id, $course_id, $output_to_bro
 
     // --- Modular HTML Sections for Dynamic Ordering ---
     require_once dirname(__DIR__) . '/helpers/crm-pdf-sections.php';
+    require_once __DIR__ . '/elements/tb-elements.php';
 
     // 1. Titel & Einleitung
-    $tb_titel_subs = [
-        'haupttitel' => '<div style="font-size:4pt">&nbsp;</div>
-        <table cellspacing="0" cellpadding="0" style="width: 100%;">
-            <tr>
-                <td style="font-size:14pt; font-weight: bold; line-height:1; text-align: center;">
-                    ' . htmlspecialchars($tb_title) . '
-                </td>
-            </tr>
-        </table>
-        <div style="font-size:6pt">&nbsp;</div>',
-
-        'einleitung' => '<table cellspacing="0" cellpadding="0" style="width: 100%;">
-            <tr>
-                <td style="font-size:9.5pt; line-height: 1; text-align: left;">
-                    <span>' . htmlspecialchars($tb_einleitung) . '</span>
-                </td>
-            </tr>
-        </table>
-        <div style="font-size:5pt">&nbsp;</div>',
-    ];
+    $tb_titel_subs = CRM_Pdf_Tb_Elements::get_titel_subs($tb_title, $tb_einleitung);
 
     // 2. Box 1: Kursteilnehmer
-    $sec_teilnehmer = '<div style="width: 100%; border: 2px solid black;">
-        <div style="font-size:3pt">&nbsp;</div>
-        <table cellpadding="2" cellspacing="0" style="width: 100%;">
-            <tr>
-                <td style="width: 2%"></td>
-                <td style="width: 68%">
-                    <span style="font-size:8pt;">Vor- und Familien- /Nachname</span>
-                    <div style="font-size:9.5pt; border: 1px solid black; line-height: 1.5">
-                        <span> ' . (!empty($tn_name) ? htmlspecialchars($tn_name) : '&nbsp;') . '</span>
-                    </div>
-                </td>
-                <td style="width: 2%"></td>
-                <td style="width: 26%">
-                    <span style="font-size:8pt;">SV-Nummer</span>
-                    <div style="font-size:9.5pt; border: 1px solid black; line-height: 1.5">
-                        <span> ' . (!empty($tn_svr) ? htmlspecialchars($tn_svr) : '&nbsp;') . '</span>
-                    </div>
-                </td>
-                <td style="width: 2%"></td>
-            </tr>
-            <tr>
-                <td style="width: 2%"></td>
-                <td colspan="3">
-                    <span style="font-size:8pt;">Wohnadresse (Straße, Hausnummer, Stiege, Türnummer)</span>
-                    <div style="font-size:9.5pt; border: 1px solid black; line-height: 1.5">
-                        <span> ' . (!empty($tn_adresse) ? htmlspecialchars($tn_adresse) : '&nbsp;') . '</span>
-                    </div>
-                </td>
-                <td style="width: 2%"></td>
-            </tr>
-            <tr>
-                <td style="width: 2%"></td>
-                <td style="width: 26%">
-                    <span style="font-size:8pt;">Postleitzahl</span>
-                    <div style="font-size:9.5pt; border: 1px solid black; line-height: 1.5">
-                        <span> ' . (!empty($tn_plz) ? htmlspecialchars($tn_plz) : '&nbsp;') . '</span>
-                    </div>
-                </td>
-                <td style="width: 2%"></td>
-                <td style="width: 68%">
-                    <span style="font-size:8pt;">Ort</span>
-                    <div style="font-size:9.5pt; border: 1px solid black; line-height: 1.5">
-                        <span> ' . (!empty($tn_ort) ? htmlspecialchars($tn_ort) : '&nbsp;') . '</span>
-                    </div>
-                </td>
-                <td style="width: 2%"></td>
-            </tr>
-        </table>
-        <div style="font-size:3pt">&nbsp;</div>
-    </div>
-    <div style="font-size:6pt">&nbsp;</div>';
+    $sec_teilnehmer = CRM_Pdf_Tb_Elements::render_teilnehmer($tn_name, $tn_svr, $tn_adresse, $tn_plz, $tn_ort);
 
     // 3. Zeitraum
-    $sec_zeitraum = '<table cellpadding="0" cellspacing="0" style="width: 100%;">
-        <tr>
-            <td style="width: 8%; vertical-align: middle; font-size:9.5pt;">vom </td>
-            <td style="width: 26%;">
-                <div style="font-size:9.5pt; border: 1px solid black; line-height: 1.5;">
-                    <span> ' . htmlspecialchars($course->start_datum ?: date('d.m.Y')) . '</span>
-                </div>
-            </td>
-            <td style="width: 3%;"></td>
-            <td style="width: 6%; vertical-align: middle; font-size:9.5pt;">bis </td>
-            <td style="width: 26%;">
-                <div style="font-size:9.5pt; border: 1px solid black; line-height: 1.5;">
-                    <span> ' . htmlspecialchars($course->end_datum ?: date('d.m.Y')) . '</span>
-                </div>
-            </td>
-            <td style="width: 3%;"></td>
-            <td style="width: 28%; vertical-align: middle; font-size:9.5pt;">bei</td>
-        </tr>
-    </table>
-    <div style="font-size:6pt">&nbsp;</div>';
+    $sec_zeitraum = CRM_Pdf_Tb_Elements::render_zeitraum($course->start_datum ?: '', $course->end_datum ?: '');
 
     // 4. Box 2: Ausbildungsstätte & Schulungsort
-    $sec_ausbildungsstaette = '<div style="width: 100%; border: 2px solid black;">
-        <div style="font-size:3pt">&nbsp;</div>
-        <table cellpadding="2" cellspacing="0" style="width: 100%;">
-            <tr>
-                <td style="width: 2%"></td>
-                <td style="width: 96%">
-                    <span style="font-size:8pt;">Bezeichnung des Betriebes/der Ausbildungseinrichtung</span>
-                    <div style="font-size:9.5pt; border: 1px solid black; line-height: 1.5">
-                        <span> ' . (!empty($tb_betrieb_name) ? htmlspecialchars($tb_betrieb_name) : '&nbsp;') . '</span>
-                    </div>
-                </td>
-                <td style="width: 2%"></td>
-            </tr>
-            <tr>
-                <td style="width: 2%"></td>
-                <td style="width: 96%">
-                    <span style="font-size:8pt;">Adresse des Betriebes (Straße, Hausnummer, Stiege, Türnummer)</span>
-                    <div style="font-size:9.5pt; border: 1px solid black; line-height: 1.5">
-                        <span> ' . (!empty($tb_betrieb_str) ? htmlspecialchars($tb_betrieb_str) : '&nbsp;') . '</span>
-                    </div>
-                </td>
-                <td style="width: 2%"></td>
-            </tr>
-        </table>
-        <table cellpadding="2" cellspacing="0" style="width: 100%;">
-            <tr>
-                <td style="width: 2%"></td>
-                <td style="width: 26%">
-                    <span style="font-size:8pt;">Postleitzahl</span>
-                    <div style="font-size:9.5pt; border: 1px solid black; line-height: 1.5">
-                        <span> ' . (!empty($tb_betrieb_plz) ? htmlspecialchars($tb_betrieb_plz) : '&nbsp;') . '</span>
-                    </div>
-                </td>
-                <td style="width: 2%"></td>
-                <td style="width: 68%">
-                    <span style="font-size:8pt;">Ort</span>
-                    <div style="font-size:9.5pt; border: 1px solid black; line-height: 1.5">
-                        <span> ' . (!empty($tb_betrieb_ort) ? htmlspecialchars($tb_betrieb_ort) : '&nbsp;') . '</span>
-                    </div>
-                </td>
-                <td style="width: 2%"></td>
-            </tr>
-        </table>
-        <table cellpadding="2" cellspacing="0" style="width: 100%;">
-            <tr>
-                <td style="width: 2%"></td>
-                <td style="width: 96%">
-                    <span style="font-size:8pt;">Adresse des Schulungsortes (Straße, Hausnummer, Stiege, Türnummer)</span>
-                    <div style="font-size:9.5pt; border: 1px solid black; line-height: 1.5">
-                        <span> ' . (!empty($tb_ort_str) ? htmlspecialchars($tb_ort_str) : '&nbsp;') . '</span>
-                    </div>
-                </td>
-                <td style="width: 2%"></td>
-            </tr>
-        </table>
-        <table cellpadding="2" cellspacing="0" style="width: 100%;">
-            <tr>
-                <td style="width: 2%"></td>
-                <td style="width: 26%">
-                    <span style="font-size:8pt;">Postleitzahl</span>
-                    <div style="font-size:9.5pt; border: 1px solid black; line-height: 1.5">
-                        <span> ' . (!empty($tb_ort_plz) ? htmlspecialchars($tb_ort_plz) : '&nbsp;') . '</span>
-                    </div>
-                </td>
-                <td style="width: 2%"></td>
-                <td style="width: 68%">
-                    <span style="font-size:8pt;">Ort</span>
-                    <div style="font-size:9.5pt; border: 1px solid black; line-height: 1.5">
-                        <span> ' . (!empty($tb_ort_ort) ? htmlspecialchars($tb_ort_ort) : '&nbsp;') . '</span>
-                    </div>
-                </td>
-                <td style="width: 2%"></td>
-            </tr>
-        </table>
-        <div style="font-size:3pt">&nbsp;</div>
-    </div>
-    <div style="font-size:8pt">&nbsp;</div>';
+    $sec_ausbildungsstaette = CRM_Pdf_Tb_Elements::render_ausbildungsstaette(
+        $tb_betrieb_name,
+        $tb_betrieb_str,
+        $tb_betrieb_plz,
+        $tb_betrieb_ort,
+        $tb_ort_str,
+        $tb_ort_plz,
+        $tb_ort_ort
+    );
 
     // 5. Teilnahme Text
-    $sec_teilnahme = '<table style="width: 100%;">
-        <tr>
-            <td style="font-size: 9.5pt; line-height: 1.35;">' . $tb_teilnahme . '</td>
-        </tr>
-    </table>
-    <div style="font-size:10pt">&nbsp;</div>';
+    $sec_teilnahme = CRM_Pdf_Tb_Elements::render_teilnahme($tb_teilnahme);
 
     // 6. Datum & Unterschrift
-    $sec_signatur = '<table cellspacing="0" cellpadding="0" style="width: 100%;">
-        <tr>
-            <td style="width: 45%; vertical-align: top; font-size: 9.5pt;">
-                ' . htmlspecialchars($tb_datum) . '
-            </td>
-            <td style="width: 55%; vertical-align: top;">
-                ' . (!empty($tb_unterschrift) ? '<span style="font-size: 9.5pt;">' . htmlspecialchars($tb_unterschrift) . '</span><br>' : '') . '
-                ' . $course->signatur . '
-            </td>
-        </tr>
-    </table>';
+    $sec_signatur = CRM_Pdf_Tb_Elements::render_signatur($tb_datum, $tb_unterschrift, $course->signatur);
 
-    // Holen der hierarchischen Abschnitte
-    $all_sections = crm_get_pdf_section_order('tb', $entry_id);
+    $tb_subsections = [
+        'titel'              => $tb_titel_subs,
+        'teilnehmer'         => ['teilnehmer_box' => $sec_teilnehmer],
+        'zeitraum'           => ['zeitraum_box' => $sec_zeitraum],
+        'ausbildungsstaette' => ['ausbildungsstaette_box' => $sec_ausbildungsstaette],
+        'teilnahme'          => ['teilnahme_box' => $sec_teilnahme],
+        'signatur'           => ['signatur_box' => $sec_signatur],
+    ];
 
-    if (is_array($custom_sections) && !empty($custom_sections)) {
-        $allowed_keys = is_string(reset($custom_sections)) ? $custom_sections : array_column($custom_sections, 'key');
-        $filtered = [];
-        foreach ($all_sections as $sec) {
-            if (in_array($sec['key'], $allowed_keys, true)) {
-                $filtered[] = $sec;
+    $flattened_sub_generators = [];
+    foreach ($tb_subsections as $sec_k => $subs) {
+        if (is_array($subs)) {
+            foreach ($subs as $sub_k => $sub_gen) {
+                $flattened_sub_generators[$sub_k] = $sub_gen;
             }
         }
-        $all_sections = $filtered;
     }
+
+    // Holen der hierarchischen Abschnitte
+    if (is_array($custom_sections) && !empty($custom_sections) && is_array(reset($custom_sections)) && isset(reset($custom_sections)['key'])) {
+        $all_sections = $custom_sections;
+    } else {
+        $all_sections = crm_get_pdf_section_order('tb', $entry_id);
+        // Filter falls $custom_sections als Key-Liste übergeben wurde
+        if (is_array($custom_sections) && !empty($custom_sections)) {
+            $allowed_keys = is_string(reset($custom_sections)) ? $custom_sections : array_column($custom_sections, 'key');
+            $filtered = [];
+            foreach ($all_sections as $sec) {
+                if (in_array($sec['key'], $allowed_keys, true)) {
+                    $filtered[] = $sec;
+                }
+            }
+            $all_sections = $filtered;
+        }
+    }
+    $global_spacing = function_exists('crm_get_pdf_elements_spacing') ? crm_get_pdf_elements_spacing() : ['spacing_top' => 0, 'spacing_bottom' => 0];
 
     $html = '';
     foreach ($all_sections as $sec) {
@@ -271,49 +124,88 @@ function xsieben_teilnahmebestaetigung_pdf($entry_id, $course_id, $output_to_bro
             continue;
         }
 
-        $sec_key   = $sec['key'];
-        $is_custom = !empty($sec['is_custom']);
+        $sec_key     = $sec['key'];
+        $is_custom   = !empty($sec['is_custom']);
+        $sec_spacing = function_exists('crm_get_pdf_effective_spacing')
+            ? crm_get_pdf_effective_spacing($sec, $global_spacing)
+            : ['top' => 0, 'bottom' => 0];
+        $sec_prefix  = function_exists('crm_get_pdf_spacing_html') ? crm_get_pdf_spacing_html($sec_spacing['top']) : '';
+        $sec_suffix  = function_exists('crm_get_pdf_spacing_html') ? crm_get_pdf_spacing_html($sec_spacing['bottom']) : '';
+        $sec_content = '';
 
         if ($is_custom) {
-            $html .= '<div style="margin-bottom:12px; font-size:10pt; line-height:1.6;">';
+            $sec_content .= '<div style="margin-bottom:12px; font-size:10pt; line-height:1.6;">';
             if (!empty($sec['title'])) {
-                $html .= '<strong>' . esc_html($sec['title']) . '</strong><br>';
+                $sec_content .= '<strong>' . esc_html($sec['title']) . '</strong><br>';
             }
             if (!empty($sec['content'])) {
-                $html .= crm_replace_pdf_placeholders($sec['content'], $course);
+                $sec_content .= crm_replace_pdf_placeholders($sec['content'], $course);
             }
             if (!empty($sec['subsections'])) {
                 foreach ($sec['subsections'] as $sub) {
-                    if (!empty($sub['enabled']) && !empty($sub['content'])) {
-                        $html .= '<div style="margin-top:6px;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
+                    if (empty($sub['enabled'])) continue;
+                    $sub_sp_top = isset($sub['spacing_top']) && is_numeric($sub['spacing_top']) ? floatval($sub['spacing_top']) : 0.0;
+                    $sub_sp_bottom = isset($sub['spacing_bottom']) && is_numeric($sub['spacing_bottom']) ? floatval($sub['spacing_bottom']) : 0.0;
+                    $sub_prefix = ($sub_sp_top > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_top) : '';
+                    $sub_suffix = ($sub_sp_bottom > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_bottom) : '';
+
+                    $sk = $sub['key'] ?? '';
+                    $sub_html = '';
+                    if (!empty($sub['is_custom'])) {
+                        if (!empty($sub['title'])) {
+                            $sub_html .= '<div style="font-size:10pt; font-weight:bold; margin-top:6px;">' . esc_html($sub['title']) . '</div>';
+                        }
+                        if (!empty($sub['content'])) {
+                            $sub_html .= '<div style="margin-top:4px;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
+                        }
+                    } elseif (isset($flattened_sub_generators[$sk])) {
+                        $def_sub = $flattened_sub_generators[$sk];
+                        if (!empty($sub['content']) && $sub['content'] !== '{standard}') {
+                            $custom = (strpos($sub['content'], '{standard}') !== false)
+                                ? str_replace('{standard}', $def_sub, $sub['content'])
+                                : $sub['content'];
+                            $sub_html .= crm_replace_pdf_placeholders($custom, $course);
+                        } else {
+                            $sub_html .= $def_sub;
+                        }
+                    } elseif (!empty($sub['content'])) {
+                        $sub_html .= '<div style="margin-top:4px;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
+                    }
+                    if (!empty($sub_html)) {
+                        $sec_content .= $sub_prefix . $sub_html . $sub_suffix;
                     }
                 }
             }
-            $html .= '</div><div style="font-size:10pt">&nbsp;</div>';
+            $sec_content .= '</div><div style="font-size:10pt">&nbsp;</div>';
 
         } elseif ($sec_key === 'titel') {
             if (!empty($sec['subsections'])) {
                 foreach ($sec['subsections'] as $sub) {
                     if (empty($sub['enabled'])) continue;
                     $sk = $sub['key'];
+                    $sub_sp_top = isset($sub['spacing_top']) && is_numeric($sub['spacing_top']) ? floatval($sub['spacing_top']) : 0.0;
+                    $sub_sp_bottom = isset($sub['spacing_bottom']) && is_numeric($sub['spacing_bottom']) ? floatval($sub['spacing_bottom']) : 0.0;
+                    $sub_prefix = ($sub_sp_top > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_top) : '';
+                    $sub_suffix = ($sub_sp_bottom > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_bottom) : '';
+
                     if (!empty($sub['is_custom']) && !empty($sub['content'])) {
-                        $html .= '<div style="font-size:9.5pt; margin-bottom:4px;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
-                    } elseif (isset($tb_titel_subs[$sk])) {
-                        $def_sub = $tb_titel_subs[$sk];
+                        $sec_content .= $sub_prefix . '<div style="font-size:9.5pt; margin-bottom:4px;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>' . $sub_suffix;
+                    } elseif (isset($tb_titel_subs[$sk]) || isset($flattened_sub_generators[$sk])) {
+                        $def_sub = $tb_titel_subs[$sk] ?? $flattened_sub_generators[$sk];
                         if (!empty($sub['content'])) {
                             if (strpos($sub['content'], '{standard}') !== false) {
                                 $custom = str_replace('{standard}', $def_sub, $sub['content']);
                             } else {
                                 $custom = '<div style="font-size:9.5pt; margin-bottom:4px;">' . $sub['content'] . '</div>';
                             }
-                            $html .= crm_replace_pdf_placeholders($custom, $course);
+                            $sec_content .= $sub_prefix . crm_replace_pdf_placeholders($custom, $course) . $sub_suffix;
                         } else {
-                            $html .= $def_sub;
+                            $sec_content .= $sub_prefix . $def_sub . $sub_suffix;
                         }
                     }
                 }
             } else {
-                $html .= implode('', $tb_titel_subs);
+                $sec_content .= implode('', $tb_titel_subs);
             }
 
         } elseif ($sec_key === 'teilnehmer') {
@@ -329,7 +221,7 @@ function xsieben_teilnahmebestaetigung_pdf($entry_id, $course_id, $output_to_bro
                     }
                 }
             }
-            $html .= $sec_out;
+            $sec_content .= $sec_out;
 
         } elseif ($sec_key === 'zeitraum') {
             $sec_out = $sec_zeitraum;
@@ -344,7 +236,7 @@ function xsieben_teilnahmebestaetigung_pdf($entry_id, $course_id, $output_to_bro
                     }
                 }
             }
-            $html .= $sec_out;
+            $sec_content .= $sec_out;
 
         } elseif ($sec_key === 'ausbildungsstaette') {
             $sec_out = $sec_ausbildungsstaette;
@@ -359,7 +251,7 @@ function xsieben_teilnahmebestaetigung_pdf($entry_id, $course_id, $output_to_bro
                     }
                 }
             }
-            $html .= $sec_out;
+            $sec_content .= $sec_out;
 
         } elseif ($sec_key === 'teilnahme') {
             $sec_out = $sec_teilnahme;
@@ -374,7 +266,7 @@ function xsieben_teilnahmebestaetigung_pdf($entry_id, $course_id, $output_to_bro
                     }
                 }
             }
-            $html .= $sec_out;
+            $sec_content .= $sec_out;
 
         } elseif ($sec_key === 'signatur') {
             $sec_out = $sec_signatur;
@@ -389,7 +281,11 @@ function xsieben_teilnahmebestaetigung_pdf($entry_id, $course_id, $output_to_bro
                     }
                 }
             }
-            $html .= $sec_out;
+            $sec_content .= $sec_out;
+        }
+
+        if (!empty($sec_content)) {
+            $html .= $sec_prefix . $sec_content . $sec_suffix;
         }
     }
 

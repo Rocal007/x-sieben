@@ -71,6 +71,8 @@ require_components([
 
 // CRM
 require_components([
+  '/inc/core/crm/helpers/crm-status.php',
+  '/inc/core/crm/helpers/crm-friedelin.php',
   '/inc/core/crm/crm-admin.php',
   '/inc/core/crm/crm-model.php',
   '/inc/core/crm/crm-form.php',
@@ -85,3 +87,4 @@ require_components([
   '/inc/core/crm/pdf/diplom.php',
   '/inc/core/crm/helpers/normalize.php',
 ]);
+

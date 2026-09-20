@@ -126,7 +126,7 @@ function crm_get_pdf_preview_url_ajax_handler()
         wp_send_json_error(['message' => __('Ungültige Sicherheitsprüfung (Nonce).', 'custom-crm')]);
     }
 
-    $doc_type = sanitize_key($_POST['doc_type'] ?? 'kb');
+    $doc_type = sanitize_key($_POST['doc_type'] ?? 'angebot');
     $sample   = function_exists('crm_get_preview_sample_data') ? crm_get_preview_sample_data() : ['entry_id' => null, 'course_id' => null];
 
     $entry_id  = $sample['entry_id'] ?? null;
@@ -137,9 +137,16 @@ function crm_get_pdf_preview_url_ajax_handler()
     }
 
     require_once dirname(__DIR__) . '/crm-model.php';
+    require_once dirname(__DIR__) . '/helpers/crm-pdf-sections.php';
 
     $prev_error_reporting = error_reporting(0);
     ob_start();
+
+    // Ermitteln der Abschnitte für die Vorschau:
+    // Auf der globalen Einstellungsseite (keine spezifische entry_id via POST) immer die globale
+    // Struktur verwenden, damit individuelle Overrides des Muster-Datensatzes die globale Vorschau nicht verfälschen!
+    $requested_entry_id = !empty($_POST['entry_id']) ? intval($_POST['entry_id']) : null;
+    $preview_sections   = crm_get_pdf_section_order($doc_type, $requested_entry_id);
 
     $url = '';
     $base_dir = dirname(__DIR__);
@@ -147,27 +154,32 @@ function crm_get_pdf_preview_url_ajax_handler()
         switch ($doc_type) {
             case 'kb':
                 require_once $base_dir . '/pdf/kurszeitenbestaetigung.php';
-                $url = xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, false);
+                $url = xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, false, $preview_sections);
                 break;
 
             case 'tb':
                 require_once $base_dir . '/pdf/teilnamebestaetigung.php';
-                $url = xsieben_teilnahmebestaetigung_pdf($entry_id, $course_id, false);
+                $url = xsieben_teilnahmebestaetigung_pdf($entry_id, $course_id, false, $preview_sections);
                 break;
 
             case 'diplom':
                 require_once $base_dir . '/pdf/diplom.php';
-                $url = xsieben_diplom_pdf($entry_id, $course_id, false);
+                $url = xsieben_diplom_pdf($entry_id, $course_id, false, null, $preview_sections);
                 break;
 
             case 'angebot':
                 require_once $base_dir . '/pdf/offer.php';
-                $url = xsieben_offer_pdf($entry_id, $course_id, false);
+                $url = xsieben_offer_pdf($entry_id, $course_id, false, $preview_sections);
+                break;
+
+            case 'angebot_2':
+                require_once $base_dir . '/pdf/offer.php';
+                $url = xsieben_offer_pdf($entry_id, $course_id, false, $preview_sections, 'mit_zertifikat');
                 break;
 
             case 'invoice':
                 require_once $base_dir . '/pdf/invoice.php';
-                $url = xsieben_invoice_pdf($entry_id, $course_id, false);
+                $url = xsieben_invoice_pdf($entry_id, $course_id, false, $preview_sections);
                 break;
 
             default:

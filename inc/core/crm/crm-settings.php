@@ -142,6 +142,39 @@ function crm_get_component_placeholder_for_title(string $title): string
         'durchfuehrungs garantie'           => '{durchfuehrungs_garantie}',
         'teilnahme_fee'                     => '{teilnahme_fee}',
         'anhang 2 | exklusive zusatzleistungen' => '{anhang_2}',
+
+        // Standard PDF-Bausteine Platzhalter-Codes
+        'kb - titel'                        => '{kb_titel}',
+        'kb - kursinstitut name'            => '{kb_institut}',
+        'kb - schulungsort'                 => '{kb_schulungsort}',
+        'kb - hinweistext'                  => '{kb_hinweis}',
+        'kb - signatur institut'            => '{kb_signatur_institut}',
+        'kb - signatur kunde'               => '{kb_signatur_kunde}',
+        'tb - titel'                        => '{tb_titel}',
+        'tb - einleitung'                   => '{tb_einleitung}',
+        'tb - betrieb name'                 => '{tb_betrieb_name}',
+        'tb - betrieb strasse'              => '{tb_betrieb_strasse}',
+        'tb - betrieb plz'                  => '{tb_betrieb_plz}',
+        'tb - betrieb ort'                  => '{tb_betrieb_ort}',
+        'tb - schulungsort strasse'         => '{tb_schulungsort_strasse}',
+        'tb - schulungsort plz'             => '{tb_schulungsort_plz}',
+        'tb - schulungsort ort'             => '{tb_schulungsort_ort}',
+        'tb - teilnahme text'               => '{tb_teilnahme_text}',
+        'tb - datum'                        => '{tb_datum}',
+        'tb - unterschrift label'           => '{tb_unterschrift_label}',
+        'diplom - titel'                    => '{diplom_titel}',
+        'diplom - lehrgang text'            => '{diplom_lehrgang_text}',
+        'diplom - einheiten text'           => '{diplom_einheiten_text}',
+        'diplom - zeitraum text'            => '{diplom_zeitraum_text}',
+        'diplom - abschluss text'           => '{diplom_abschluss_text}',
+        'diplom - datum unterschrift'       => '{diplom_datum_unterschrift}',
+        'diplom - footer'                   => '{diplom_footer}',
+        'angebot - einleitung'              => '{angebot_einleitung}',
+        'angebot - grußformel'              => '{angebot_grussformel}',
+        'angebot - ort und durchführung'    => '{angebot_ort_durchfuehrung}',
+        'honorarnote - titel'               => '{honorarnote_titel}',
+        'honorarnote - einleitung'          => '{honorarnote_einleitung}',
+        'honorarnote - zahlungsanweisung'   => '{honorarnote_zahlungsanweisung}',
     ];
 
     if (isset($map[$t])) {
@@ -154,6 +187,64 @@ function crm_get_component_placeholder_for_title(string $title): string
     $slug = preg_replace('/[^a-z0-9_]/', '', $slug);
 
     return '{' . ($slug ?: 'komponente') . '}';
+}
+
+/**
+ * Retrieve all custom and default fields merged together.
+ * Ensures all atomic components, PDF blocks and E-Mail templates are available in the UI.
+ *
+ * @param string|null $category Filter by 'email', 'pdf' or null for all
+ * @return array
+ */
+function crm_get_merged_custom_fields(?string $category = null): array
+{
+    $saved_fields = get_option('crm_custom_fields', []);
+    if (!is_array($saved_fields)) {
+        $saved_fields = [];
+    }
+
+    $existing_titles = [];
+    $all_fields = [];
+
+    // 1. Saved custom fields
+    foreach ($saved_fields as $idx => $f) {
+        if (!empty($f['title'])) {
+            $existing_titles[strtolower(trim($f['title']))] = $idx;
+            $all_fields[$idx] = $f;
+        }
+    }
+
+    // 2. Add any default PDF fields not yet saved in custom fields
+    $default_pdf_fields = crm_get_default_pdf_fields();
+    $next_idx = !empty($all_fields) ? max(array_keys($all_fields)) + 1 : 100;
+
+    foreach ($default_pdf_fields as $d_title => $d_info) {
+        $t_clean = strtolower(trim($d_title));
+        if (!isset($existing_titles[$t_clean])) {
+            $all_fields[$next_idx] = [
+                'title'      => $d_title,
+                'content'    => $d_info['content'],
+                'category'   => 'pdf',
+                'email_type' => 'component',
+            ];
+            $existing_titles[$t_clean] = $next_idx;
+            $next_idx++;
+        }
+    }
+
+    // 3. Filter by category if requested
+    if ($category !== null) {
+        $filtered = [];
+        foreach ($all_fields as $k => $f) {
+            $cat = function_exists('crm_get_field_category') ? crm_get_field_category($f) : ($f['category'] ?? 'email');
+            if ($cat === $category) {
+                $filtered[$k] = $f;
+            }
+        }
+        return $filtered;
+    }
+
+    return $all_fields;
 }
 
 /**
@@ -272,6 +363,21 @@ function crm_get_general_setting(string $key, $default = '')
  */
 function crm_get_default_pdf_fields(): array
 {
+    $gen = function_exists('crm_get_general_settings') ? crm_get_general_settings() : [];
+    $company_name     = $gen['company_name'] ?? 'X SIEBEN Wirtschaftstraining GmbH';
+    $company_short    = $gen['company_short_name'] ?? 'X SIEBEN';
+    $company_street   = $gen['company_street'] ?? 'Kurzegasse 7';
+    $company_zip      = $gen['company_zip'] ?? '2493';
+    $company_city     = $gen['company_city'] ?? 'Lichtenwörth';
+    $location_street  = $gen['location_wien_street'] ?? 'Rochusgasse 6';
+    $location_zip     = $gen['location_wien_zip'] ?? '1030';
+    $location_city    = $gen['location_wien_city'] ?? 'Wien';
+    $location_notice  = $gen['location_wien_notice'] ?? 'Online Unterricht | vor Ort in unseren Veranstaltungsräumen | Blended Learning';
+    $company_bank     = $gen['company_bank'] ?? 'Erste Bank | IBAN: AT29 3293 7001 0012 5260 | BIC: RLNWATWWWRN';
+    $company_uid      = $gen['company_uid'] ?? 'ATU76624137';
+    $company_fn       = $gen['company_fn'] ?? 'FN 550277 g';
+    $company_court    = $gen['company_court'] ?? 'Landesgericht Wiener Neustadt';
+
     return [
         // --- Kurszeitenbestätigung (KB) ---
         'KB - Titel' => [
@@ -281,13 +387,13 @@ function crm_get_default_pdf_fields(): array
             'desc'    => 'Dokumententitel der Kurszeitenbestätigung.',
         ],
         'KB - Kursinstitut Name' => [
-            'content' => 'X SIEBEN Wirtschaftstraining GmbH',
+            'content' => $company_name,
             'doc'     => 'kb',
             'badge'   => 'KB - Institut',
             'desc'    => 'Name des durchführenden Kursinstituts in der KB.',
         ],
         'KB - Schulungsort' => [
-            'content' => 'Rochusgasse 6, 1030 Wien bzw. online',
+            'content' => ($location_street ? $location_street . ', ' . $location_zip . ' ' . $location_city : 'Rochusgasse 6, 1030 Wien') . ' bzw. online',
             'doc'     => 'kb',
             'badge'   => 'KB - Schulungsort',
             'desc'    => 'Standard-Schulungsort (Adresse) in der KB.',
@@ -325,43 +431,43 @@ function crm_get_default_pdf_fields(): array
             'desc'    => 'Einleitende Formel vor den Teilnehmerdaten.',
         ],
         'TB - Betrieb Name' => [
-            'content' => 'X SIEBEN Wirtschaftstraining GmbH',
+            'content' => $company_name,
             'doc'     => 'tb',
             'badge'   => 'TB - Betrieb Name',
             'desc'    => 'Bezeichnung des Betriebes / der Ausbildungseinrichtung in der TB.',
         ],
         'TB - Betrieb Strasse' => [
-            'content' => 'Kurzegasse 7',
+            'content' => $company_street,
             'doc'     => 'tb',
             'badge'   => 'TB - Betrieb Str.',
             'desc'    => 'Strasse und Hausnummer des Kanzleisitzes / Betriebes.',
         ],
         'TB - Betrieb PLZ' => [
-            'content' => '2493',
+            'content' => $company_zip,
             'doc'     => 'tb',
             'badge'   => 'TB - Betrieb PLZ',
             'desc'    => 'Postleitzahl des Kanzleisitzes.',
         ],
         'TB - Betrieb Ort' => [
-            'content' => 'Lichtenwörth',
+            'content' => $company_city,
             'doc'     => 'tb',
             'badge'   => 'TB - Betrieb Ort',
             'desc'    => 'Ort des Kanzleisitzes.',
         ],
         'TB - Schulungsort Strasse' => [
-            'content' => 'Rochusgasse 6 bzw. online',
+            'content' => ($location_street ?: 'Rochusgasse 6') . ' bzw. online',
             'doc'     => 'tb',
             'badge'   => 'TB - Schulungsort Str.',
             'desc'    => 'Strasse des Seminarzentrums in Wien.',
         ],
         'TB - Schulungsort PLZ' => [
-            'content' => '1030',
+            'content' => $location_zip ?: '1030',
             'doc'     => 'tb',
             'badge'   => 'TB - Schulungsort PLZ',
             'desc'    => 'PLZ des Wiener Schulungsortes.',
         ],
         'TB - Schulungsort Ort' => [
-            'content' => 'Wien',
+            'content' => $location_city ?: 'Wien',
             'doc'     => 'tb',
             'badge'   => 'TB - Schulungsort Ort',
             'desc'    => 'Ort des Schulungszentrums.',
@@ -423,7 +529,7 @@ function crm_get_default_pdf_fields(): array
             'desc'    => 'Unterschriftenblock und Ausstellungsdatum.',
         ],
         'Diplom - Footer' => [
-            'content' => "UID: ATU76624137 | Firmenbuchgericht: Landesgericht Wiener Neustadt\nFirmenbuchnummer: FN 550277 g",
+            'content' => "UID: " . ($company_uid ?: 'ATU76624137') . " | Firmenbuchgericht: " . ($company_court ?: 'Landesgericht Wiener Neustadt') . "\nFirmenbuchnummer: " . ($company_fn ?: 'FN 550277 g'),
             'doc'     => 'diplom',
             'badge'   => 'Diplom - Footer',
             'desc'    => 'Rechtlicher Fußzeilentext auf Seite 1 des Diploms.',
@@ -443,7 +549,7 @@ function crm_get_default_pdf_fields(): array
             'desc'    => 'Grußformel vor der Signatur auf Seite 1 des Angebots.',
         ],
         'Angebot - Ort und Durchführung' => [
-            'content' => '<table class="text"><tr><td style="width:92%; font-size: 10.5pt;"><strong>ORT:</strong> X SIEBEN Wirtschaftstraining, Rochusgasse 6 in 1030 Wien</td></tr></table><div style="font-size:12pt">&nbsp;</div><table class="text"><tr><td style="line-height: 16pt; color: #334155;">Durchführung unserer Schulungen: Online Unterricht | vor Ort in unseren Veranstaltungsräumen | Blended Learning<br><span style="color: #475569; font-size: 9.5pt;">Hinweis: Die Schulung wird bis zur TeilnehmerInnen-Anzahl von drei Personen adäquat verkürzt, wobei alle Inhalte vermittelt werden.</span></td></tr></table>',
+            'content' => '<table class="text" cellpadding="0" cellspacing="0" border="0" style="width:100%;"><tr><td style="font-size: 11pt; color: #0f172a;"><strong>ORT:</strong> ' . esc_html($company_short ?: 'X SIEBEN') . ' Wirtschaftstraining, ' . esc_html($location_street ?: 'Rochusgasse 6') . ' in ' . esc_html($location_zip ?: '1030') . ' ' . esc_html($location_city ?: 'Wien') . '</td></tr><tr><td style="height: 12pt; font-size: 12pt; line-height: 12pt;">&nbsp;</td></tr><tr><td style="line-height: 18pt; color: #334155; font-size: 10pt;"><strong>Durchführung unserer Schulungen:</strong> ' . esc_html($location_notice ?: 'Online Unterricht | vor Ort in unseren Veranstaltungsräumen | Blended Learning') . '</td></tr><tr><td style="height: 8pt; font-size: 8pt; line-height: 8pt;">&nbsp;</td></tr><tr><td style="color: #64748b; font-size: 9.5pt; line-height: 15pt;"><em>Hinweis: Die Schulung wird bis zur TeilnehmerInnen-Anzahl von drei Personen adäquat verkürzt, wobei alle Inhalte vermittelt werden.</em></td></tr></table>',
             'doc'     => 'angebot',
             'badge'   => 'Angebot - Schulungsort',
             'desc'    => 'Schulungsort und Durchführungshinweis im Angebots-PDF.',
@@ -455,7 +561,7 @@ function crm_get_default_pdf_fields(): array
             'desc'    => 'Rechtlicher Anmelde- und AGB-Hinweis im Anhang von Angebot & Anmeldung.',
         ],
         'Bankverbindung' => [
-            'content' => '<strong>Bankverbindung:</strong> Erste Bank | IBAN: AT29 3293 7001 0012 5260 | BIC: RLNWATWWWRN',
+            'content' => '<strong>Bankverbindung:</strong> ' . esc_html($company_bank ?: 'Erste Bank | IBAN: AT29 3293 7001 0012 5260 | BIC: RLNWATWWWRN'),
             'doc'     => 'angebot',
             'badge'   => 'Bankverbindung',
             'desc'    => 'Bank- und Überweisungsdaten im PDF-Angebot und der Honorarnote.',
@@ -499,7 +605,7 @@ function crm_get_default_pdf_fields(): array
             'desc'    => 'Einleitender Text über der Leistungstabelle.',
         ],
         'Honorarnote - Zahlungsanweisung' => [
-            'content' => 'Bitte überweisen Sie den Betrag bis zum [Datum] auf das Konto von X SIEBEN Wirtschaftstraining GmbH.<br>IBAN: AT29 3293 7001 0012 5260 | BIC: RLNWATWWWRN',
+            'content' => 'Bitte überweisen Sie den Betrag bis zum [Datum] auf das Konto von ' . esc_html($company_name ?: 'X SIEBEN Wirtschaftstraining GmbH') . '.<br>' . esc_html($company_bank ?: 'IBAN: AT29 3293 7001 0012 5260 | BIC: RLNWATWWWRN'),
             'doc'     => 'invoice',
             'badge'   => 'Honorarnote - Zahlung',
             'desc'    => 'Zahlungsfrist und Kontoverbindung auf der Honorarnote.',
@@ -711,12 +817,14 @@ function render_crm_settings_page()
     $current_page = sanitize_text_field($_GET['page'] ?? 'crm-settings');
     $tab_param    = sanitize_text_field($_GET['tab'] ?? '');
 
-    if ($current_page === 'crm-emails') {
+    if ($current_page === 'crm-elements') {
+        $active_tab = 'elements';
+    } elseif ($current_page === 'crm-emails') {
         $active_tab = 'emails';
     } elseif ($current_page === 'crm-pdf') {
         $active_tab = 'pdf';
     } elseif ($tab_param !== '') {
-        $active_tab = in_array($tab_param, ['emails', 'pdf', 'general'], true) ? $tab_param : 'emails';
+        $active_tab = in_array($tab_param, ['general', 'elements', 'emails', 'pdf'], true) ? $tab_param : 'general';
     } else {
         // Default tab for crm-settings
         $active_tab = 'general';
@@ -813,12 +921,45 @@ function render_crm_settings_page()
             echo '<div class="notice notice-success is-dismissible"><p>' . sprintf(esc_html__('Standard-PDF-Felder erfolgreich synchronisiert (%d neue Bausteine hinzugefügt). Bereits existierende Bausteine blieben unverändert.', 'custom-crm'), $added_count) . '</p></div>';
         }
         // Master Header & Footer PDF Settings Save
-        elseif (isset($_POST['submit_pdf_master_hf']) || isset($_POST['crm_pdf_master_hf'])) {
+        if (isset($_POST['submit_pdf_master_hf']) || isset($_POST['crm_pdf_master_hf'])) {
             $master_input = isset($_POST['crm_pdf_master_hf']) && is_array($_POST['crm_pdf_master_hf']) ? $_POST['crm_pdf_master_hf'] : [];
             crm_save_pdf_master_header_footer($master_input);
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Kopf- & Fußzeilen Master-Einstellungen erfolgreich gespeichert.', 'custom-crm') . '</p></div>';
         }
-        // 3. Normal Email Tab Save
+        // PDF Elements Spacing Settings Save
+        if (isset($_POST['submit_pdf_elements_spacing']) || isset($_POST['crm_pdf_elements_spacing'])) {
+            require_once __DIR__ . '/helpers/crm-pdf-sections.php';
+            $spacing_input = isset($_POST['crm_pdf_elements_spacing']) && is_array($_POST['crm_pdf_elements_spacing']) ? $_POST['crm_pdf_elements_spacing'] : [];
+            crm_save_pdf_elements_spacing($spacing_input);
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('PDF-Element-Abstände (Standard) erfolgreich gespeichert.', 'custom-crm') . '</p></div>';
+        }
+        // 3. Elements Tab Save
+        if ($saved_tab === 'elements' || isset($_POST['submit_elements'])) {
+            $all_fields = get_option('crm_custom_fields', []);
+            if (!is_array($all_fields)) {
+                $all_fields = [];
+            }
+
+            if (!empty($_POST['crm_fields']) && is_array($_POST['crm_fields'])) {
+                foreach ($_POST['crm_fields'] as $key => $field) {
+                    $field_cat = sanitize_text_field($field['category'] ?? 'email');
+                    if (!in_array($field_cat, ['email', 'pdf'], true)) {
+                        $field_cat = 'email';
+                    }
+
+                    $all_fields[$key] = [
+                        'title'      => sanitize_text_field($field['title'] ?? ''),
+                        'content'    => wp_kses_post($field['content'] ?? ''),
+                        'category'   => $field_cat,
+                        'email_type' => sanitize_key($field['email_type'] ?? 'component'),
+                    ];
+                }
+            }
+
+            update_option('crm_custom_fields', $all_fields);
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Elemente & Textbausteine erfolgreich gespeichert.', 'custom-crm') . '</p></div>';
+        }
+        // 4. Normal Email Tab Save
         elseif ($saved_tab === 'emails') {
             $all_fields = get_option('crm_custom_fields', []);
             if (!is_array($all_fields)) {
@@ -844,9 +985,10 @@ function render_crm_settings_page()
                     }
 
                     $remaining_fields[$key] = [
-                        'title'    => sanitize_text_field($field['title'] ?? ''),
-                        'content'  => wp_kses_post($field['content'] ?? ''),
-                        'category' => $field_cat,
+                        'title'      => sanitize_text_field($field['title'] ?? ''),
+                        'content'    => wp_kses_post($field['content'] ?? ''),
+                        'category'   => $field_cat,
+                        'email_type' => sanitize_key($field['email_type'] ?? 'full_email'),
                     ];
                 }
             }
@@ -929,24 +1071,31 @@ function render_crm_settings_page()
 
         <!-- Top Tab Navigation -->
         <nav class="nav-tab-wrapper wp-clearfix crm-tab-nav" style="margin-top: 15px; margin-bottom: 20px;">
-            <a href="<?php echo esc_url(admin_url('admin.php?page=crm-settings&tab=emails')); ?>"
-               class="nav-tab <?php echo ($active_tab === 'emails') ? 'nav-tab-active' : ''; ?>">
-                <span class="dashicons dashicons-email-alt" style="margin-right: 4px; vertical-align: text-bottom;"></span>
-                <?php esc_html_e('E-Mail Editor', 'custom-crm'); ?>
-                <span class="crm-tab-count"><?php echo count($email_fields); ?></span>
+            <a href="<?php echo esc_url(admin_url('admin.php?page=crm-settings')); ?>"
+               class="nav-tab <?php echo ($active_tab === 'general') ? 'nav-tab-active' : ''; ?>">
+                <span class="dashicons dashicons-admin-generic" style="margin-right: 4px; vertical-align: text-bottom;"></span>
+                <?php esc_html_e('Allgemeine Einstellungen', 'custom-crm'); ?>
             </a>
 
-            <a href="<?php echo esc_url(admin_url('admin.php?page=crm-settings&tab=pdf')); ?>"
+            <a href="<?php echo esc_url(admin_url('admin.php?page=crm-elements')); ?>"
+               class="nav-tab <?php echo ($active_tab === 'elements') ? 'nav-tab-active' : ''; ?>">
+                <span class="dashicons dashicons-screenoptions" style="margin-right: 4px; vertical-align: text-bottom;"></span>
+                <?php esc_html_e('Elemente & Bausteine', 'custom-crm'); ?>
+                <span class="crm-tab-count"><?php echo count($component_emails); ?></span>
+            </a>
+
+            <a href="<?php echo esc_url(admin_url('admin.php?page=crm-emails')); ?>"
+               class="nav-tab <?php echo ($active_tab === 'emails') ? 'nav-tab-active' : ''; ?>">
+                <span class="dashicons dashicons-email-alt" style="margin-right: 4px; vertical-align: text-bottom;"></span>
+                <?php esc_html_e('E-Mail Editor & Workflows', 'custom-crm'); ?>
+                <span class="crm-tab-count"><?php echo count($full_emails) ?: 7; ?></span>
+            </a>
+
+            <a href="<?php echo esc_url(admin_url('admin.php?page=crm-pdf')); ?>"
                class="nav-tab <?php echo ($active_tab === 'pdf') ? 'nav-tab-active' : ''; ?>">
                 <span class="dashicons dashicons-media-document" style="margin-right: 4px; vertical-align: text-bottom;"></span>
                 <?php esc_html_e('PDF Editor & Abschnitte', 'custom-crm'); ?>
                 <span class="crm-tab-count">5</span>
-            </a>
-
-            <a href="<?php echo esc_url(admin_url('admin.php?page=crm-settings&tab=general')); ?>"
-               class="nav-tab <?php echo ($active_tab === 'general') ? 'nav-tab-active' : ''; ?>">
-                <span class="dashicons dashicons-admin-generic" style="margin-right: 4px; vertical-align: text-bottom;"></span>
-                <?php esc_html_e('Allgemeine Einstellungen', 'custom-crm'); ?>
             </a>
         </nav>
 
@@ -956,6 +1105,8 @@ function render_crm_settings_page()
 
             <?php if ($active_tab === 'general') : ?>
                 <?php require __DIR__ . '/views/settings/tab-general.php'; ?>
+            <?php elseif ($active_tab === 'elements') : ?>
+                <?php require __DIR__ . '/views/settings/tab-elements.php'; ?>
             <?php elseif ($active_tab === 'emails') : ?>
                 <?php require __DIR__ . '/views/settings/tab-emails.php'; ?>
             <?php elseif ($active_tab === 'pdf') : ?>

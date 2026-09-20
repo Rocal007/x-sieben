@@ -1,87 +1,49 @@
 <?php
-function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser=true, $custom_sections=null)
+/**
+ * X-SIEBEN CRM - Angebot PDF Generator
+ *
+ * Generiert das modulare Kursangebot als PDF via TCPDF.
+ * Alle visuellen HTML-Fragmente und CSS-Styles wurden nach MVC- und
+ * Autarkie-Kriterien in eigenständige Elemente (elements/) ausgelagert.
+ *
+ * @package X_SIEBEN_CRM
+ * @version 2.18.13
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+require_once __DIR__ . '/elements/offer-elements.php';
+
+function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser = true, $custom_sections = null, $offer_variant = null, $custom_certifications = null)
 {
     // Load course data
     $course = new CRM_Model($course_id, $entry_id);
 
-    $nummer = $entry_id . '-' . $course_id;
+    // Variantensteuerung: 'basis' (nur Kurs) vs. 'mit_zertifikat' (Kurs + Zertifizierung)
+    if ($offer_variant === 'basis') {
+        $course->override_certifications = [];
+    } elseif ($offer_variant === 'mit_zertifikat') {
+        if ($custom_certifications !== null && is_array($custom_certifications)) {
+            $course->override_certifications = $custom_certifications;
+        } elseif (function_exists('crm_resolve_course_certification')) {
+            $course->override_certifications = crm_resolve_course_certification($entry_id, $course_id);
+        }
+    }
+
+    $nummer     = $entry_id . '-' . $course_id;
     $safe_title = (function_exists('mb_substr') ? mb_substr(preg_replace('/[^\p{L}0-9_\-]/u', '_', (string)($course->titel_short ?: ($course->title ?: 'Kurs'))), 0, 50) : substr(preg_replace('/[^a-zA-Z0-9_\-]/', '_', (string)($course->titel_short ?: 'Kurs')), 0, 50));
     $angebotsnummer = "A_" . $nummer;
-    $pdfAuthor = "XSieben Wirtschaftstraining";
+    $pdfAuthor  = "XSieben Wirtschaftstraining";
 
-    // --- HTML Styles (to be included in all parts) ---
-    $styles = '<style>
-        div {font-size:11pt;}
-        table {border-collapse: collapse; border: none;}
-        td, th {border: none;}
-        .title {
-            text-align: left;
-            font-size: 16px;
-            background-color: #007C90;
-            padding: 6pt 8pt 6pt 8pt;
-            color: white;
-            width: 100%;
-        }
-        .text {
-            line-height: 14pt;
-            font-size: 10.5pt;
-        }
-        .clear {font-size:unset;}
-        a {color: #04b3ce}
-        hr {border: none; height: 1px;}
-        .table-dot {font-size:9pt; color: #04b3ce; border: 1px dashed #16A0B9;}
-        strong, b {font-weight: bold;}
-        h3.modul-heading {
-            font-size: 11pt;
-            font-weight: bold;
-            color: #007C90;
-            border-bottom: 1.5px solid #007C90;
-            padding-bottom: 3pt;
-            margin-top: 14pt;
-            margin-bottom: 8pt;
-        }
-        .modul-label {
-            font-weight: bold;
-            color: #0f172a;
-        }
-        p.modul-text {
-            font-size: 10pt;
-            line-height: 16pt;
-            margin-bottom: 6pt;
-        }
-        ul.modul-list {
-            margin-top: 4pt;
-            margin-bottom: 10pt;
-        }
-        ul.modul-list li {
-            font-size: 10pt;
-            line-height: 16pt;
-            padding-bottom: 3pt;
-        }
-        .modul-intro {
-            margin-top: 4pt;
-            margin-bottom: 12pt;
-            line-height: 16pt;
-        }
-        .modul-intro p {
-            line-height: 16pt;
-            margin-bottom: 6pt;
-        }
-        .abschluss-heading {
-            font-size: 11pt;
-            font-weight: bold;
-            color: #007C90;
-            border-bottom: 1.5px solid #007C90;
-            padding-bottom: 3pt;
-            margin-top: 16pt;
-            margin-bottom: 8pt;
-        }
-    </style>';
+    // --- HTML Styles (Modular ausgelagert in elements/offer-styles.php) ---
+    $styles = CRM_Pdf_Offer_Elements::render_styles();
 
     // --- Modular HTML Sections for Dynamic Ordering ---
     require_once dirname(__DIR__) . '/helpers/crm-pdf-sections.php';
 
-    // 1. Deckblatt / Anschreiben
+    // Deckblatt: Texte aufbereiten
     $angebot_default_intro = 'Danke für Ihr Interesse und willkommen bei der beliebten X SIEBEN Veranstaltung ' . $course->title . ' mit lernförderndem Kleingruppen-Unterricht.<br><br>Diese Veranstaltung fokussiert auf ' . $course->zielgruppe;
     $angebot_intro         = $course->get_crm_field_with_default('Angebot - Einleitung', $angebot_default_intro);
     $angebot_gruss         = $course->get_crm_field_with_default('Angebot - Grußformel', "Ich freue mich über Ihre Rückmeldung / Buchung.<br>\nMit freundlichen Grüßen,");
@@ -102,183 +64,22 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser=true, $cust
     $salutation_name = trim($course->salutation . ' ' . trim($course->titel . ' ' . $course->vorname . ' ' . $course->nachname));
     $salutation_name = preg_replace('/\s+/', ' ', $salutation_name);
 
-    $default_ort_durchfuehrung = '<table class="text" cellpadding="0" cellspacing="0" border="0" style="width:100%;">   
-                        <tr>
-                            <td style="font-size: 11pt; color: #0f172a;"><strong>ORT:</strong> X SIEBEN Wirtschaftstraining, Rochusgasse 6 in 1030 Wien</td>
-                        </tr>
-                        <tr>
-                            <td style="height: 12pt; font-size: 12pt; line-height: 12pt;">&nbsp;</td>
-                        </tr>
-                        <tr>
-                            <td style="line-height: 18pt; color: #334155; font-size: 10pt;">
-                                <strong>Durchführung unserer Schulungen:</strong> Online Unterricht | vor Ort in unseren Veranstaltungsräumen | Blended Learning
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="height: 8pt; font-size: 8pt; line-height: 8pt;">&nbsp;</td>
-                        </tr>
-                        <tr>
-                            <td style="color: #64748b; font-size: 9.5pt; line-height: 15pt;">
-                                <em>Hinweis: Die Schulung wird bis zur TeilnehmerInnen-Anzahl von drei Personen adäquat verkürzt, wobei alle Inhalte vermittelt werden.</em>
-                            </td>
-                        </tr>
-                    </table>';
+    // Subsections Mapping über zentrale Element-Registry
+    $subsections_generators = CRM_Pdf_Offer_Elements::get_subsections_generators($course, [
+        'angebotsnummer'  => $angebotsnummer,
+        'salutation_name' => $salutation_name,
+        'angebot_intro'   => $angebot_intro,
+        'angebot_gruss'   => $angebot_gruss,
+    ]);
 
-    // Subsections Mapping per Standard Section
-    $subsections_generators = [
-        'deckblatt' => [
-            'empfaenger' => '<table class="text" cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
-                <tr>
-                    <td style="vertical-align:top; width: 55%; font-size: 10pt; line-height: 14pt;">' . $course->format_postal_address('A', true) . '</td>
-                    <td style="vertical-align:top; text-align: right; font-size: 9.5pt; line-height: 14pt; width: 45%;">
-                        Angebotsnummer: ' . $angebotsnummer . '<br>Angebotsdatum: ' . $course->current . '<br> Angebot gültig bis: ' . $course->expire . '
-                    </td>
-                </tr>
-            </table>
-            <div style="font-size:10pt">&nbsp;</div>',
-
-            'titel' => $course->get_pdf_title($course->titel_short, 'Angebot') . '<div style="font-size:10pt">&nbsp;</div>',
-
-            'anrede_text' => '<table class="text" cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
-                <tr>
-                    <td>' . esc_html($salutation_name) . ',<br><br>' .
-                        $angebot_intro . '
-                    </td>
-                </tr>
-            </table>
-            <div style="font-size:6pt">&nbsp;</div>',
-
-            'gruss' => '<table class="text" cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
-                <tr>
-                    <td>' . $angebot_gruss . '</td>
-                </tr>
-            </table>
-            <div style="font-size:6pt">&nbsp;</div>',
-
-            'signatur' => $course->signatur,
-
-            'ps' => (!empty($course->ps) ? ('<div style="font-size:10pt">&nbsp;</div>' . $course->ps) : ''),
-
-            'hinweis_nachstehend' => '<div style="font-size:8pt">&nbsp;</div>'
-                . '<table cellpadding="0" cellspacing="0" border="0" style="width: 100%; margin: 0; padding: 0;">'
-                . '<tr><td style="margin: 0; padding: 0; font-size: 9pt; line-height: 1.3; color: #0f172a; text-align: left;">'
-                . '<strong>Nachstehend: </strong>Veranstaltungsinformationen | Anhang 1: Details zu den Inhalten der Veranstaltung | Anhang 2: Exklusive Zusatzleistungen'
-                . '</td></tr></table>',
-        ],
-
-        'veranstaltung' => [
-            'titel' => $course->get_pdf_title($course->titel_short, 'Veranstaltungsinformationen') . '<div style="font-size:18pt; line-height:18pt;">&nbsp;</div>',
-
-            'zeitraum' => '<table cellpadding="0" cellspacing="0" border="0" style="font-size: 11pt; width:100%;">
-                <tr>
-                    <td style="width:6%; vertical-align:middle;">' . $course->calender_icon . '</td>
-                    <td style="width:94%; vertical-align:middle;"><div style="font-size:3pt">&nbsp;</div> Vom <strong>' . $course->start_datum . '</strong> bis einschließlich<strong> ' . $course->end_datum . '</strong></td>
-                </tr>
-            </table>' . crm_pdf_divider('#cbd5e1', 12, 16),
-
-            'lehreinheiten' => '<div style="font-size: 11pt;">Diese Veranstaltung beinhaltet <strong>' . $course->anzahl_le . ' Lehreinheiten</strong> (LE, 1 LE = 45min).</div><div style="font-size:14pt; line-height:14pt;">&nbsp;</div>',
-
-            'module' => $course->module_html,
-        ],
-
-        'abschluss' => [
-            'titel' => $course->get_pdf_title($course->titel_short) . '<div style="font-size:24pt; line-height:24pt;">&nbsp;</div>',
-
-            'abschluss_box' => '<table class="text" cellpadding="0" cellspacing="0" border="0" style="width:100%;">
-                <tr>
-                    <td style="width:5%; vertical-align:middle;">' . $course->abschluss_icon . '</td>
-                    <td style="width:95%; vertical-align:middle; font-size:11.5pt;"><strong> IHR PERSÖNLICHER ABSCHLUSS</strong></td>
-                </tr>
-            </table>'
-            . crm_pdf_divider('#cbd5e1', 12, 16) .
-            '<table cellpadding="0" cellspacing="0" border="0" style="width:100%;">
-                <tr>
-                    <td style="height:12pt; font-size:12pt; line-height:12pt;">&nbsp;</td>
-                </tr>
-                <tr>
-                    <td style="text-align:center; font-size:13.5pt; font-weight:bold; color:#0f172a; line-height:22pt;">
-                       ' . $course->abschluss . '
-                    </td>
-                </tr>
-                <tr>
-                    <td style="height:10pt; font-size:10pt; line-height:10pt;">&nbsp;</td>
-                </tr>
-                <tr>
-                    <td style="border-top: 1.5px solid #007C90; height:18pt; font-size:18pt; line-height:18pt;">&nbsp;</td>
-                </tr>
-            </table>',
-
-            'voraussetzungen' => '<table class="text" cellpadding="0" cellspacing="0" border="0" style="width:100%;">
-                <tr>
-                    <td style="width:5%; vertical-align:middle;">' . $course->danger_icon . '</td>
-                    <td style="width:95%; vertical-align:middle; font-size:11.5pt;"><strong>Voraussetzungen</strong></td>
-                </tr>
-                <tr>
-                    <td colspan="2" style="height:8pt; font-size:8pt; line-height:8pt;">&nbsp;</td>
-                </tr>
-                <tr>
-                    <td colspan="2">' . $course->voraussetzungen_html . '</td>
-                </tr>
-            </table>' . crm_pdf_divider('#cbd5e1', 16, 20),
-
-            'zertifizierungen' => '<table class="text" cellpadding="0" cellspacing="0" border="0" style="width:100%;">
-                <tr>
-                    <td style="font-size:11.5pt; font-weight:bold; color:#0f172a;"><strong>ZERTIFIZIERUNGSPARTNER ...</strong></td>
-                </tr>
-                <tr>
-                    <td style="height:10pt; font-size:10pt; line-height:10pt;">&nbsp;</td>
-                </tr>
-                <tr>
-                    <td>' . $course->zertifizierungen_images_html . '</td>
-                </tr>
-            </table>'
-            . crm_pdf_divider('#cbd5e1', 18, 22),
-
-            'ort_durchfuehrung' => $course->get_crm_field_with_default('Angebot - Ort und Durchführung', $default_ort_durchfuehrung),
-
-            'beratung' => $course->beratung_email,
-        ],
-
-        'kosten' => [
-            'titel' => $course->get_pdf_title('Kursgebühr inkl. optionale Zertifizierungen', 'Ihre Investition') . '<div style="font-size:20pt">&nbsp;</div>',
-
-            'preistabelle' => $course->get_gesamt_kosten_html() . '<div style="font-size:40pt">&nbsp;</div>',
-
-            'gueltigkeit' => '<table class="text" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                    <td style="font-size: 10.5pt;"><strong>ANGEBOT GÜLTIG</strong> bis max. Gruppengrösse erreicht bzw.: <span> ' . $course->expire . '</span></td>
-                </tr>
-            </table>' . crm_pdf_divider('#cbd5e1', 12, 16),
-
-            'bankverbindung' => $course->bankverbindung,
-        ],
-
-        'anmeldung' => [
-            'titel' => $course->get_pdf_title($course->title, 'ANMELDUNG') . '<div style="font-size:20pt">&nbsp;</div>',
-
-            'kundendaten' => $course->get_contact_info_html(),
-
-            'agb' => $course->anmeldung_agb,
-
-            'signatur_kunde' => $course->signatur . '<div style="font-size:10pt">&nbsp;</div>',
-
-            'anhang_hinweise' => '<table cellpadding="0" cellspacing="0" border="0" style="width: 100%; margin: 0; padding: 0;">'
-                . '<tr><td style="margin: 0; padding: 0; font-size: 10pt; line-height: 1.4; color: #0f172a; text-align: left;">'
-                . '<strong>Anhang 1: </strong>Details zu den Inhalten der Veranstaltung<br>'
-                . '<strong>Anhang 2: </strong>Exklusive Zusatzleistungen'
-                . '</td></tr></table>',
-        ],
-
-        'inhalte' => [
-            'titel' => $course->get_pdf_title('Details zu den Inhalten', 'Anhang 1') . '<div style="font-size:18pt; line-height:18pt;">&nbsp;</div>',
-            'curriculum' => $course->inhalte,
-        ],
-
-        'zusatzleistungen' => [
-            'titel' => $course->get_pdf_title('Exklusive Zusatzleistungen', 'Anhang 2') . '<div style="font-size:20pt">&nbsp;</div>',
-            'garantien' => $course->garantie,
-        ],
-    ];
+    $flattened_sub_generators = [];
+    foreach ($subsections_generators as $sec_k => $subs) {
+        if (is_array($subs)) {
+            foreach ($subs as $sub_k => $sub_html) {
+                $flattened_sub_generators[$sub_k] = $sub_html;
+            }
+        }
+    }
 
     // --- PDF Document Generation ---
     if (!class_exists('TCPDF')) {
@@ -313,6 +114,12 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser=true, $cust
             public function resolveHeaderMode($cfg)
             {
                 $sec_mode = $cfg['header_mode'] ?? 'master';
+                $logo_mode = get_option('crm_pdf_logo_mode', $this->master_config['logo_mode'] ?? 'page1_only');
+
+                // Wenn page1_only aktiv ist und wir uns auf Seite > 1 befinden:
+                if ($this->page > 1 && $logo_mode === 'page1_only') {
+                    return 'none';
+                }
 
                 // 1. Wenn der Abschnitt auf die Master-Einstellung verweist:
                 if ($sec_mode === 'master') {
@@ -355,22 +162,28 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser=true, $cust
             public function AddPage($orientation='', $format='', $keepmargins=false, $tocpage=false)
             {
                 $h_mode = $this->resolveHeaderMode($this->current_section_config);
+
+                // Ermittlung des dynamischen oberen Seitenrands (header_margin_bottom)
+                $sec_margin_bottom = $this->current_section_config['header_margin_bottom'] ?? null;
+                $master_margin_bottom = $this->master_config['header_margin_bottom'] ?? null;
+
                 if ($h_mode === 'none') {
-                    $this->SetTopMargin(18);
-                } elseif ($h_mode === 'logo_only') {
-                    $this->SetTopMargin(44);
-                } elseif ($h_mode === 'address_only') {
-                    $this->SetTopMargin(36);
+                    // Wenn keine Kopfzeile: kompakter Rand 18 mm (oder benutzerdefinierter Rand)
+                    $top_margin = ($sec_margin_bottom !== null && $sec_margin_bottom !== '') ? floatval($sec_margin_bottom) : 18.0;
                 } else {
-                    $this->SetTopMargin(44);
+                    // Wenn Kopfzeile aktiv: Priorität: 1. Abschnitts-Override -> 2. Master-Vorgabe (Standard: 32 mm)
+                    if ($sec_margin_bottom !== null && $sec_margin_bottom !== '') {
+                        $top_margin = floatval($sec_margin_bottom);
+                    } elseif ($master_margin_bottom !== null && $master_margin_bottom !== '') {
+                        $top_margin = floatval($master_margin_bottom);
+                    } else {
+                        $top_margin = 32.0;
+                    }
                 }
+                $this->SetTopMargin($top_margin);
 
                 $f_mode = $this->resolveFooterMode($this->current_section_config);
-                if ($f_mode === 'none') {
-                    $this->SetAutoPageBreak(TRUE, 15);
-                } else {
-                    $this->SetAutoPageBreak(TRUE, PDF_MARGIN_BOTTOM);
-                }
+                $this->SetAutoPageBreak(TRUE, ($f_mode === 'none' ? 12 : 14));
 
                 parent::AddPage($orientation, $format, $keepmargins, $tocpage);
                 $this->page_configs[$this->page] = $this->current_section_config;
@@ -381,74 +194,45 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser=true, $cust
                 if (!isset($this->page_configs[$this->page])) {
                     $this->page_configs[$this->page] = $this->current_section_config;
                 }
-                $cfg = $this->page_configs[$this->page] ?? $this->current_section_config;
+                $cfg  = $this->page_configs[$this->page] ?? $this->current_section_config;
                 $mode = $this->resolveHeaderMode($cfg);
 
                 if ($mode === 'none') {
                     return;
                 }
 
-                $html = '';
-                $y = 12;
-
-                if ($mode === 'custom') {
-                    $custom_html = !empty($cfg['header_custom']) ? $cfg['header_custom'] : ($this->master_config['header_custom'] ?? '');
-                    $html = function_exists('crm_replace_pdf_placeholders') ? crm_replace_pdf_placeholders($custom_html, $this->course_obj) : $custom_html;
-                } elseif ($mode === 'logo_only') {
-                    $logo = !empty($this->company_info['xsieben_logo']) ? $this->company_info['xsieben_logo'] : $this->logo_html;
-                    if (empty($logo) && function_exists('crm_resolve_asset_path')) {
-                        $logo = '<img width="200" style="max-width:200px; height:auto;" src="' . esc_attr(crm_resolve_asset_path('xsieben_logo.png')) . '">';
-                    }
-                    $html = '<table cellspacing="0" cellpadding="0" border="0" style="width: 100%;">
-                        <tr>
-                            <td style="width: 100%; text-align: left; vertical-align: top; line-height: 1; font-size: 1pt; padding: 0; margin: 0;">' . $logo . '</td>
-                        </tr>
-                    </table>';
-                } elseif ($mode === 'address_only') {
-                    $c_name  = !empty($this->company_info['company_name']) ? $this->company_info['company_name'] : 'X SIEBEN Wirtschaftstraining GmbH';
-                    $c_addr  = !empty($this->company_info['company_address']) ? $this->company_info['company_address'] : 'Kurzegasse 7, 2493 Lichtenwörth';
-                    $c_phone = !empty($this->company_info['company_phone']) ? $this->company_info['company_phone'] : '0800 700 170';
-                    $c_email = !empty($this->company_info['company_email']) ? $this->company_info['company_email'] : 'office@x-sieben.at';
-
-                    $html = '<table cellspacing="0" cellpadding="0" border="0" style="width: 100%;">
-                        <tr>
-                            <td style="font-size: 8.5pt; width: 100%; text-align: right; line-height: 12pt; color: #475569;">
-                                <strong style="color: #0f172a;">' . htmlspecialchars($c_name) . '</strong><br>
-                                ' . htmlspecialchars($c_addr) . '<br>
-                                Telefon: ' . htmlspecialchars($c_phone) . ' | E-Mail: ' . htmlspecialchars($c_email) . '
-                            </td>
-                        </tr>
-                    </table>';
-                } else {
-                    // Full header: Logo links, Firmenadresse rechts — immer dynamisch aufgebaut
-                    $logo    = !empty($this->company_info['xsieben_logo']) ? $this->company_info['xsieben_logo'] : $this->logo_html;
-                    if (empty($logo) && function_exists('crm_resolve_asset_path')) {
-                        $logo = '<img width="200" style="max-width:200px; height:auto;" src="' . esc_attr(crm_resolve_asset_path('xsieben_logo.png')) . '">';
-                    }
-                    $c_name  = !empty($this->company_info['company_name']) ? $this->company_info['company_name'] : 'X SIEBEN Wirtschaftstraining GmbH';
-                    $c_addr  = !empty($this->company_info['company_address']) ? $this->company_info['company_address'] : 'Kurzegasse 7, 2493 Lichtenwörth';
-                    $c_phone = !empty($this->company_info['company_phone']) ? $this->company_info['company_phone'] : '0800 700 170';
-                    $c_email = !empty($this->company_info['company_email']) ? $this->company_info['company_email'] : 'office@x-sieben.at';
-
-                    $html = '<table cellspacing="0" cellpadding="0" border="0" style="text-align: left; width: 100%;">
-                        <tr>
-                            <td style="width: 55%; vertical-align: top; line-height: 1; font-size: 1pt; padding: 0; margin: 0;">' . $logo . '</td>
-                            <td style="font-size: 9pt; width: 45%; text-align: right; line-height: 13pt; color: #334155; vertical-align: top; padding: 0; margin: 0;">
-                                <strong>' . htmlspecialchars($c_name) . '</strong><br>
-                                ' . htmlspecialchars($c_addr) . '<br>
-                                Telefon: ' . htmlspecialchars($c_phone) . '<br>
-                                E-Mail: ' . htmlspecialchars($c_email) . '
-                            </td>
-                        </tr>
-                    </table>';
-                }
+                $html = CRM_Pdf_Offer_Elements::render_header(
+                    $mode,
+                    $this->company_info,
+                    $this->logo_html,
+                    $cfg,
+                    $this->master_config,
+                    $this->course_obj
+                );
 
                 if (!empty($html)) {
+                    // Dynamischer vertikaler Header-Abstand von oben (header_margin_top):
+                    // Priorität: 1. Abschnitts-Override -> 2. Master-Vorgabe -> 3. Standard 8.0 mm
+                    $sec_margin_top    = $cfg['header_margin_top'] ?? null;
+                    $master_margin_top = $this->master_config['header_margin_top'] ?? null;
+
+                    if ($sec_margin_top !== null && $sec_margin_top !== '') {
+                        $header_y = floatval($sec_margin_top);
+                    } elseif ($master_margin_top !== null && $master_margin_top !== '') {
+                        $header_y = floatval($master_margin_top);
+                    } else {
+                        $header_y = 8.0;
+                    }
+
+                    // Header-Positionierung: Logo 5-7 pt (ca. 2.1 mm) weiter links
+                    $header_x = 12.9; // 15.0 mm - 6 pt (~2.1 mm) weiter links
+                    $header_w = 182.1; // 210 mm - 12.9 mm (links) - 15.0 mm (rechts)
+
                     $this->writeHTMLCell(
-                        $w = 0,
+                        $w = $header_w,
                         $h = 0,
-                        $x = '14.1',
-                        $y = $y,
+                        $x = $header_x,
+                        $y = $header_y,
                         $html,
                         $border = 0,
                         $ln = 1,
@@ -557,7 +341,13 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser=true, $cust
     $safe_vorname  = sanitize_file_name($course->vorname ?: 'Kunde');
     $safe_nachname = sanitize_file_name($course->nachname ?: 'Angebot');
     $token         = function_exists('crm_generate_pdf_token') ? crm_generate_pdf_token($entry_id, 'angebot') : '';
-    $pdf_name      = "A_" . $nummer . "_" . ($token ? $token . '_' : '') . $safe_title . "_" . $safe_vorname . "_" . $safe_nachname . ".pdf";
+    $variant_tag   = '';
+    if ($offer_variant === 'basis') {
+        $variant_tag = 'Angebot_1_Basis_';
+    } elseif ($offer_variant === 'mit_zertifikat') {
+        $variant_tag = 'Angebot_2_inkl_Zertifizierung_';
+    }
+    $pdf_name      = "A_" . $nummer . "_" . $variant_tag . ($token ? $token . '_' : '') . $safe_title . "_" . $safe_vorname . "_" . $safe_nachname . ".pdf";
 
     $header_company_name    = !empty($course->company_name) ? $course->company_name : 'X SIEBEN Wirtschaftstraining GmbH';
     $header_company_address = !empty($course->company_address) ? $course->company_address : 'Kurzegasse 7, 2493 Lichtenwörth';
@@ -581,17 +371,7 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser=true, $cust
     $pdf->master_config = function_exists('crm_get_pdf_master_header_footer') ? crm_get_pdf_master_header_footer() : [];
     $pdf->course_obj    = $course;
 
-    $header_html_content = '<table cellspacing="0" cellpadding="0" border="0" style="text-align: left; width: 100%;">
-        <tr>
-            <td style="width: 55%; vertical-align: top; line-height: 1; font-size: 1pt; padding: 0; margin: 0;">' . $effective_logo . '</td>
-            <td style="font-size: 9pt; width: 45%; text-align: right; line-height: 13pt; color: #334155; vertical-align: top; padding: 0; margin: 0;">
-                <strong>' . htmlspecialchars($header_company_name) . '</strong><br>
-                ' . htmlspecialchars($header_company_address) . '<br>
-                Telefon: ' . htmlspecialchars($header_company_phone) . '<br>
-                E-Mail: ' . htmlspecialchars($header_company_email) . '
-            </td>
-        </tr>
-    </table>';
+    $header_html_content = CRM_Pdf_Offer_Elements::render_header('full', $pdf->company_info, $effective_logo);
 
     $pdf->header_content = $header_html_content;
     $pdf->logo_html       = $effective_logo;
@@ -607,7 +387,7 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser=true, $cust
     $pdf->setHeaderFont(array(PDF_FONT_NAME_MAIN, '', PDF_FONT_SIZE_MAIN));
     $pdf->setFooterFont(array(PDF_FONT_NAME_DATA, '', PDF_FONT_SIZE_DATA));
     $pdf->SetDefaultMonospacedFont(PDF_FONT_MONOSPACED);
-    $pdf->SetMargins(PDF_MARGIN_LEFT, 44, PDF_MARGIN_RIGHT);
+    $pdf->SetMargins(PDF_MARGIN_LEFT, 32, PDF_MARGIN_RIGHT);
     $pdf->SetHeaderMargin(PDF_MARGIN_HEADER);
     $pdf->SetFooterMargin(PDF_MARGIN_FOOTER - 1);
     $pdf->SetAutoPageBreak(TRUE, PDF_MARGIN_BOTTOM);
@@ -616,28 +396,38 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser=true, $cust
     $pdf->SetCellPadding(0);
 
     // Holen der hierarchischen Abschnitte (inkl. Subsections & Custom-Sections)
-    $all_sections = crm_get_pdf_section_order('angebot', $entry_id);
-
-    // Filter falls $custom_sections übergeben wurde
-    if (is_array($custom_sections) && !empty($custom_sections)) {
-        $allowed_keys = is_string(reset($custom_sections)) ? $custom_sections : array_column($custom_sections, 'key');
-        $filtered = [];
-        foreach ($all_sections as $sec) {
-            if (in_array($sec['key'], $allowed_keys, true)) {
-                $filtered[] = $sec;
+    if (is_array($custom_sections) && !empty($custom_sections) && is_array(reset($custom_sections)) && isset(reset($custom_sections)['key'])) {
+        $all_sections = $custom_sections;
+    } else {
+        $target_doc = ($offer_variant === 'mit_zertifikat') ? 'angebot_2' : 'angebot';
+        $all_sections = crm_get_pdf_section_order($target_doc, $entry_id);
+        // Filter falls $custom_sections als Key-Liste übergeben wurde
+        if (is_array($custom_sections) && !empty($custom_sections)) {
+            $allowed_keys = is_string(reset($custom_sections)) ? $custom_sections : array_column($custom_sections, 'key');
+            $filtered = [];
+            foreach ($all_sections as $sec) {
+                if (in_array($sec['key'], $allowed_keys, true)) {
+                    $filtered[] = $sec;
+                }
             }
+            $all_sections = $filtered;
         }
-        $all_sections = $filtered;
     }
+    $global_spacing = function_exists('crm_get_pdf_elements_spacing') ? crm_get_pdf_elements_spacing() : ['spacing_top' => 0, 'spacing_bottom' => 0];
 
     foreach ($all_sections as $sec) {
         if (empty($sec['enabled'])) {
             continue;
         }
 
-        $sec_key   = $sec['key'];
-        $is_custom = !empty($sec['is_custom']);
-        $sec_html  = '';
+        $sec_key     = $sec['key'];
+        $is_custom   = !empty($sec['is_custom']);
+        $sec_spacing = function_exists('crm_get_pdf_effective_spacing')
+            ? crm_get_pdf_effective_spacing($sec, $global_spacing)
+            : ['top' => 0, 'bottom' => 0];
+        $sec_prefix  = function_exists('crm_get_pdf_spacing_html') ? crm_get_pdf_spacing_html($sec_spacing['top']) : '';
+        $sec_suffix  = function_exists('crm_get_pdf_spacing_html') ? crm_get_pdf_spacing_html($sec_spacing['bottom']) : '';
+        $sec_html    = '';
 
         if ($is_custom) {
             // Benutzerdefinierte Seite
@@ -648,8 +438,51 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser=true, $cust
             }
             if (!empty($sec['subsections'])) {
                 foreach ($sec['subsections'] as $sub) {
-                    if (!empty($sub['enabled']) && !empty($sub['content'])) {
-                        $sec_html .= '<div style="font-size:10pt; line-height:1.6; margin-top:8px;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
+                    if (empty($sub['enabled'])) {
+                        continue;
+                    }
+                    $sub_k = $sub['key'] ?? '';
+                    $sub_effective = function_exists('crm_get_pdf_effective_spacing')
+                        ? crm_get_pdf_effective_spacing($sub, $global_spacing)
+                        : ['top' => floatval($sub['spacing_top'] ?? 0), 'bottom' => floatval($sub['spacing_bottom'] ?? 0)];
+                    $sub_sp_top    = $sub_effective['top'];
+                    $sub_sp_bottom = $sub_effective['bottom'];
+                    $sub_prefix    = ($sub_sp_top > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_top) : '';
+                    $sub_suffix    = ($sub_sp_bottom > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_bottom) : '';
+
+                    $sub_item_html = '';
+                    if (!empty($sub['is_custom'])) {
+                        if (!empty($sub['title'])) {
+                            $sub_item_html .= '<div style="font-size:11pt; font-weight:bold; margin-top:10px; margin-bottom:4px; color:#0f172a;">' . esc_html($sub['title']) . '</div>';
+                        }
+                        if (!empty($sub['content'])) {
+                            $c_text = crm_replace_pdf_placeholders($sub['content'], $course);
+                            if (!preg_match('/<(?:table|div|p|ul|ol|h[1-6]|br)\b/i', $c_text)) {
+                                $c_text = nl2br($c_text);
+                            }
+                            $sub_item_html .= '<div style="font-size:10pt; line-height:1.6; margin-bottom:8px;">' . $c_text . '</div>';
+                        }
+                    } elseif (isset($flattened_sub_generators[$sub_k])) {
+                        $def_sub_html = $flattened_sub_generators[$sub_k];
+                        $custom_content = trim($sub['content'] ?? '');
+                        if (!empty($custom_content) && $custom_content !== '{standard}' && !(function_exists('crm_is_legacy_default_pdf_content') && crm_is_legacy_default_pdf_content($sec_key, $sub_k, $custom_content))) {
+                            if (strpos($custom_content, '{standard}') !== false) {
+                                $c_html = str_replace('{standard}', $def_sub_html, $custom_content);
+                            } else {
+                                $c_html = !preg_match('/<(?:table|div|p|ul|ol|h[1-6]|br)\b/i', $custom_content)
+                                    ? '<div style="font-size:10pt; line-height:1.5; margin-bottom:8px;">' . nl2br($custom_content) . '</div>'
+                                    : '<div style="margin-bottom:6px;">' . $custom_content . '</div>';
+                            }
+                            $sub_item_html .= crm_replace_pdf_placeholders($c_html, $course);
+                        } else {
+                            $sub_item_html .= $def_sub_html;
+                        }
+                    } elseif (!empty($sub['content'])) {
+                        $sub_item_html .= '<div style="font-size:10pt; line-height:1.6; margin-top:8px;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
+                    }
+
+                    if (!empty($sub_item_html)) {
+                        $sec_html .= $sub_prefix . $sub_item_html . $sub_suffix;
                     }
                 }
             }
@@ -660,21 +493,40 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser=true, $cust
                     if (empty($sub['enabled'])) {
                         continue;
                     }
-                    $sub_key = $sub['key'];
+                    $sub_key       = $sub['key'] ?? '';
+                    $sub_effective = function_exists('crm_get_pdf_effective_spacing')
+                        ? crm_get_pdf_effective_spacing($sub, $global_spacing)
+                        : ['top' => floatval($sub['spacing_top'] ?? 0), 'bottom' => floatval($sub['spacing_bottom'] ?? 0)];
+                    $sub_sp_top    = $sub_effective['top'];
+                    $sub_sp_bottom = $sub_effective['bottom'];
+                    if ($sec_key === 'deckblatt' && $sub_key !== 'titel') {
+                        $has_explicit_sub_top = isset($sub['spacing_top']) && floatval($sub['spacing_top']) > 0;
+                        $has_explicit_sub_bot = isset($sub['spacing_bottom']) && floatval($sub['spacing_bottom']) > 0;
+                        if (!$has_explicit_sub_top) {
+                            $sub_sp_top = min(8.0, $sub_sp_top);
+                        }
+                        if (!$has_explicit_sub_bot) {
+                            $sub_sp_bottom = min(8.0, $sub_sp_bottom);
+                        }
+                    }
+                    $sub_prefix = ($sub_sp_top > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_top) : '';
+                    $sub_suffix = ($sub_sp_bottom > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_bottom) : '';
+                    $sub_html   = '';
+
                     if (!empty($sub['is_custom'])) {
                         // Benutzerdefinierter Unterabschnitt
                         if (!empty($sub['title'])) {
-                            $sec_html .= '<div style="font-size:11pt; font-weight:bold; margin-top:10px; margin-bottom:4px; color:#0f172a;">' . esc_html($sub['title']) . '</div>';
+                            $sub_html .= '<div style="font-size:11pt; font-weight:bold; margin-top:10px; margin-bottom:4px; color:#0f172a;">' . esc_html($sub['title']) . '</div>';
                         }
                         if (!empty($sub['content'])) {
                             $custom_sub_text = crm_replace_pdf_placeholders($sub['content'], $course);
                             if (!preg_match('/<(?:table|div|p|ul|ol|h[1-6]|br)\b/i', $custom_sub_text)) {
                                 $custom_sub_text = nl2br($custom_sub_text);
                             }
-                            $sec_html .= '<div style="font-size:10pt; line-height:1.6; margin-bottom:8px;">' . $custom_sub_text . '</div>';
+                            $sub_html .= '<div style="font-size:10pt; line-height:1.6; margin-bottom:8px;">' . $custom_sub_text . '</div>';
                         }
-                    } elseif (isset($subsections_generators[$sec_key][$sub_key])) {
-                        $default_sub_html = $subsections_generators[$sec_key][$sub_key];
+                    } elseif (isset($subsections_generators[$sec_key][$sub_key]) || isset($flattened_sub_generators[$sub_key])) {
+                        $default_sub_html = $subsections_generators[$sec_key][$sub_key] ?? $flattened_sub_generators[$sub_key];
                         $custom_content   = trim($sub['content'] ?? '');
 
                         $is_default_snippet = false;
@@ -697,10 +549,14 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser=true, $cust
                                     $custom_sub_html = '<div style="margin-bottom:6px;">' . $custom_sub_html . '</div>';
                                 }
                             }
-                            $sec_html .= crm_replace_pdf_placeholders($custom_sub_html, $course);
+                            $sub_html .= crm_replace_pdf_placeholders($custom_sub_html, $course);
                         } else {
-                            $sec_html .= $default_sub_html;
+                            $sub_html .= $default_sub_html;
                         }
+                    }
+
+                    if (!empty($sub_html)) {
+                        $sec_html .= $sub_prefix . $sub_html . $sub_suffix;
                     }
                 }
             } else {
@@ -714,7 +570,57 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser=true, $cust
         if (!empty(trim(strip_tags($sec_html, '<img>')))) {
             $pdf->setSectionConfig($sec);
             $pdf->AddPage();
-            $pdf->writeHTML($styles . $sec_html, true, false, true, false, '');
+
+            // Deckblatt: AutoPageBreak temporär deaktivieren, damit alle 7 Elemente (inkl. Gliederungsverweis) auf Seite 1 bleiben
+            if ($sec_key === 'deckblatt') {
+                $pdf->SetAutoPageBreak(false);
+            } else {
+                $pdf->SetAutoPageBreak(true, PDF_MARGIN_BOTTOM);
+            }
+
+            $full_page_html = $styles . $sec_prefix . $sec_html . $sec_suffix;
+            $pattern = '/(<table[^>]*class=[\'"][^\'"]*\btitle\b[^\'"]*[\'"][^>]*>.*?<\/table>)/si';
+            $parts   = preg_split($pattern, $full_page_html, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+            if (count($parts) > 1) {
+                foreach ($parts as $idx => $part) {
+                    $clean_part = preg_replace('/<style\b[^>]*>.*?<\/style>/si', '', $part);
+                    if (empty(trim(strip_tags($clean_part, '<img>')))) {
+                        continue;
+                    }
+                    if ($idx % 2 === 1) {
+                        // Titel-Banner über die gesamte Seitenbreite (0 bis Seitenbreite) rendern
+                        // Fluchtlinie: 15mm Textabstand wie beim Fließtext (11.8mm Spacer + TCPDF Zellabstand = exakt 15.2mm Fluchtlinie)
+                        $fullwidth_title = $part;
+                        if (strpos($fullwidth_title, 'width="11.8mm"') === false && preg_match('/<td[^>]*>(.*?)<\/td>/si', $fullwidth_title, $td_m)) {
+                            $inner_text = $td_m[1];
+                            $fullwidth_title = '
+                            <table class="title" cellpadding="3" cellspacing="0" border="0" style="width: 100%; background-color: #007C90;">
+                                <!-- Fluchtlinie: 15mm Textabstand -->
+                                <tr>
+                                    <td width="11.8mm" style="font-size: 1pt; line-height: 1pt;">&nbsp;</td>
+                                    <td width="186.4mm" style="color: #ffffff; font-size: 11pt; line-height: 16pt; vertical-align: middle;">
+                                        ' . $inner_text . '
+                                    </td>
+                                    <td width="11.8mm" style="font-size: 1pt; line-height: 1pt;">&nbsp;</td>
+                                </tr>
+                            </table>';
+                        }
+                        $page_w  = $pdf->getPageWidth();
+                        $title_y = $pdf->GetY();
+                        $pdf->writeHTMLCell($page_w, 0, 0, $title_y, $fullwidth_title, 0, 1, 0, true, 'L', false);
+                    } else {
+                        // Fließtext & Abschnitte innerhalb des normalen Seitenrands (15mm)
+                        $chunk_html = (strpos($part, '<style') === false) ? ($styles . $part) : $part;
+                        $pdf->writeHTML($chunk_html, true, false, true, false, '');
+                    }
+                }
+            } else {
+                $pdf->writeHTML($full_page_html, true, false, true, false, '');
+            }
+
+            // Nach Deckblatt Standard-AutoPageBreak wieder aktivieren
+            $pdf->SetAutoPageBreak(true, PDF_MARGIN_BOTTOM);
         }
     }
 
@@ -722,8 +628,14 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser=true, $cust
     if (!file_exists($save_dir)) {
         wp_mkdir_p($save_dir);
     }
-    // Clean up any older PDF files for this entry to prevent stale file clutter or encoding collisions
-    $existing_old_files = glob($save_dir . 'A_' . $nummer . '_*.pdf');
+    // Clean up any older PDF files for this entry and variant to prevent stale file clutter
+    $clean_pattern = 'A_' . $nummer . '_*.pdf';
+    if ($offer_variant === 'basis') {
+        $clean_pattern = 'A_' . $nummer . '_Angebot_1_Basis_*.pdf';
+    } elseif ($offer_variant === 'mit_zertifikat') {
+        $clean_pattern = 'A_' . $nummer . '_Angebot_2_inkl_Zertifizierung_*.pdf';
+    }
+    $existing_old_files = glob($save_dir . $clean_pattern);
     if (!empty($existing_old_files)) {
         foreach ($existing_old_files as $old_file) {
             if (basename($old_file) !== $pdf_name && file_exists($old_file)) {

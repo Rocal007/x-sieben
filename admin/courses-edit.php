@@ -36,13 +36,14 @@ function course_edit_submenu_page()
                 <thead>
                     <tr>
                         <th>Name</th>
-                        <th>Typ</th>
+                        <th>Format / Modus</th>
                         <th>Kurs Kategorie</th>
                         <th>Startdatum</th>
                         <th>Enddatum</th>
-                        <th>Startzeit</th>
-                        <th>Endzeit</th>
-						<th>Waff Nummer</th>
+                        <th>LE Gesamt</th>
+                        <th>Preis Netto (€)</th>
+                        <th>Startgarantie</th>
+                        <th>Waff Nr.</th>
                         <th>API: AMS</th>
                         <th>API: WAFF</th>
                     </tr>
@@ -50,13 +51,14 @@ function course_edit_submenu_page()
                 <tfoot>
                     <tr>
                         <th>Name</th>
-                        <th>Typ</th>
+                        <th>Format / Modus</th>
                         <th>Kurs Kategorie</th>
                         <th>Startdatum</th>
                         <th>Enddatum</th>
-                        <th>Startzeit</th>
-                        <th>Endzeit</th>
-						<th>Waff Nummer</th>
+                        <th>LE Gesamt</th>
+                        <th>Preis Netto (€)</th>
+                        <th>Startgarantie</th>
+                        <th>Waff Nr.</th>
                         <th>API: AMS</th>
                         <th>API: WAFF</th>
                     </tr>
@@ -92,8 +94,10 @@ function course_edit_submenu_page()
 
                             $start_datum = get_post_meta($post->ID, 'start_datum', true);
                             $end_datum = get_post_meta($post->ID, 'end_datum', true);
-                            $uhrzeit = get_post_meta($post->ID, 'uhrzeit', true);
-                            $uhrzeit_ende = get_post_meta($post->ID, 'uhrzeit_ende', true);
+                            $durchfuehrungsmodus = get_post_meta($post->ID, 'durchfuehrungsmodus', true);
+                            $lehreinheiten_gesamt = get_post_meta($post->ID, 'lehreinheiten_gesamt', true);
+                            $kosten = get_post_meta($post->ID, 'kosten', true);
+                            $startgarantie = get_post_meta($post->ID, 'startgarantie', true);
                             $api_ams_publish = get_post_meta($post->ID, 'api_ams_publish', true);
                             $api_waff_publish = get_post_meta($post->ID, 'api_waff_publish', true);
                             $waff_number = get_post_meta($post->ID, 'waff_number', true);
@@ -102,8 +106,17 @@ function course_edit_submenu_page()
                             $end_datum = (!empty($end_datum) && strtotime($end_datum)) ? date('Y-m-d', strtotime($end_datum)) : '';
                             ?>
                             <tr>
-                                <td><a href="<?php echo esc_url(get_edit_post_link(get_the_ID())); ?>"><?php the_title(); ?></a></td>
-                                <td><?php echo esc_html(implode(", ", wp_list_pluck(get_the_terms(get_the_ID(), 'coursetype') ?: [], 'name'))); ?></td>
+                                <td><a href="<?php echo esc_url(get_edit_post_link(get_the_ID())); ?>"><strong><?php the_title(); ?></strong></a></td>
+                                <td>
+                                    <select name="post-<?php the_ID(); ?>[durchfuehrungsmodus]" style="max-width:140px; font-size:12px;">
+                                        <option value="">-- Standard --</option>
+                                        <option value="praesenz" <?php selected($durchfuehrungsmodus, 'praesenz'); ?>>Präsenz</option>
+                                        <option value="online" <?php selected($durchfuehrungsmodus, 'online'); ?>>Live-Online</option>
+                                        <option value="blended" <?php selected($durchfuehrungsmodus, 'blended'); ?>>Blended</option>
+                                        <option value="elearning" <?php selected($durchfuehrungsmodus, 'elearning'); ?>>E-Learning</option>
+                                        <option value="inhouse" <?php selected($durchfuehrungsmodus, 'inhouse'); ?>>Inhouse</option>
+                                    </select>
+                                </td>
                                 <td><?php echo esc_html($category_display); ?></td>
                                 <td>
                                     <input type="hidden" name="post-<?php the_ID(); ?>[ID]" value="<?php the_ID(); ?>" />
@@ -113,18 +126,21 @@ function course_edit_submenu_page()
                                     <input type="date" name="post-<?php the_ID(); ?>[end_datum]" value="<?php echo esc_attr($end_datum); ?>" />
                                 </td>
                                 <td>
-                                    <input type="time" name="post-<?php the_ID(); ?>[uhrzeit]" value="<?php echo esc_attr($uhrzeit); ?>" />
+                                    <input type="number" name="post-<?php the_ID(); ?>[lehreinheiten_gesamt]" value="<?php echo esc_attr($lehreinheiten_gesamt); ?>" style="width:70px;" placeholder="LE" />
                                 </td>
                                 <td>
-                                    <input type="time" name="post-<?php the_ID(); ?>[uhrzeit_ende]" value="<?php echo esc_attr($uhrzeit_ende); ?>" />
+                                    <input type="number" step="0.01" name="post-<?php the_ID(); ?>[kosten]" value="<?php echo esc_attr($kosten); ?>" style="width:90px;" placeholder="€ Netto" />
                                 </td>
-								<td>
-                                    <input type="number" name="post-<?php the_ID(); ?>[waff_number]" value="<?php echo esc_attr($waff_number); ?>" />
+                                <td style="text-align:center;">
+                                    <input type="checkbox" name="post-<?php the_ID(); ?>[startgarantie]" value="1" <?php checked(intval($startgarantie), 1); ?> title="Startgarantie aktiv" />
                                 </td>
                                 <td>
+                                    <input type="number" name="post-<?php the_ID(); ?>[waff_number]" value="<?php echo esc_attr($waff_number); ?>" style="width:80px;" />
+                                </td>
+                                <td style="text-align:center;">
                                     <input type="checkbox" name="post-<?php the_ID(); ?>[api_ams_publish]" value="1" <?php checked(intval($api_ams_publish), 1); ?> />
                                 </td>
-                                <td>
+                                <td style="text-align:center;">
                                     <input type="checkbox" name="post-<?php the_ID(); ?>[api_waff_publish]" value="1" <?php checked(intval($api_waff_publish), 1); ?> />
                                 </td>
                             </tr>
@@ -157,16 +173,20 @@ function xsieben_coursefastedit_check()
                 if ($course_id > 0) {
                     $start_datum = !empty($course["start_datum"]) && strtotime($course["start_datum"]) ? date('Y-m-d', strtotime($course["start_datum"])) : '';
                     $end_datum = !empty($course["end_datum"]) && strtotime($course["end_datum"]) ? date('Y-m-d', strtotime($course["end_datum"])) : '';
-                    $uhrzeit = sanitize_text_field($course["uhrzeit"] ?? '');
-                    $uhrzeit_ende = sanitize_text_field($course["uhrzeit_ende"] ?? '');
+                    $durchfuehrungsmodus = sanitize_text_field($course["durchfuehrungsmodus"] ?? '');
+                    $lehreinheiten_gesamt = sanitize_text_field($course["lehreinheiten_gesamt"] ?? '');
+                    $kosten = sanitize_text_field($course["kosten"] ?? '');
+                    $startgarantie = isset($course["startgarantie"]) && $course["startgarantie"] == '1' ? 1 : 0;
 					$waff_number = sanitize_text_field($course["waff_number"] ?? '');
                     $api_ams_publish = isset($course["api_ams_publish"]) && $course["api_ams_publish"] == '1' ? 1 : 0;
                     $api_waff_publish = isset($course["api_waff_publish"]) && $course["api_waff_publish"] == '1' ? 1 : 0;
 
                     update_post_meta($course_id, "start_datum", $start_datum);
                     update_post_meta($course_id, "end_datum", $end_datum);
-                    update_post_meta($course_id, "uhrzeit", $uhrzeit);
-                    update_post_meta($course_id, "uhrzeit_ende", $uhrzeit_ende);
+                    update_post_meta($course_id, "durchfuehrungsmodus", $durchfuehrungsmodus);
+                    update_post_meta($course_id, "lehreinheiten_gesamt", $lehreinheiten_gesamt);
+                    update_post_meta($course_id, "kosten", $kosten);
+                    update_post_meta($course_id, "startgarantie", $startgarantie);
 					update_post_meta($course_id, "waff_number", $waff_number);
                     update_post_meta($course_id, "api_ams_publish", $api_ams_publish);
                     update_post_meta($course_id, "api_waff_publish", $api_waff_publish);

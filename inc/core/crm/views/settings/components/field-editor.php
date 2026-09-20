@@ -208,11 +208,12 @@ if (!function_exists('crm_render_editor_field')) {
                         $content,
                         "crm_fields_{$index}_content",
                         [
-                            'textarea_name' => "crm_fields[{$index}][content]",
-                            'textarea_rows' => 8,
-                            'media_buttons' => true,
-                            'tinymce'       => true,
-                            'quicktags'     => true,
+                            'textarea_name'  => "crm_fields[{$index}][content]",
+                            'textarea_rows'  => 8,
+                            'media_buttons'  => true,
+                            'tinymce'        => true,
+                            'quicktags'      => true,
+                            'default_editor' => 'html',
                         ]
                     );
                     ?>

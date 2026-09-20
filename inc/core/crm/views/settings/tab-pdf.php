@@ -77,7 +77,29 @@ if (!defined('ABSPATH')) exit;
                                         <span><?php esc_html_e('Firmenadresse & Kontakt einblenden', 'custom-crm'); ?></span>
                                     </label>
                                 </div>
-                                <p style="margin:4px 0 0 0; font-size:11px; color:#64748b;">
+
+                                <div style="display:flex; gap:14px; margin-top:10px; padding-top:10px; border-top:1px dashed #cbd5e1;">
+                                    <div style="flex:1;">
+                                        <label style="display:block; font-size:11px; font-weight:600; color:#334155; margin-bottom:3px;" title="<?php esc_attr_e('Y-Position der Kopfzeile von der oberen Blattkante in Millimetern', 'custom-crm'); ?>">
+                                            <?php esc_html_e('Header-Abstand oben (mm):', 'custom-crm'); ?>
+                                        </label>
+                                        <input type="number" step="0.5" min="0" max="100" name="crm_pdf_master_hf[header_margin_top]"
+                                               value="<?php echo esc_attr($master_hf['header_margin_top'] ?? 8.0); ?>"
+                                               class="regular-text" style="width:100%; height:30px; font-size:12px;">
+                                        <small style="color:#64748b; font-size:10px;"><?php esc_html_e('Y-Position Kopfzeile (Standard: 8 mm)', 'custom-crm'); ?></small>
+                                    </div>
+                                    <div style="flex:1;">
+                                        <label style="display:block; font-size:11px; font-weight:600; color:#334155; margin-bottom:3px;" title="<?php esc_attr_e('Oberer Seitenrand für den Inhalt nach der Kopfzeile in Millimetern', 'custom-crm'); ?>">
+                                            <?php esc_html_e('Abstand Inhalt nach Header (mm):', 'custom-crm'); ?>
+                                        </label>
+                                        <input type="number" step="0.5" min="5" max="150" name="crm_pdf_master_hf[header_margin_bottom]"
+                                               value="<?php echo esc_attr($master_hf['header_margin_bottom'] ?? 32.0); ?>"
+                                               class="regular-text" style="width:100%; height:30px; font-size:12px;">
+                                        <small style="color:#64748b; font-size:10px;"><?php esc_html_e('Oberer Seitenrand für Inhalt (Standard: 32 mm)', 'custom-crm'); ?></small>
+                                    </div>
+                                </div>
+
+                                <p style="margin:6px 0 0 0; font-size:11px; color:#64748b;">
                                     <?php esc_html_e('Firmendaten und Logo stammen aus den Allgemeinen CRM-Einstellungen.', 'custom-crm'); ?>
                                 </p>
                             </div>
@@ -122,11 +144,99 @@ if (!defined('ABSPATH')) exit;
                             </div>
                         </div>
 
-                        <div style="margin-top:14px; display:flex; justify-content:flex-end;">
-                            <button type="submit" name="submit_pdf_master_hf" class="button button-secondary" style="border-color:#7c3aed; color:#6d28d9; height:30px; line-height:28px;">
+                        <div style="margin-top:14px; display:flex; justify-content:flex-end; align-items:center; gap:8px;">
+                            <span class="crm-pdf-master-hf-status" style="display:none; font-size:12px; font-weight:600;"></span>
+                            <button type="submit" id="crm-save-pdf-master-hf-btn" name="submit_pdf_master_hf" class="button button-secondary crm-save-pdf-master-hf-btn" style="border-color:#7c3aed; color:#6d28d9; height:30px; line-height:28px;">
                                 <span class="dashicons dashicons-saved" style="vertical-align:text-top; font-size:15px;"></span>
                                 <?php esc_html_e('Master-Einstellungen speichern', 'custom-crm'); ?>
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- PDF-Elemente Abstände Master-Einstellungen -->
+                    <?php
+                    $elements_spacing = function_exists('crm_get_pdf_elements_spacing') ? crm_get_pdf_elements_spacing() : ['spacing_top' => 0, 'spacing_bottom' => 0];
+                    ?>
+                    <div class="crm-pdf-spacing-box" style="background: #ffffff; border: 1px solid #cbd5e1; border-left: 4px solid #0891b2; border-radius: 8px; padding: 18px 22px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.04);">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom: 14px;">
+                            <div>
+                                <h3 style="margin:0 0 4px 0; color:#0f172a; font-size:16px; display:flex; align-items:center; gap:8px;">
+                                    <span class="dashicons dashicons-editor-expand" style="color:#0891b2; font-size:20px;"></span>
+                                    <?php esc_html_e('PDF-Elemente Abstände (Standard oben & unten)', 'custom-crm'); ?>
+                                </h3>
+                                <p style="margin:0; color:#475569; font-size:13px;">
+                                    <?php esc_html_e('Legen Sie den standardmäßigen vertikalen Freiraum (Abstand oben und unten in pt) für alle PDF-Elemente fest. Einzelne Abschnitte können diesen Wert im Abschnitt-Manager individuell überschreiben.', 'custom-crm'); ?>
+                                </p>
+                            </div>
+                            <div>
+                                <span class="crm-section-tag" style="background:#ecfeff; color:#0e7490; border:1px solid #cffafe; font-size:11px; padding:3px 8px; border-radius:4px; font-weight:600;">
+                                    <?php esc_html_e('Element-Abstände', 'custom-crm'); ?>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:16px;">
+                            <!-- DOKUMENTENTITEL MASTER-ABSTÄNDE -->
+                            <div style="margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid #e2e8f0;">
+                                <h4 style="margin:0 0 10px 0; font-size:13px; color:#0f172a; display:flex; align-items:center; gap:6px;">
+                                    <span class="dashicons dashicons-heading" style="color:#0891b2;"></span>
+                                    <?php esc_html_e('Master Dokumententitel (Großer Haupttitel & Banner)', 'custom-crm'); ?>
+                                    <span style="background:#ecfeff; color:#0e7490; border:1px solid #cffafe; font-size:10.5px; padding:1px 6px; border-radius:4px; font-weight:600;">Standard: 13 pt oben / 11 pt unten</span>
+                                </h4>
+                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+                                    <div>
+                                        <label style="display:block; font-size:11.5px; font-weight:600; color:#334155; margin-bottom:4px;">
+                                            <span class="dashicons dashicons-arrow-up-alt" style="font-size:14px; width:14px; height:14px; vertical-align:middle; color:#0891b2;"></span>
+                                            <?php esc_html_e('Dokumententitel Abstand oben (pt):', 'custom-crm'); ?>
+                                        </label>
+                                        <input type="number" step="1" min="0" max="300" name="crm_pdf_elements_spacing[title_spacing_top]" value="<?php echo esc_attr($elements_spacing['title_spacing_top'] ?? 13); ?>" class="regular-text" style="width:100%; height:32px; font-size:12px;" placeholder="13">
+                                        <small style="color:#64748b; font-size:11px; display:block; margin-top:3px;">
+                                            <?php esc_html_e('Master-Standard: 13 pt. Vertikaler Abstand oberhalb des Haupttitel-Banners.', 'custom-crm'); ?>
+                                        </small>
+                                    </div>
+                                    <div>
+                                        <label style="display:block; font-size:11.5px; font-weight:600; color:#334155; margin-bottom:4px;">
+                                            <span class="dashicons dashicons-arrow-down-alt" style="font-size:14px; width:14px; height:14px; vertical-align:middle; color:#0891b2;"></span>
+                                            <?php esc_html_e('Dokumententitel Abstand unten (pt):', 'custom-crm'); ?>
+                                        </label>
+                                        <input type="number" step="1" min="0" max="300" name="crm_pdf_elements_spacing[title_spacing_bottom]" value="<?php echo esc_attr($elements_spacing['title_spacing_bottom'] ?? 11); ?>" class="regular-text" style="width:100%; height:32px; font-size:12px;" placeholder="11">
+                                        <small style="color:#64748b; font-size:11px; display:block; margin-top:3px;">
+                                            <?php esc_html_e('Master-Standard: 11 pt. Vertikaler Abstand unterhalb des Haupttitel-Banners.', 'custom-crm'); ?>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ALLGEMEINE ELEMENT-ABSTÄNDE -->
+                            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px; align-items:flex-end;">
+                                <div>
+                                    <label style="display:block; font-size:11.5px; font-weight:600; color:#334155; margin-bottom:4px;">
+                                        <span class="dashicons dashicons-arrow-up-alt" style="font-size:14px; width:14px; height:14px; vertical-align:middle; color:#64748b;"></span>
+                                        <?php esc_html_e('Standard-Elemente Abstand oben (pt):', 'custom-crm'); ?>
+                                    </label>
+                                    <input type="number" step="1" min="0" max="300" name="crm_pdf_elements_spacing[spacing_top]" value="<?php echo esc_attr($elements_spacing['spacing_top'] ?? 0); ?>" class="regular-text" style="width:100%; height:32px; font-size:12px;" placeholder="0">
+                                    <small style="color:#64748b; font-size:11px; display:block; margin-top:3px;">
+                                        <?php esc_html_e('0 pt = Standard (kein zusätzlicher Abstand). 10 pt ca. 3,5 mm.', 'custom-crm'); ?>
+                                    </small>
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:11.5px; font-weight:600; color:#334155; margin-bottom:4px;">
+                                        <span class="dashicons dashicons-arrow-down-alt" style="font-size:14px; width:14px; height:14px; vertical-align:middle; color:#64748b;"></span>
+                                        <?php esc_html_e('Standard-Elemente Abstand unten (pt):', 'custom-crm'); ?>
+                                    </label>
+                                    <input type="number" step="1" min="0" max="300" name="crm_pdf_elements_spacing[spacing_bottom]" value="<?php echo esc_attr($elements_spacing['spacing_bottom'] ?? 0); ?>" class="regular-text" style="width:100%; height:32px; font-size:12px;" placeholder="0">
+                                    <small style="color:#64748b; font-size:11px; display:block; margin-top:3px;">
+                                        <?php esc_html_e('Gilt für alle PDF-Dokumente (Angebot, KB, TB, Diplom, Honorarnote).', 'custom-crm'); ?>
+                                    </small>
+                                </div>
+                                <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px;">
+                                    <span class="crm-pdf-spacing-status" style="display:none; font-size:12px; font-weight:600;"></span>
+                                    <button type="submit" id="crm-save-pdf-spacing-btn" name="submit_pdf_elements_spacing" class="button button-secondary crm-save-pdf-spacing-btn" style="border-color:#0891b2; color:#0e7490; height:32px; line-height:30px; font-weight:600;">
+                                        <span class="dashicons dashicons-saved" style="vertical-align:text-top; font-size:15px;"></span>
+                                        <?php esc_html_e('Abstände speichern', 'custom-crm'); ?>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -144,7 +254,10 @@ if (!defined('ABSPATH')) exit;
                             </div>
                             <div class="crm-sections-doc-pills" style="display:flex; gap:6px; flex-wrap:wrap;">
                                 <button type="button" class="button crm-sec-pill active" data-doc="angebot" style="border-color:#7c3aed; color:#6d28d9; font-weight:600;">
-                                    <span class="dashicons dashicons-media-document" style="font-size:13px; vertical-align:text-top;"></span> Angebot (7)
+                                    <span class="dashicons dashicons-media-document" style="font-size:13px; vertical-align:text-top;"></span> <?php esc_html_e('Angebot 1: Basis (7)', 'custom-crm'); ?>
+                                </button>
+                                <button type="button" class="button crm-sec-pill" data-doc="angebot_2" style="color:#6366f1;">
+                                    <span class="dashicons dashicons-awards" style="font-size:13px; vertical-align:text-top;"></span> <?php esc_html_e('Angebot 2: Inkl. Zert. (7)', 'custom-crm'); ?>
                                 </button>
                                 <button type="button" class="button crm-sec-pill" data-doc="kb" style="color:#0f766e;">
                                     <span class="dashicons dashicons-calendar-alt" style="font-size:13px; vertical-align:text-top;"></span> Kurszeiten KB (7)
@@ -163,6 +276,9 @@ if (!defined('ABSPATH')) exit;
 
                         <div class="crm-sec-tab-pane" id="crm-sec-pane-angebot" style="display:block;">
                             <?php crm_render_pdf_sections_manager('angebot', null, false); ?>
+                        </div>
+                        <div class="crm-sec-tab-pane" id="crm-sec-pane-angebot_2" style="display:none;">
+                            <?php crm_render_pdf_sections_manager('angebot_2', null, false); ?>
                         </div>
                         <div class="crm-sec-tab-pane" id="crm-sec-pane-kb" style="display:none;">
                             <?php crm_render_pdf_sections_manager('kb', null, false); ?>
@@ -186,7 +302,7 @@ if (!defined('ABSPATH')) exit;
                                 <h3 style="margin: 0; font-size: 15px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
                                     <span class="dashicons dashicons-visibility" style="color: #7c3aed; font-size: 19px;"></span>
                                     <span><?php esc_html_e('Live-Vorschau:', 'custom-crm'); ?></span>
-                                    <span id="crm-preview-doc-title" style="color: #6d28d9;"><?php esc_html_e('Kurszeitenbestätigung (KB)', 'custom-crm'); ?></span>
+                                    <span id="crm-preview-doc-title" style="color: #6d28d9;"><?php esc_html_e('Angebot & Anhang', 'custom-crm'); ?></span>
                                 </h3>
                                 <span id="crm-preview-sample-info" style="font-size: 11.5px; color: #5b21b6; background: #ede9fe; padding: 2px 8px; border-radius: 12px; font-weight: 500;">
                                     <?php esc_html_e('Wird geladen...', 'custom-crm'); ?>
@@ -196,7 +312,13 @@ if (!defined('ABSPATH')) exit;
                             <!-- Preview switcher pills inside preview card -->
                             <div class="crm-preview-doc-switcher" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                                 <span style="font-size: 12px; font-weight: 600; color: #64748b; margin-right: 4px;"><?php esc_html_e('Dokument:', 'custom-crm'); ?></span>
-                                <button type="button" class="button crm-preview-switch-btn active" data-doc="kb" title="<?php esc_attr_e('Kurszeitenbestätigung', 'custom-crm'); ?>">
+                                <button type="button" class="button crm-preview-switch-btn active" data-doc="angebot" title="<?php esc_attr_e('Angebot & Anhang', 'custom-crm'); ?>">
+                                    <span class="dashicons dashicons-media-document" style="font-size:13px; vertical-align:text-top;"></span> Angebot
+                                </button>
+                                <button type="button" class="button crm-preview-switch-btn" data-doc="angebot_2" title="<?php esc_attr_e('Angebot 2: Inkl. Zertifizierung', 'custom-crm'); ?>">
+                                    <span class="dashicons dashicons-awards" style="font-size:13px; vertical-align:text-top;"></span> Angebot 2 (Zert.)
+                                </button>
+                                <button type="button" class="button crm-preview-switch-btn" data-doc="kb" title="<?php esc_attr_e('Kurszeitenbestätigung', 'custom-crm'); ?>">
                                     <span class="dashicons dashicons-calendar-alt" style="font-size:13px; vertical-align:text-top;"></span> KB
                                 </button>
                                 <button type="button" class="button crm-preview-switch-btn" data-doc="tb" title="<?php esc_attr_e('Teilnahmebestätigung', 'custom-crm'); ?>">
@@ -204,9 +326,6 @@ if (!defined('ABSPATH')) exit;
                                 </button>
                                 <button type="button" class="button crm-preview-switch-btn" data-doc="diplom" title="<?php esc_attr_e('Diplom / Zertifikat', 'custom-crm'); ?>">
                                     <span class="dashicons dashicons-awards" style="font-size:13px; vertical-align:text-top;"></span> Diplom
-                                </button>
-                                <button type="button" class="button crm-preview-switch-btn" data-doc="angebot" title="<?php esc_attr_e('Angebot & Anhang', 'custom-crm'); ?>">
-                                    <span class="dashicons dashicons-media-document" style="font-size:13px; vertical-align:text-top;"></span> Angebot
                                 </button>
                                 <button type="button" class="button crm-preview-switch-btn" data-doc="invoice" title="<?php esc_attr_e('Honorarnote / Rechnung', 'custom-crm'); ?>">
                                     <span class="dashicons dashicons-money-alt" style="font-size:13px; vertical-align:text-top;"></span> Honorarnote

@@ -29,11 +29,12 @@ function xsieben_view_entry($entry_id, $course_id = 0)
     }
     echo '</tbody></table>';
 
-    // Add the "Edit Entry in WPForms" button
-    if (current_user_can('edit_others_posts')) { // Or a more specific capability if desired
+    // Add the "Kundendaten bearbeiten" button
+    if (current_user_can('edit_others_posts')) {
         $edit_url = admin_url('admin.php?page=wpforms-entries&view=edit&entry_id=' . absint($entry_id));
-        echo '<p>';
-        echo '<a href="' . esc_url($edit_url) . '" class="button button-primary">' . esc_html__('Edit Entry in WPForms', 'custom-crm') . '</a>';
+        echo '<p style="display:flex; gap:10px; align-items:center; margin-top:16px;">';
+        echo '<button type="button" class="button button-primary crm-quick-edit-btn" data-entry-id="' . absint($entry_id) . '" data-course-id="' . absint($course_id) . '"><span class="dashicons dashicons-edit"></span> ' . esc_html__('Kundendaten bearbeiten', 'custom-crm') . '</button>';
+        echo '<a href="' . esc_url($edit_url) . '" class="button button-secondary">' . esc_html__('In WPForms bearbeiten', 'custom-crm') . '</a>';
         echo '</p>';
     }
 

@@ -14,7 +14,9 @@ if (!defined('ABSPATH')) exit;
                                     <?php esc_html_e('Verwalten Sie hier alle E-Mail-Texte, die beim Versenden von Angeboten, Anmeldungen, Diplomen und Bestätigungen dynamisch generiert werden.', 'custom-crm'); ?>
                                 </p>
                             </div>
-                            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                                <a href="<?php echo esc_url(admin_url('admin.php?page=crm-elements')); ?>" class="button button-secondary" style="border-color:#10b981; color:#047857; font-weight:600; background:#ecfdf5; height:32px; line-height:30px; padding:0 14px;">
+                                    <span class="dashicons dashicons-screenoptions" style="vertical-align:text-top; font-size:16px;"></span> <?php esc_html_e('Elemente & Bausteine verwalten ➔', 'custom-crm'); ?>
+                                </a>
                                 <a href="#crm-email-preview-section" class="button button-secondary" style="border-color:#0284c7; color:#0284c7; height:32px; line-height:30px; padding:0 14px;">
                                     <span class="dashicons dashicons-visibility" style="vertical-align:text-top; font-size:16px;"></span> <?php esc_html_e('Zur E-Mail Live-Vorschau springen ↓', 'custom-crm'); ?>
                                 </a>
@@ -24,10 +26,6 @@ if (!defined('ABSPATH')) exit;
                                 <button type="button" class="button button-primary" id="add-crm-email-field" style="background:#0284c7; border-color:#0284c7;">
                                     <span class="dashicons dashicons-email-alt" style="vertical-align:text-top;"></span> <?php esc_html_e('Neue Gesamte E-Mail', 'custom-crm'); ?>
                                 </button>
-                                <button type="button" class="button button-secondary" id="add-crm-component-field" style="background:#ecfdf5; border-color:#10b981; color:#047857; font-weight:600;">
-                                    <span class="dashicons dashicons-screenoptions" style="vertical-align:text-top;"></span> <?php esc_html_e('Neuer Baustein / Komponente', 'custom-crm'); ?>
-                                </button>
-                            </div>
                         </div>
 
                         <!-- Variable Cheat Sheet Box -->

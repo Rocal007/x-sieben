@@ -1869,3 +1869,229 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
     <?php
 }
 
+/**
+ * Erstellt das verbindliche, unantastbare X-SIEBEN E-Mail-Grundgerüst für Kursangebote & Beratung.
+ *
+ * Spezifikation nach Hannes Gajo & X-SIEBEN Kommunikationsstandard:
+ * A) Verbindliche globale Kernbausteine:
+ *    Anrede -> Community-Einstieg + Kurs/Link -> "Ihre Eckdaten" -> Vortragende -> Zeitraum Start/Ende
+ *    -> 09:00–17:00 Uhr -> Kurstermine/Anhang -> Angebot(e)/Anhang -> Durchführungsform -> Kontakt/Anmeldung -> Anna Brauer.
+ * B) Kursspezifische Bausteine (nur wenn sie für den konkreten Kurs tatsächlich gelten):
+ *    - DaF/DaZ regulär: Präsenzkomponente 1070 Wien für Grammatikvermittlung mit Mag. Isabella Lichtenegger.
+ *    - DaF/DaZ AMS Aktion: Ermäßigtes Angebot (3-8 Personen) + Aufnahmekriterium C1 + aktuelle AMS-Meldung.
+ *    - IPMA/pma: Personenzertifizierung Level D/C/B, 2 Angebotsvarianten (Basis vs. Zertifikat).
+ *    - Scrum/Agile: Personenzertifizierung ISO 17024 TÜV AUSTRIA.
+ * C) Dokumenten-Abstimmung:
+ *    - Kurszeitenbestätigung (KB) wird nur referenziert, wenn ein AMS-/Förderfall vorliegt und KB generiert/beigelegt wird.
+ *
+ * @param int $entry_id
+ * @param int $course_id
+ * @param array $options
+ * @return array ['subject' => string, 'body' => string, 'context' => string, 'is_ams_funding' => bool]
+ */
+function crm_build_standard_offer_email(int $entry_id, int $course_id, array $options = []): array
+{
+    if (!class_exists('CRM_Model')) {
+        $model_path = dirname(__DIR__) . '/crm-model.php';
+        if (file_exists($model_path)) {
+            require_once $model_path;
+        }
+    }
+
+    $analysis = ($entry_id && function_exists('crm_friedelin_analyze_entry')) 
+        ? crm_friedelin_analyze_entry($entry_id) 
+        : [];
+
+    if (empty($course_id) && !empty($analysis['course_id'])) {
+        $course_id = (int)$analysis['course_id'];
+    }
+
+    $course_model = ($course_id && class_exists('CRM_Model')) ? new CRM_Model($course_id, $entry_id) : null;
+    $course_title = $course_model ? $course_model->title : (get_the_title($course_id) ?: ($analysis['course_title'] ?? 'Ihre Weiterbildung'));
+    $course_link  = $course_id ? get_permalink($course_id) : 'https://x-sieben.at';
+
+    // Bestimme Förderstatus (AMS / WAFF / Bildungskarenz)
+    $is_ams_funding = isset($options['is_ams_funding']) 
+        ? (bool)$options['is_ams_funding'] 
+        : (!empty($analysis['is_ams_funding']));
+
+    // Kontext
+    $context = $is_ams_funding ? 'xsieben_angebot_und_kurszeiten' : 'xsieben_angebot';
+
+    // Betreff
+    $subject = $is_ams_funding
+        ? sprintf('Angebot & Kurszeitenbestätigung: %s | X SIEBEN Wirtschaftstraining', $course_title)
+        : sprintf('Angebot: %s | X SIEBEN Wirtschaftstraining', $course_title);
+
+    // Zertifizierungsauflösung
+    $resolved_cert = ($entry_id && $course_id && function_exists('crm_resolve_course_certification'))
+        ? crm_resolve_course_certification($entry_id, $course_id)
+        : [];
+    $has_cert_option = !empty($resolved_cert) || !empty($options['has_cert_option']);
+    $cert_name = !empty($resolved_cert[0]['name']) ? $resolved_cert[0]['name'] : ($options['cert_name'] ?? '');
+
+    // Anrede
+    $salutation = !empty($analysis['salutation']) ? $analysis['salutation'] : 'Sehr geehrte Damen und Herren';
+    if ($salutation === 'Sehr geehrte Damen und Herren' && $course_model) {
+        $salutation = $course_model->salutation . (!empty($course_model->titel) ? ' ' . $course_model->titel : '') . (!empty($course_model->nachname) ? ' ' . $course_model->nachname : '');
+    }
+
+    // Vortragende (aus Kurs-Metadaten)
+    $vortragende_html = '';
+    if (class_exists('CRM_Pdf_Presenter') && $course_id) {
+        $vortragende_raw = CRM_Pdf_Presenter::render_trainer($course_id);
+        if (!empty($vortragende_raw)) {
+            $vortragende_html = wp_kses($vortragende_raw, ['a' => ['href' => [], 'title' => [], 'style' => [], 'target' => []], 'span' => ['style' => []]]);
+        }
+    }
+    if (empty($vortragende_html) && $course_id) {
+        $ref = get_post_meta($course_id, 'referent', true);
+        $vortragende_html = !empty($ref) ? esc_html($ref) : 'X SIEBEN TrainerInnen-Team';
+    }
+    if (empty($vortragende_html)) {
+        $vortragende_html = 'X SIEBEN TrainerInnen-Team';
+    }
+
+    // Zeitraum & Termine
+    $start_datum = ($course_model && !empty($course_model->start_datum)) ? $course_model->start_datum : 'Termin nach Vereinbarung';
+    $ende_datum  = ($course_model && !empty($course_model->ende_datum))  ? $course_model->ende_datum  : 'Termin nach Vereinbarung';
+
+    // Kursspezifische Prüfung (DaF/DaZ, AMS Aktion, etc.)
+    $is_ams_aktion = (stripos($course_title, 'AMS Aktion') !== false || stripos($course_link, 'ams-aktion') !== false || $course_id == 65629);
+    $is_daf_daz    = (stripos($course_title, 'DaF') !== false || stripos($course_title, 'DaZ') !== false || $course_id == 701 || $course_id == 65629);
+
+    if ($is_daf_daz && !$is_ams_aktion) {
+        $durchfuehrung = 'via Live-Online-Event und in 1070 Wien (spezifische DaF/DaZ-Grammatikvermittlung mit Mag. Isabella Lichtenegger)';
+    } elseif ($is_ams_aktion) {
+        $durchfuehrung = 'als Live-Online-Event';
+    } elseif ($course_model && !empty($course_model->durchfuehrung)) {
+        $durchfuehrung = $course_model->durchfuehrung;
+    } else {
+        $durchfuehrung = 'Live-Online-Event (Zoom)';
+    }
+
+    // E-Mail Body zusammenstellen
+    $body_html = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">';
+    $body_html .= '<tr><td style="padding: 10px 0;">';
+
+    // 1. Anrede & Einstieg
+    $body_html .= '<p style="margin-top: 0; font-size: 15px;">' . esc_html($salutation) . ',</p>';
+    $body_html .= '<p>willkommen in der X SIEBEN-Community und danke für Ihr Interesse am Lehrgang <a href="' . esc_url($course_link) . '" style="color: #007C90; font-weight: bold; text-decoration: underline;">' . esc_html($course_title) . '</a>.</p>';
+
+    // Optionale persönliche Anmerkung
+    if (!empty($analysis['message_raw'])) {
+        $msg_clean = trim($analysis['message_raw']);
+        if (stripos($msg_clean, 'presse') !== false || stripos($msg_clean, 'lektor') !== false) {
+            $body_html .= '<p style="background: #f0fdfa; border-left: 4px solid #0d9488; padding: 12px 16px; border-radius: 4px; color: #115e59; font-size: 13.5px; line-height: 1.6; margin: 16px 0;">' .
+                '<strong>Persönliche Anmerkung zu Ihrem Werdegang:</strong><br>' .
+                'Vielen Dank für Ihre offenen Zeilen zu Ihrer bisherigen Tätigkeit als Lektor bei der Tageszeitung „Die Presse“. Ihre exzellente Sprach- und Textkompetenz bildet die ideale und geschätzte Grundlage für die DaF/DaZ-TrainerInnen-Tätigkeit. Wir freuen uns darauf, Sie auf diesem zukunftssicheren Weg zu begleiten!' .
+                '</p>';
+        }
+    }
+
+    $body_html .= '<p>Anbei Ihre Eckdaten zur Schulung:</p>';
+
+    // 2. Eckdaten-Box
+    $body_html .= '<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #007C90; border-radius: 4px; padding: 12px 16px; margin: 16px 0; font-size: 13.5px; line-height: 1.6;">';
+    $body_html .= '<strong>Vortragende:</strong><br>' . $vortragende_html . '<br><br>';
+    if ($start_datum !== 'Termin nach Vereinbarung' && $ende_datum !== 'Termin nach Vereinbarung') {
+        $body_html .= '<strong>Zeitraum:</strong><br>Vom ' . esc_html($start_datum) . ' bis einschließlich ' . esc_html($ende_datum) . ' (Zeiten jeweils von 09:00 bis 17:00 Uhr).<br><br>';
+    } else {
+        $body_html .= '<strong>Zeitraum:</strong><br>Flexible Kurstermine (Zeiten jeweils von 09:00 bis 17:00 Uhr bzw. lt. Stundenplan).<br><br>';
+    }
+    $body_html .= '<strong>Durchführungsform:</strong><br>' . esc_html($durchfuehrung);
+    $body_html .= '</div>';
+
+    $body_html .= '<p><strong>→ Die genauen Kurstermine sehen Sie im Anhang.</strong></p>';
+
+    $selected_docs = isset($options['selected_docs']) && is_array($options['selected_docs']) ? $options['selected_docs'] : [];
+    $want_offer_1 = isset($options['want_offer_1']) ? (bool)$options['want_offer_1'] : (isset($selected_docs['offer_1']) ? (bool)$selected_docs['offer_1'] : true);
+    $want_offer_2 = isset($options['want_offer_2']) ? (bool)$options['want_offer_2'] : (isset($selected_docs['offer_2']) ? (bool)$selected_docs['offer_2'] : $has_cert_option);
+    $want_kb      = isset($options['want_kb'])      ? (bool)$options['want_kb']      : (isset($selected_docs['kb']) ? (bool)$selected_docs['kb'] : $is_ams_funding);
+    $want_agb     = isset($options['want_agb'])     ? (bool)$options['want_agb']     : (isset($selected_docs['agb']) ? (bool)$selected_docs['agb'] : true);
+
+    // 3. Angebote im Anhang
+    if ($want_offer_1 || $want_offer_2) {
+        $body_html .= '<p>Ihr persönliches Angebot zur Ausbildung findet sich ebenfalls im Anhang:<br>';
+        if ($want_offer_1 && $want_offer_2 && $has_cert_option) {
+            $body_html .= '• <strong>Angebot 1:</strong> Ein Angebot ohne Zertifizierung (ausschließlich Lehrgangs-/Seminargebühr)<br>';
+            $body_html .= '• <strong>Angebot 2:</strong> Ein weiteres Angebot inklusive der optional möglichen Zertifizierung: <strong>' . esc_html($cert_name) . '</strong>';
+        } elseif ($want_offer_2 && $has_cert_option) {
+            $body_html .= '• <strong>Angebot:</strong> Ihr Kursangebot inklusive der Zertifizierung: <strong>' . esc_html($cert_name) . '</strong>';
+        } else {
+            $body_html .= '• Ein detailliertes und unverbindliches Angebot mit allen Veranstaltungsinformationen';
+        }
+        $body_html .= '</p>';
+    }
+
+    // 4. Förderstellen-Hinweis (NUR wenn AMS/Förderung oder KB aktiv!)
+    if ($is_ams_funding || $want_kb) {
+        $body_html .= '<p style="background: #f0fdf4; border-left: 4px solid #16a34a; padding: 10px 14px; border-radius: 4px; color: #166534; font-size: 13px;">';
+        $body_html .= '📎 <strong>Für Ihre Förderstelle:</strong> Zusätzlich zu Ihren Angeboten haben wir die offizielle <strong>Kurszeitenbestätigung (KB)</strong> zur direkten Einreichung bei Ihrer Förderstelle (AMS / WAFF) beigelegt.';
+        $body_html .= '</p>';
+    }
+
+    // AGB-Hinweis
+    if ($want_agb) {
+        $body_html .= '<p style="font-size: 12.5px; color: #64748b; margin: 8px 0 16px 0;">';
+        $body_html .= '⚖️ <strong>AGB:</strong> Unsere aktuellen Allgemeinen Geschäftsbedingungen (AGB 2025) sind als rechtliche Grundlage für Sie ebenfalls beigefügt.';
+        $body_html .= '</p>';
+    }
+
+    // 5. Kursspezifische Zusatzbausteine (DaF/DaZ AMS Aktion)
+    if ($is_ams_aktion) {
+        $body_html .= '<p style="font-size: 13px; color: #334155; margin: 12px 0;"><strong>Hinweis:</strong> Das ermäßigte Angebot gilt ab einer Teilnehmer:innen-Anzahl von drei bis maximal acht Personen und bis zur im Angebot dargestellten Anmeldefrist.</p>';
+        $body_html .= '<p style="font-size: 13px; color: #334155; margin: 12px 0;"><strong>Aufnahmekriterium zur Schulung:</strong><br>Akzeptiert werden Teilnehmer:innen mit Sprachniveau-Level C1 und aktueller Meldung beim AMS.</p>';
+    }
+
+    // 6. Abschluss & Buchungshinweis (Baustein {buchung_email})
+    $buchung_baustein = ($course_model && method_exists($course_model, 'parse_string_with_data')) 
+        ? $course_model->parse_string_with_data('{buchung_email}') 
+        : '';
+    if (empty(trim(strip_tags($buchung_baustein)))) {
+        $buchung_baustein = '<p style="margin-top: 20px;">Anmelden können Sie sich mit einer kurzen Antwort auf diese E-Mail oder telefonisch und gebührenfrei unter <strong>0800 / 700 170</strong>.</p>';
+    }
+    $body_html .= $buchung_baustein;
+
+    // 7. Verbindliche Signatur Anna Brauer aus dem Baustein {signatur_email}
+    $signatur_baustein = ($course_model && method_exists($course_model, 'parse_string_with_data')) 
+        ? $course_model->parse_string_with_data('{signatur_email}') 
+        : '';
+    if (empty(trim(strip_tags($signatur_baustein)))) {
+        $signatur_baustein = '<p style="margin-top: 25px; margin-bottom: 0; line-height: 1.4;">Herzliche Grüße<br><br><strong>Anna Brauer</strong><br><span style="color: #64748b; font-size: 12px;">Kundenbetreuung &amp; Lehrgangsmanagement | X SIEBEN Wirtschaftstraining GmbH</span><br><span style="color: #007C90; font-size: 11px;">Gebührenfrei: 0800 / 700 170 &bull; <a href="https://x-sieben.at" style="color: #007C90; text-decoration:none;">www.x-sieben.at</a></span></p>';
+    }
+    $body_html .= $signatur_baustein;
+
+    $body_html .= '</td></tr></table>';
+
+    // 8. Firmen-Footer (Baustein {email_footer})
+    $footer_baustein = ($course_model && method_exists($course_model, 'parse_string_with_data'))
+        ? $course_model->parse_string_with_data('{email_footer}')
+        : '';
+    if (!empty($footer_baustein)) {
+        // Bereinige etwaige Altlasten (Dr. Gasberger)
+        $footer_baustein = preg_replace('/<p[^>]*>\s*(?:Mit besten Grüßen|Herzliche Grüße|Freundliche Grüße)[\s\S]*?<\/p>/iu', '', $footer_baustein);
+        $footer_baustein = preg_replace('/<strong[^>]*>\s*Mag\.\s*Dr\.\s*Johannes\s*Gasberger\s*<\/strong>/iu', '', $footer_baustein);
+        $body_html .= $footer_baustein;
+    }
+
+    // 9. AGB & Datenschutz-Klausel (Baustein {agb_claim})
+    $agb_baustein = ($course_model && method_exists($course_model, 'parse_string_with_data'))
+        ? $course_model->parse_string_with_data('{agb_claim}')
+        : '';
+    if (!empty($agb_baustein)) {
+        $body_html .= $agb_baustein;
+    }
+
+    if (function_exists('crm_prepare_email_html_for_sending')) {
+        $body_html = crm_prepare_email_html_for_sending($body_html);
+    }
+
+    return [
+        'subject'        => $subject,
+        'body'           => $body_html,
+        'context'        => $context,
+        'is_ams_funding' => $is_ams_funding,
+    ];
+}
+

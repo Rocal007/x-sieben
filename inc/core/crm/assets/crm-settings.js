@@ -17,6 +17,26 @@
         let fieldCount = (crmSettings.fieldCount || 100);
         let activeDocFilter = 'all';
 
+        // Auto-sync all TinyMCE editors before form submit or AJAX
+        function crmSyncAllEditors() {
+            if (typeof tinyMCE !== 'undefined' && typeof tinyMCE.triggerSave === 'function') {
+                tinyMCE.triggerSave();
+            }
+        }
+        window.crmSyncAllEditors = crmSyncAllEditors;
+
+        $('#crm-main-form').on('submit', function() {
+            crmSyncAllEditors();
+        });
+
+        if (typeof tinyMCE !== 'undefined') {
+            tinyMCE.on('AddEditor', function(e) {
+                e.editor.on('change keyup NodeChange SetContent', function() {
+                    e.editor.save();
+                });
+            });
+        }
+
         // WordPress Media Uploader for Logos
         $(document).on('click', '.crm-media-upload-btn', function(e) {
             e.preventDefault();
@@ -295,9 +315,57 @@
             addFieldAjax('email', 'full_email');
         });
 
-        $('#add-crm-component-field').on('click', function(e) {
+        $(document).on('click', '#add-crm-component-field, #add-crm-component-field-empty', function(e) {
             e.preventDefault();
             addFieldAjax('email', 'component');
+        });
+
+        // Quick search in Elements tab
+        $(document).on('input', '#crm-element-quick-search', function() {
+            const query = $(this).val().toLowerCase().trim();
+            $('.crm-elements-fields-list .crm-field-block').each(function() {
+                const title = $(this).find('.crm-field-title-text').text().toLowerCase();
+                const code = $(this).find('.crm-comp-code-pill').text().toLowerCase();
+                if (!query || title.indexOf(query) !== -1 || code.indexOf(query) !== -1) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+        });
+
+        // Filter pills inside Elements tab
+        $(document).on('click', '.crm-element-filter-pills .crm-doc-pill', function(e) {
+            e.preventDefault();
+            $('.crm-element-filter-pills .crm-doc-pill').removeClass('active');
+            $(this).addClass('active');
+            const filter = $(this).attr('data-doc') || 'all';
+
+            $('.crm-elements-fields-list .crm-field-block').each(function() {
+                const title = $(this).find('.crm-field-title-text').text().toLowerCase();
+                const cat = $(this).attr('data-category') || 'email';
+                if (filter === 'all') {
+                    $(this).show();
+                } else if (filter === 'email') {
+                    if (cat === 'email' && (title.indexOf('signatur') !== -1 || title.indexOf('footer') !== -1 || title.indexOf('mail') !== -1 || title.indexOf('buchung') !== -1 || title.indexOf('angebot') !== -1)) {
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                } else if (filter === 'rechtlich') {
+                    if (title.indexOf('agb') !== -1 || title.indexOf('bank') !== -1 || title.indexOf('garantie') !== -1 || title.indexOf('klausel') !== -1 || title.indexOf('hinweis') !== -1 || title.indexOf('fee') !== -1 || title.indexOf('anhang') !== -1 || title.indexOf('recht') !== -1) {
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                } else if (filter === 'pdf') {
+                    if (cat === 'pdf' || title.indexOf('pdf') !== -1 || title.indexOf('kb') !== -1 || title.indexOf('tb') !== -1 || title.indexOf('diplom') !== -1 || title.indexOf('honorarnote') !== -1 || title.indexOf('angebot') !== -1) {
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                }
+            });
         });
 
         // Remove field
@@ -373,23 +441,28 @@
         // ==========================================
         // PDF LIVE PREVIEW CONTROLLER
         // ==========================================
-        let currentPreviewDoc = 'kb';
+        let currentPreviewDoc = 'angebot';
         let isPreviewExpanded = false;
         const docTitles = {
-            'kb': '"Kurszeitenbestätigung (KB)"',
-            'tb': '"Teilnahmebestätigung (TB)"',
-            'diplom': '"Diplom / Zertifikat"',
-            'angebot': '"Angebot & Anhang"',
-            'invoice': '"Honorarnote / Rechnung"'
+            'kb': 'Kurszeitenbestätigung (KB)',
+            'tb': 'Teilnahmebestätigung (TB)',
+            'diplom': 'Diplom / Zertifikat',
+            'angebot': 'Angebot & Anhang',
+            'angebot_2': 'Angebot 2: Inkl. Zertifizierung',
+            'invoice': 'Honorarnote / Rechnung'
         };
 
         function loadPdfPreview(docType, forceReload) {
+            if (typeof crmSyncAllEditors === 'function') {
+                crmSyncAllEditors();
+            }
+
             if (!$('#crm-pdf-preview-section').length) {
                 return;
             }
 
             if (!docType || docType === 'all' || docType === 'general') {
-                docType = currentPreviewDoc || 'kb';
+                docType = currentPreviewDoc || 'angebot';
             }
 
             currentPreviewDoc = docType;
@@ -579,13 +652,28 @@
                 });
 
                 $('.crm-sortable-subsections').sortable({
+                    connectWith: '.crm-sortable-subsections',
                     handle: '.crm-sub-drag-handle',
                     items: '> li.crm-pdf-subsection-item',
                     placeholder: 'crm-sub-sortable-placeholder',
-                    axis: 'y',
                     cursor: 'grabbing',
                     opacity: 0.88,
-                    tolerance: 'pointer'
+                    tolerance: 'pointer',
+                    receive: function(event, ui) {
+                        const updateSecCount = function($sec) {
+                            const total = $sec.find('.crm-sortable-subsections > .crm-pdf-subsection-item').length;
+                            const active = $sec.find('.crm-sortable-subsections > .crm-pdf-subsection-item .crm-sub-checkbox:checked').length;
+                            $sec.find('.crm-subs-counter-badge').html(active + '/' + total + ' aktiv &#x25BE;');
+                        };
+                        updateSecCount($(this).closest('.crm-pdf-section-item'));
+                        updateSecCount($(ui.sender).closest('.crm-pdf-section-item'));
+                    },
+                    stop: function(event, ui) {
+                        const $sec = $(this).closest('.crm-pdf-section-item');
+                        const total = $sec.find('.crm-sortable-subsections > .crm-pdf-subsection-item').length;
+                        const active = $sec.find('.crm-sortable-subsections > .crm-pdf-subsection-item .crm-sub-checkbox:checked').length;
+                        $sec.find('.crm-subs-counter-badge').html(active + '/' + total + ' aktiv &#x25BE;');
+                    }
                 });
 
                 if ($('#crm-fields-wrapper').length) {
@@ -839,16 +927,51 @@
                             }
                         }
 
+                        let subSpacingTop = 0;
+                        let subSpacingBottom = 0;
+                        if ($drawer.length) {
+                            const $subSpTopInput = $drawer.find('.crm-sub-spacing-top');
+                            const $subSpBottomInput = $drawer.find('.crm-sub-spacing-bottom');
+                            if ($subSpTopInput.length) {
+                                subSpacingTop = parseFloat($subSpTopInput.val()) || 0;
+                            }
+                            if ($subSpBottomInput.length) {
+                                subSpacingBottom = parseFloat($subSpBottomInput.val()) || 0;
+                            }
+                        } else {
+                            subSpacingTop = parseFloat(sub.data('spacing-top') || sub.attr('data-spacing-top')) || 0;
+                            subSpacingBottom = parseFloat(sub.data('spacing-bottom') || sub.attr('data-spacing-bottom')) || 0;
+                        }
+
                         if (subKey) {
                             subsections.push({
                                 key: subKey,
                                 enabled: subEnabled,
                                 is_custom: subCustom,
                                 title: subTitle,
-                                content: subContent
+                                content: subContent,
+                                spacing_top: subSpacingTop,
+                                spacing_bottom: subSpacingBottom
                             });
                         }
                     });
+
+                    // Spacing
+                    let spacingTop = 0;
+                    const $secSpTopInput = sec.find('.crm-sec-spacing-top');
+                    if ($secSpTopInput.length) {
+                        spacingTop = parseFloat($secSpTopInput.val()) || 0;
+                    } else {
+                        spacingTop = parseFloat(sec.data('spacing-top') || sec.attr('data-spacing-top')) || 0;
+                    }
+
+                    let spacingBottom = 0;
+                    const $secSpBottomInput = sec.find('.crm-sec-spacing-bottom');
+                    if ($secSpBottomInput.length) {
+                        spacingBottom = parseFloat($secSpBottomInput.val()) || 0;
+                    } else {
+                        spacingBottom = parseFloat(sec.data('spacing-bottom') || sec.attr('data-spacing-bottom')) || 0;
+                    }
 
                     // Header & Footer
                     let headerMode = sec.find('.crm-hf-header-mode').val() || sec.data('header-mode') || sec.attr('data-header-mode') || 'master';
@@ -874,6 +997,22 @@
                         headerCustom = $hCustomInput.val();
                     } else {
                         headerCustom = sec.data('header-custom') || sec.attr('data-header-custom') || '';
+                    }
+
+                    let headerMarginTop = null;
+                    const $hMarginTopInput = sec.find('.crm-hf-header-margin-top');
+                    if ($hMarginTopInput.length && $hMarginTopInput.val() !== '') {
+                        headerMarginTop = parseFloat($hMarginTopInput.val());
+                    } else if (sec.data('header-margin-top') !== undefined && sec.data('header-margin-top') !== '') {
+                        headerMarginTop = parseFloat(sec.data('header-margin-top'));
+                    }
+
+                    let headerMarginBottom = null;
+                    const $hMarginBottomInput = sec.find('.crm-hf-header-margin-bottom');
+                    if ($hMarginBottomInput.length && $hMarginBottomInput.val() !== '') {
+                        headerMarginBottom = parseFloat($hMarginBottomInput.val());
+                    } else if (sec.data('header-margin-bottom') !== undefined && sec.data('header-margin-bottom') !== '') {
+                        headerMarginBottom = parseFloat(sec.data('header-margin-bottom'));
                     }
 
                     let footerMode = sec.find('.crm-hf-footer-mode').val() || sec.data('footer-mode') || sec.attr('data-footer-mode') || 'master';
@@ -922,11 +1061,15 @@
                             header_logo: headerLogo,
                             header_address: headerAddress,
                             header_custom: headerCustom,
+                            header_margin_top: headerMarginTop,
+                            header_margin_bottom: headerMarginBottom,
                             footer_mode: footerMode,
                             footer_company: footerCompany,
                             footer_page_num: footerPageNum,
                             footer_date: footerDate,
                             footer_custom: footerCustom,
+                            spacing_top: spacingTop,
+                            spacing_bottom: spacingBottom,
                             subsections: subsections
                         });
                     }
@@ -960,6 +1103,108 @@
             }).fail(function() {
                 btn.prop('disabled', false).html('<span class="dashicons dashicons-saved" style="vertical-align:text-top; font-size:14px;"></span> ' + (i18n.applyOrder || "Reihenfolge anwenden"));
                 statusEl.text(i18n.serverError || "Serverfehler").css({color: '#dc2626'}).fadeIn().delay(2500).fadeOut();
+            });
+        });
+
+        // AJAX: Speichern der globalen PDF-Element-Abstände
+        $(document).on('click', '#crm-save-pdf-spacing-btn, .crm-save-pdf-spacing-btn', function(e) {
+            e.preventDefault();
+            const btn = $(this);
+            const box = btn.closest('.crm-pdf-spacing-box');
+            const statusEl = box.find('.crm-pdf-spacing-status');
+            const origHtml = btn.html();
+
+            const titleTop = box.find('input[name="crm_pdf_elements_spacing[title_spacing_top]"]').val();
+            const titleBottom = box.find('input[name="crm_pdf_elements_spacing[title_spacing_bottom]"]').val();
+            const spTop = box.find('input[name="crm_pdf_elements_spacing[spacing_top]"]').val();
+            const spBottom = box.find('input[name="crm_pdf_elements_spacing[spacing_bottom]"]').val();
+
+            btn.prop('disabled', true).html('<span class="dashicons dashicons-update spin" style="vertical-align:text-top; font-size:14px;"></span> ' + (i18n.saving || "Speichern..."));
+
+            const postNonce = window.crmPreviewNonce || (typeof crmData !== 'undefined' ? crmData.nonce : (crmSettings.nonce || ""));
+            const postUrl = window.ajaxurl || (typeof crmData !== 'undefined' ? crmData.ajaxUrl : '/wp-admin/admin-ajax.php');
+
+            $.post(postUrl, {
+                action: 'crm_save_pdf_elements_spacing',
+                nonce: postNonce,
+                title_spacing_top: titleTop,
+                title_spacing_bottom: titleBottom,
+                spacing_top: spTop,
+                spacing_bottom: spBottom
+            }, function(res) {
+                btn.prop('disabled', false).html(origHtml);
+                if (res.success) {
+                    if (window.crmJsCache && typeof window.crmJsCache.cleanPartial === 'function') {
+                        window.crmJsCache.cleanPartial('pdf_spacing');
+                    }
+                    const msg = (res.data && res.data.message) ? res.data.message : (i18n.saved || "Abstände erfolgreich gespeichert!");
+                    statusEl.text('✓ ' + msg).css({color: '#16a34a'}).fadeIn().delay(2500).fadeOut();
+                    const activeDoc = $('.crm-sec-pill.active').data('doc') || 'angebot';
+                    if (typeof loadPdfPreview === 'function') {
+                        loadPdfPreview(activeDoc, true);
+                    } else if ($('#crm-preview-reload-btn').length) {
+                        $('#crm-preview-reload-btn').trigger('click');
+                    }
+                } else {
+                    const msg = (res.data && res.data.message) ? res.data.message : (i18n.errorSaving || "Fehler beim Speichern");
+                    statusEl.text(msg).css({color: '#dc2626'}).fadeIn().delay(3000).fadeOut();
+                }
+            }).fail(function() {
+                btn.prop('disabled', false).html(origHtml);
+                statusEl.text(i18n.serverError || "Serverfehler").css({color: '#dc2626'}).fadeIn().delay(3000).fadeOut();
+            });
+        });
+
+        // AJAX: Speichern der Master Header & Footer Einstellungen
+        $(document).on('click', '#crm-save-pdf-master-hf-btn, .crm-save-pdf-master-hf-btn', function(e) {
+            e.preventDefault();
+            const btn = $(this);
+            const box = btn.closest('.crm-pdf-master-hf-box');
+            const statusEl = box.find('.crm-pdf-master-hf-status');
+            const origHtml = btn.html();
+
+            const postNonce = window.crmPreviewNonce || (typeof crmData !== 'undefined' ? crmData.nonce : (crmSettings.nonce || ""));
+            const postUrl = window.ajaxurl || (typeof crmData !== 'undefined' ? crmData.ajaxUrl : '/wp-admin/admin-ajax.php');
+
+            const masterData = {
+                header_mode: box.find('select[name="crm_pdf_master_hf[header_mode]"]').val(),
+                header_logo: box.find('input[name="crm_pdf_master_hf[header_logo]"]').is(':checked') ? 1 : 0,
+                header_address: box.find('input[name="crm_pdf_master_hf[header_address]"]').is(':checked') ? 1 : 0,
+                header_margin_top: box.find('input[name="crm_pdf_master_hf[header_margin_top]"]').val(),
+                header_margin_bottom: box.find('input[name="crm_pdf_master_hf[header_margin_bottom]"]').val(),
+                footer_mode: box.find('select[name="crm_pdf_master_hf[footer_mode]"]').val(),
+                footer_company: box.find('input[name="crm_pdf_master_hf[footer_company]"]').is(':checked') ? 1 : 0,
+                footer_page_num: box.find('input[name="crm_pdf_master_hf[footer_page_num]"]').is(':checked') ? 1 : 0,
+                footer_date: box.find('input[name="crm_pdf_master_hf[footer_date]"]').is(':checked') ? 1 : 0
+            };
+
+            btn.prop('disabled', true).html('<span class="dashicons dashicons-update spin" style="vertical-align:text-top; font-size:14px;"></span> ' + (i18n.saving || "Speichern..."));
+
+            $.post(postUrl, {
+                action: 'crm_save_pdf_master_header_footer',
+                nonce: postNonce,
+                crm_pdf_master_hf: masterData
+            }, function(res) {
+                btn.prop('disabled', false).html(origHtml);
+                if (res.success) {
+                    if (window.crmJsCache && typeof window.crmJsCache.cleanPartial === 'function') {
+                        window.crmJsCache.cleanPartial('pdf_master_hf');
+                    }
+                    const msg = (res.data && res.data.message) ? res.data.message : (i18n.saved || "Master-Einstellungen gespeichert!");
+                    statusEl.text('✓ ' + msg).css({color: '#16a34a'}).fadeIn().delay(2500).fadeOut();
+                    const activeDoc = $('.crm-sec-pill.active').data('doc') || 'angebot';
+                    if (typeof loadPdfPreview === 'function') {
+                        loadPdfPreview(activeDoc, true);
+                    } else if ($('#crm-preview-reload-btn').length) {
+                        $('#crm-preview-reload-btn').trigger('click');
+                    }
+                } else {
+                    const msg = (res.data && res.data.message) ? res.data.message : (i18n.errorSaving || "Fehler beim Speichern");
+                    statusEl.text(msg).css({color: '#dc2626'}).fadeIn().delay(3000).fadeOut();
+                }
+            }).fail(function() {
+                btn.prop('disabled', false).html(origHtml);
+                statusEl.text(i18n.serverError || "Serverfehler").css({color: '#dc2626'}).fadeIn().delay(3000).fadeOut();
             });
         });
 
@@ -1141,27 +1386,39 @@
             e.preventDefault();
             const btn = $(this);
             const origHtml = btn.html();
-            const testEmail = prompt(i18n.promptTestEmail || "An welche E-Mail-Adresse soll die Test-Vorschau gesendet werden?", crmSettings.currentUserEmail || "");
+            const defaultRecipient = crmSettings.currentUserEmail || (typeof crmData !== 'undefined' ? crmData.currentUserEmail : '') || 'gajo@x-sieben.at';
+            const testEmail = prompt(i18n.promptTestEmail || "An welche E-Mail-Adresse soll die Test-Vorschau gesendet werden?", defaultRecipient);
             if (!testEmail) return;
 
             btn.prop('disabled', true).text(i18n.sending || "Senden...");
             const postNonce = window.crmPreviewNonce || (typeof crmData !== 'undefined' ? crmData.nonce : (crmSettings.nonce || ""));
+            const postUrl = (typeof ajaxurl !== 'undefined' && ajaxurl) ? ajaxurl : (crmSettings.ajaxUrl || (typeof crmData !== 'undefined' ? crmData.ajaxUrl : '/wp-admin/admin-ajax.php'));
 
-            $.post(ajaxurl, {
-                action: 'crm_send_email_preview_test',
-                nonce: postNonce,
-                doc_type: currentEmailPreviewDoc,
-                recipient: testEmail
-            }, function(res) {
-                btn.prop('disabled', false).html(origHtml);
-                if (res.success) {
-                    alert('✓ ' + (res.data && res.data.message ? res.data.message : (i18n.testMailSuccess || "Test-Mail erfolgreich versendet!")));
-                } else {
-                    alert('❌ ' + (res.data && res.data.message ? res.data.message : (i18n.testMailError || "Fehler beim Versand.")));
+            $.ajax({
+                url: postUrl,
+                method: 'POST',
+                timeout: 30000,
+                data: {
+                    action: 'crm_send_email_preview_test',
+                    nonce: postNonce,
+                    doc_type: currentEmailPreviewDoc,
+                    recipient: testEmail
+                },
+                success: function(res) {
+                    btn.prop('disabled', false).html(origHtml);
+                    if (res.success) {
+                        const msg = (typeof res.data === 'object' && res.data.message) ? res.data.message : (typeof res.data === 'string' ? res.data : (i18n.testMailSuccess || "Test-Mail erfolgreich versendet!"));
+                        alert('✓ ' + msg);
+                    } else {
+                        const errMsg = (typeof res.data === 'object' && res.data.message) ? res.data.message : (typeof res.data === 'string' ? res.data : (i18n.testMailError || "Fehler beim Versand."));
+                        alert('❌ ' + errMsg);
+                    }
+                },
+                error: function(xhr, status) {
+                    btn.prop('disabled', false).html(origHtml);
+                    const errText = status === 'timeout' ? 'Zeitüberschreitung beim Versand (Timeout nach 30s).' : (i18n.serverError || "Serverfehler beim Versand der Test-Mail.");
+                    alert('❌ ' + errText);
                 }
-            }).fail(function() {
-                btn.prop('disabled', false).html(origHtml);
-                alert('❌ ' + (i18n.serverError || "Serverfehler beim Versand der Test-Mail."));
             });
         });
 

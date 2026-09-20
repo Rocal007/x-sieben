@@ -19,6 +19,37 @@ if (!defined('ABSPATH')) {
 class CRM_Pdf_Presenter
 {
     /**
+     * Parst Preisangaben robust in einen sauberen Float (unterstützt deutsches und englisches Format).
+     *
+     * @param mixed $val
+     * @return float
+     */
+    public static function parse_price_float($val): float
+    {
+        if (is_numeric($val)) {
+            return (float) $val;
+        }
+        if (is_string($val)) {
+            $val = trim($val);
+            if ($val === '') {
+                return 0.0;
+            }
+            // Bereinige Währungssymbole und Leerzeichen
+            $val = preg_replace('/[^\d.,\-]/', '', $val);
+            if ($val === '') {
+                return 0.0;
+            }
+            // Deutsches Format (z.B. "2.497,50" oder "2497,50")
+            if (strpos($val, ',') !== false) {
+                $val = str_replace('.', '', $val);
+                $val = str_replace(',', '.', $val);
+            }
+            return (float) $val;
+        }
+        return 0.0;
+    }
+
+    /**
      * Generiert den formatierten HTML-Titelblock für PDF-Seiten.
      *
      * @param string $title Der Titel (z. B. 'Exklusive Zusatzleistungen' oder Kurstitel).
@@ -32,12 +63,16 @@ class CRM_Pdf_Presenter
             ? mb_strimwidth($title, 0, 112, '...', 'UTF-8') 
             : $title;
 
+        // Fluchtlinie: 15mm Textabstand wie beim normalen Text (11.8mm Spacer + 3pt Zellabstand = exakt 15.2mm Fluchtlinie)
         return '
-        <table class="title" cellpadding="5" cellspacing="0" border="0" style="width: 100%; background-color: #007C90;">
+        <table class="title" cellpadding="3" cellspacing="0" border="0" style="width: 100%; background-color: #007C90;">
+            <!-- Fluchtlinie: 15mm Textabstand -->
             <tr>
-                <td style="font-size: 13pt; line-height: 17pt; color: #ffffff; padding: 6pt 8pt 6pt 8pt; vertical-align: middle;">
-                    ' . $prefix_html . '<span style="font-size: 11.5pt;">' . esc_html($display_title) . '</span>
+                <td width="11.8mm" style="font-size: 1pt; line-height: 1pt;">&nbsp;</td>
+                <td width="186.4mm" style="color: #ffffff; font-size: 11pt; line-height: 16pt; vertical-align: middle;">
+                    ' . $prefix_html . '<span style="font-size: 11pt;">' . esc_html($display_title) . '</span>
                 </td>
+                <td width="11.8mm" style="font-size: 1pt; line-height: 1pt;">&nbsp;</td>
             </tr>
         </table>
         ';
@@ -45,6 +80,7 @@ class CRM_Pdf_Presenter
 
     /**
      * Generiert einen HTML-Tabellen-String mit den Logos der Zertifizierungspartner.
+     * Stellt sicher, dass das Seitenverhältnis exakt erhalten bleibt (keine Verzerrung).
      *
      * @param array $zert_images_src Array von lokalen Dateipfaden oder URLs.
      * @return string
@@ -55,12 +91,28 @@ class CRM_Pdf_Presenter
             return '';
         }
 
-        $html = '<table cellpadding="0" cellspacing="8" border="0"><tr>';
+        $html = '<table cellpadding="4" cellspacing="8" border="0"><tr>';
         foreach ($zert_images_src as $image) {
             $img_resolved = function_exists('crm_resolve_asset_path') ? crm_resolve_asset_path($image) : $image;
+
+            // Proportionale Skalierung unter Beibehaltung des Seitenverhältnisses (keine Verzerrung)
+            $img_attr = 'height="22"';
+            if (file_exists($img_resolved) && ($dims = @getimagesize($img_resolved))) {
+                $orig_w = $dims[0];
+                $orig_h = $dims[1];
+                if ($orig_w > 0 && $orig_h > 0) {
+                    $max_w = 56;
+                    $max_h = 22;
+                    $scale = min($max_w / $orig_w, $max_h / $orig_h, 1.0);
+                    $target_w = max(1, round($orig_w * $scale));
+                    $target_h = max(1, round($orig_h * $scale));
+                    $img_attr = 'width="' . $target_w . '" height="' . $target_h . '"';
+                }
+            }
+
             $html .= '
-            <td cellpadding="6" style="width:62px; height:36px; border: 1px solid #cbd5e1; text-align: center; vertical-align: middle;">
-                <img src="' . esc_attr($img_resolved) . '" width="48" height="24">
+            <td style="width:72px; height:32px; border: 1px solid #cbd5e1; text-align: center; vertical-align: middle;">
+                <img src="' . esc_attr($img_resolved) . '" ' . $img_attr . ' style="display:inline-block; vertical-align:middle;">
             </td>';
         }
         $html .= '</tr></table>';
@@ -126,17 +178,17 @@ class CRM_Pdf_Presenter
         $fax_icon   = $course->fax_icon ?? '';
         $phone_icon = $course->phone_icon ?? '';
 
-        $html = '<table class="text" cellpadding="0" cellspacing="0" border="0" style="padding-bottom: 30pt;">';
-        $html .= '    <tr style="padding-bottom: 10pt;">';
-        $html .= '        <td style="width:7%;">' . $web_icon . '<div style="font-size:5pt">&nbsp;</div> </td>';
+        $html = '<table class="text" cellpadding="0" cellspacing="0" border="0" style="padding-bottom: 8pt;">';
+        $html .= '    <tr style="padding-bottom: 6pt;">';
+        $html .= '        <td style="width:7%;">' . $web_icon . '<div style="font-size:3pt">&nbsp;</div> </td>';
         $html .= '        <td style="width:43%;"><div style="font-size:2pt">&nbsp;</div> <a href="https://x-sieben.at/kontakt">www.x-sieben.at/kontakt</a></td>';
-        $html .= '        <td style="width:7%;">' . $fax_icon . '<div style="font-size:5pt">&nbsp;</div> </td>';
+        $html .= '        <td style="width:7%;">' . $fax_icon . '<div style="font-size:3pt">&nbsp;</div> </td>';
         $html .= '        <td style="width:43%;"><div style="font-size:2pt">&nbsp;</div> Fax: (+43) 2622 / 351 10 14</td>';
         $html .= '    </tr>';
         $html .= '    <tr>';
-        $html .= '        <td style="width:7%;">' . $mail_icon . '<div style="font-size:5pt">&nbsp;</div> </td>';
+        $html .= '        <td style="width:7%;">' . $mail_icon . '<div style="font-size:3pt">&nbsp;</div> </td>';
         $html .= '        <td style="width:43%;"><div style="font-size:2pt">&nbsp;</div><a href="mailto:office@x-sieben.at">office@x-sieben.at</a></td>';
-        $html .= '        <td style="width:7%;">' . $phone_icon . '<div style="font-size:5pt">&nbsp;</div> </td>';
+        $html .= '        <td style="width:7%;">' . $phone_icon . '<div style="font-size:3pt">&nbsp;</div> </td>';
         $html .= '        <td style="width:43%;"><div style="font-size:2pt">&nbsp;</div> Rückfragen: <a href="tel: 0043800700170">(+43) 800 700 170</a></td>';
         $html .= '    </tr>';
         $html .= '</table>';
@@ -152,10 +204,13 @@ class CRM_Pdf_Presenter
      */
     public static function render_gesamt_kosten(object $course): string
     {
-        $netto_kurs = (float) ($course->preis_netto ?? 0);
-        $brutto_kurs = (float) ($course->preis_brutto ?? 0);
+        $netto_kurs = self::parse_price_float($course->preis_netto ?? 0);
+        if ($netto_kurs == 0.0 && !empty($course->kosten)) {
+            $netto_kurs = self::parse_price_float($course->kosten);
+        }
         $ust_satz = 20.00;
-        $ust_kurs = ($netto_kurs / 100) * $ust_satz;
+        $ust_kurs = round(($netto_kurs / 100) * $ust_satz, 2);
+        $brutto_kurs = round($netto_kurs + $ust_kurs, 2);
 
         $certifications_data = method_exists($course, 'get_certifications_from_form_field')
             ? $course->get_certifications_from_form_field()
@@ -166,7 +221,10 @@ class CRM_Pdf_Presenter
         $total_brutto = $brutto_kurs;
 
         $anzahl_le  = $course->anzahl_le ?? 0;
-        $le_single  = $course->le_single ?? 0;
+        $le_single  = self::parse_price_float($course->le_single ?? 0);
+        if ($le_single == 0.0 && !empty($anzahl_le) && (int)$anzahl_le > 0) {
+            $le_single = round($brutto_kurs / (int)$anzahl_le, 2);
+        }
 
         $html = '
     <table cellpadding="6" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; font-size:10pt;">
@@ -195,19 +253,17 @@ class CRM_Pdf_Presenter
         if (!empty($certifications_data)) {
             foreach ($certifications_data as $cert) {
                 $name = htmlspecialchars($cert['name']);
-                $price = str_replace(['.', ','], ['', '.'], $cert['price']);
-                $percentage_raw = rtrim($cert['percentage'], '%');
+                $price = self::parse_price_float($cert['price']);
+                $percentage_raw = rtrim((string)($cert['percentage'] ?? '20'), '%');
 
-                $ust_satz_cert = ($percentage_raw === 'N/A') ? 20.00 : (float) $percentage_raw;
-                $price = (float) $price;
+                $ust_satz_cert = ($percentage_raw === 'N/A' || empty($percentage_raw)) ? 20.00 : self::parse_price_float($percentage_raw);
 
-                $ust_cert = ($price / (100 + $ust_satz_cert)) * $ust_satz_cert;
-                $netto_cert = $price - $ust_cert;
-                $brutto_cert = $netto_cert + $ust_cert;
+                $ust_cert = round(($price / (100 + $ust_satz_cert)) * $ust_satz_cert, 2);
+                $netto_cert = round($price - $ust_cert, 2);
+                $brutto_cert = round($netto_cert + $ust_cert, 2);
 
                 $total_netto += $netto_cert;
                 $total_ust += $ust_cert;
-                $total_brutto += $brutto_cert;
 
                 $html .= '
             <tr>
@@ -222,7 +278,11 @@ class CRM_Pdf_Presenter
             }
         }
 
-        // Gesamtsummen
+        // Gesamtsummen - centgenau gerundet
+        $total_netto = round($total_netto, 2);
+        $total_ust = round($total_ust, 2);
+        $total_brutto = round($total_netto + $total_ust, 2);
+
         $html .= '
             <tr style="color:#555; font-size:9pt;">
                 <td><strong>Gesamt Netto</strong></td>
@@ -254,13 +314,19 @@ class CRM_Pdf_Presenter
      */
     public static function render_kursgebuehr(object $course): string
     {
-        $netto = (float) ($course->preis_netto ?? 0);
-        $brutto = (float) ($course->preis_brutto ?? 0);
+        $netto = self::parse_price_float($course->preis_netto ?? 0);
+        if ($netto == 0.0 && !empty($course->kosten)) {
+            $netto = self::parse_price_float($course->kosten);
+        }
         $ust_satz = 20.00;
-        $ust = ($netto / 100) * $ust_satz;
+        $ust = round(($netto / 100) * $ust_satz, 2);
+        $brutto = round($netto + $ust, 2);
 
         $anzahl_le = $course->anzahl_le ?? 0;
-        $le_single = $course->le_single ?? 0;
+        $le_single = self::parse_price_float($course->le_single ?? 0);
+        if ($le_single == 0.0 && !empty($anzahl_le) && (int)$anzahl_le > 0) {
+            $le_single = round($brutto / (int)$anzahl_le, 2);
+        }
 
         return '
     <table cellpadding="6" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; font-size:10pt;">
@@ -293,15 +359,15 @@ class CRM_Pdf_Presenter
     }
 
     /**
-     * Rendert die Modulübersicht aus dem ACF-Repeater 'module'.
+     * Parst die Modul- und Zeiteinteilungszeilen aus dem ACF-Repeater 'module'.
      *
      * @param int $post_id
-     * @return string
+     * @return array ['modules' => array, 'breakdown' => array, 'extras' => array, 'section_title' => string]
      */
-    public static function render_module_html(int $post_id): string
+    public static function parse_module_rows(int $post_id): array
     {
         if (!function_exists('have_rows') || !have_rows('module', $post_id)) {
-            return '';
+            return ['modules' => [], 'breakdown' => [], 'extras' => [], 'section_title' => ''];
         }
 
         $module_rows    = [];
@@ -348,42 +414,74 @@ class CRM_Pdf_Presenter
             }
         }
 
-        if (empty($module_rows) && empty($breakdown_rows) && empty($extra_rows)) {
+        return [
+            'modules'       => $module_rows,
+            'breakdown'     => $breakdown_rows,
+            'extras'        => $extra_rows,
+            'section_title' => $section_title,
+        ];
+    }
+
+    /**
+     * Rendert die reine Modul- und Themeninhalte-Tabelle (Gliederung & Beschreibung).
+     *
+     * @param int $post_id
+     * @return string
+     */
+    public static function render_module_gliederung(int $post_id): string
+    {
+        $parsed = self::parse_module_rows($post_id);
+        $module_rows = $parsed['modules'];
+
+        if (empty($module_rows)) {
+            return '';
+        }
+
+        $html = '<table cellpadding="7" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 8pt;">';
+        $html .= '<thead>
+            <tr style="background-color: #f1f5f9; border-bottom: 1.5px solid #007C90;">
+                <th style="width: 22%; text-align: left; color: #007C90; font-weight: bold; padding: 7px 6px;">Gliederung</th>
+                <th style="width: 78%; text-align: left; color: #007C90; font-weight: bold; padding: 7px 6px;">Beschreibung</th>
+            </tr>
+        </thead><tbody>';
+
+        foreach ($module_rows as $row) {
+            $html .= '<tr>
+                <td valign="top" style="width: 22%; font-weight: bold; color: #1e293b; padding: 7px 6px; line-height: 1.45;">' . esc_html($row['modul']) . '</td>
+                <td valign="top" style="width: 78%; color: #334155; padding: 7px 6px; line-height: 1.45;">' . esc_html($row['titel']) . '</td>
+            </tr>';
+        }
+        $html .= '</tbody></table>';
+
+        return $html;
+    }
+
+    /**
+     * Rendert die Zeiteinteilungs- und Lehreinheiten-Aufteilungstabelle (inkl. Summe und Mehrwert).
+     *
+     * @param int $post_id
+     * @return string
+     */
+    public static function render_zeiteinteilung(int $post_id): string
+    {
+        $parsed = self::parse_module_rows($post_id);
+        $breakdown_rows = $parsed['breakdown'];
+        $extra_rows     = $parsed['extras'];
+        $section_title  = $parsed['section_title'];
+
+        if (empty($breakdown_rows) && empty($extra_rows) && empty($section_title)) {
             return '';
         }
 
         $html = '';
 
-        // 1. Modul- und Themeninhalte
-        if (!empty($module_rows)) {
-            $html .= '<table cellpadding="4" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; font-size: 10pt;">';
-            $html .= '<thead>
-                <tr style="background-color: #f1f5f9; border-bottom: 1.5px solid #007C90;">
-                    <th style="width: 22%; text-align: left; color: #007C90; font-weight: bold;">Gliederung</th>
-                    <th style="width: 78%; text-align: left; color: #007C90; font-weight: bold;">Beschreibung</th>
-                </tr>
-            </thead><tbody>';
-
-            foreach ($module_rows as $row) {
-                $html .= '<tr>
-                    <td valign="top" style="width: 22%; font-weight: bold; color: #1e293b; padding-top: 4px; padding-bottom: 4px;">' . esc_html($row['modul']) . '</td>
-                    <td valign="top" style="width: 78%; color: #334155; padding-top: 4px; padding-bottom: 4px;">' . esc_html($row['titel']) . '</td>
-                </tr>';
-            }
-            $html .= '</tbody></table>';
-        }
-
-        // 2. Zeiteinteilung / Lehreinheiten-Aufteilung
         if (!empty($breakdown_rows)) {
-            if (!empty($html)) {
-                $html .= '<div style="font-size:10pt">&nbsp;</div>';
-            }
             $total_breakdown_le = 0;
-            $html .= '<table cellpadding="6" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; font-size: 10pt;">';
+            $html .= '<table cellpadding="7" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; font-size: 10pt;">';
             $html .= '<thead>
                 <tr style="background-color:#f2f2f2;">
-                    <th style="text-align:left; width:85%; border-bottom:1px solid #aaa; font-weight: bold; color: #1e293b;">Zeiteinteilung / Lehreinheiten</th>
-                    <th style="text-align:right; width:15%; border-bottom:1px solid #aaa; font-weight: bold; color: #1e293b;">LE</th>
+                    <th style="text-align:left; width:85%; border-bottom:1px solid #aaa; font-weight: bold; color: #1e293b; padding: 7px 6px;">Zeiteinteilung / Lehreinheiten</th>
+                    <th style="text-align:right; width:15%; border-bottom:1px solid #aaa; font-weight: bold; color: #1e293b; padding: 7px 6px;">LE</th>
                 </tr>
             </thead><tbody>';
 
@@ -396,23 +494,22 @@ class CRM_Pdf_Presenter
                 $prefix_html = '<span style="color: #007C90; font-weight: bold;">' . esc_html($prefix_symbol) . '</span> ';
 
                 $html .= '<tr>
-                    <td style="width:85%; color: #334155; line-height: 1.4;">' . $prefix_html . esc_html($clean_tit) . '</td>
-                    <td style="width:15%; text-align:right; font-weight: bold; color: #0f172a;">' . esc_html($row['le']) . '</td>
+                    <td style="width:85%; color: #334155; line-height: 1.45; padding: 6px 6px;">' . $prefix_html . esc_html($clean_tit) . '</td>
+                    <td style="width:15%; text-align:right; font-weight: bold; color: #0f172a; padding: 6px 6px;">' . esc_html($row['le']) . '</td>
                 </tr>';
                 $html .= '<tr><td colspan="2" style="border-bottom:0.5pt dashed #ccc;"></td></tr>';
             }
 
             if ($total_breakdown_le > 0) {
                 $html .= '<tr style="background-color:#f9f9f9;">
-                    <td style="width:85%;"><strong>Gesamt Lehreinheiten</strong></td>
-                    <td style="width:15%; text-align:right;"><strong>' . $total_breakdown_le . ' LE</strong></td>
+                    <td style="width:85%; padding: 7px 6px;"><strong>Gesamt Lehreinheiten</strong></td>
+                    <td style="width:15%; text-align:right; padding: 7px 6px;"><strong>' . $total_breakdown_le . ' LE</strong></td>
                 </tr>';
             }
 
             $html .= '</tbody></table>';
         }
 
-        // 3. Mehrwert / Inklusive Leistungen
         if (!empty($extra_rows) || !empty($section_title)) {
             if (!empty($html)) {
                 $html .= '<div style="font-size:10pt">&nbsp;</div>';
@@ -438,6 +535,24 @@ class CRM_Pdf_Presenter
         }
 
         return $html;
+    }
+
+    /**
+     * Rendert die vollständige kombinierte Modulübersicht aus dem ACF-Repeater 'module'.
+     *
+     * @param int $post_id
+     * @return string
+     */
+    public static function render_module_html(int $post_id): string
+    {
+        $g = self::render_module_gliederung($post_id);
+        $z = self::render_zeiteinteilung($post_id);
+
+        if (!empty($g) && !empty($z)) {
+            return $g . '<div style="font-size:10pt">&nbsp;</div>' . $z;
+        }
+
+        return $g ?: $z;
     }
 
     /**
@@ -607,6 +722,20 @@ class CRM_Pdf_Presenter
         $html = preg_replace('/<p[^>]*>\s*<\/p>/iu', '', $html);
         $html = preg_replace('/<ul[^>]*>/iu', '<ul class="modul-list">', $html);
         $html = preg_replace('/<li[^>]*>\s*<p[^>]*>(.*?)<\/p>\s*<\/li>/isu', '<li>$1</li>', $html);
+
+        // Saubere Absätze formatieren falls unformatierter Fließtext vorliegt
+        $html = preg_replace('/(?:<br\s*\/?>\s*){2,}/iu', "</p>\n<p class=\"modul-text\">", $html);
+        if (strpos($html, '<p') === false && strpos($html, '<ul') === false && strpos($html, '<div') === false) {
+            $parts = preg_split('/\n{2,}/', trim($html));
+            $clean_parts = [];
+            foreach ($parts as $part) {
+                $part = trim($part);
+                if (!empty($part)) {
+                    $clean_parts[] = '<p class="modul-text">' . nl2br($part) . '</p>';
+                }
+            }
+            $html = implode("\n", $clean_parts);
+        }
         return trim($html);
     }
 
@@ -689,19 +818,18 @@ class CRM_Pdf_Presenter
     {
         $clean = trim($ps_custom);
         if (!empty(trim(strip_tags($clean)))) {
-            // Falls der benutzerdefinierte Text bereits ein table-Tag enthält, nicht nochmals in table wrappen
             if (stripos($clean, '<table') !== false) {
-                return '<div style="font-size:10pt; width:100%;">' . $clean . '</div>';
+                return '<div style="font-size:7.5pt; line-height:9.5pt; width:100%;">' . $clean . '</div>';
             }
-            return '<table cellpadding="0" cellspacing="0" border="0" style="font-size:10pt; width:100%; border:none;"><tr><td style="margin:0; padding:0; border:none;">' . $clean . '</td></tr></table>';
+            return '<table cellpadding="0" cellspacing="0" border="0" style="font-size:7.5pt; line-height:9.5pt; width:100%; border:none;"><tr><td style="margin:0; padding:0; border:none;">' . $clean . '</td></tr></table>';
         }
-        return '<table cellpadding="0" cellspacing="0" border="0" style="font-size:10pt; width:100%; border:none;">
+        return '<table cellpadding="0" cellspacing="0" border="0" style="font-size:7.5pt; line-height:9.5pt; width:100%; border:none;">
                     <tr>
-                        <td style="margin:0; padding:0; border:none;">PS: Die <strong>Bewertungen unserer Kursteilnehmer</strong> finden Sie auf der externen Bewertungsplattform <a href="https://www.x-sieben.at/provenexpert.com/x-sieben-wirtschaftstraining/?utm_source=Widget&utm_medium=Widget&utm_campaign=Widget">ProvenExpert</a>! <br>
+                        <td style="margin:0; padding:0; border:none;">PS: Die <strong>Bewertungen unserer Kursteilnehmer</strong> finden Sie auf der externen Bewertungsplattform <a href="https://www.x-sieben.at/provenexpert.com/x-sieben-wirtschaftstraining/?utm_source=Widget&utm_medium=Widget&utm_campaign=Widget">ProvenExpert</a>!
                         </td>
-                        </tr>
-                        <tr>
-                        <td style="margin:0; padding:0; border:none;">PPS: <strong>Keine Förderung?</strong> Dennoch <strong>jetzt weiterbilden</strong> und bis in zu <strong>24 Monatsraten</strong> bezahlen. Mit <a href="https://www.x-sieben.at/jetzt-weiterbilden-bezahlen-in-bis-zu-24-raten-mit-klarna/">Klarna</a>.
+                    </tr>
+                    <tr>
+                        <td style="margin:0; padding:1px 0 0 0; border:none;">PPS: <strong>Keine Förderung?</strong> Dennoch <strong>jetzt weiterbilden</strong> und bis zu <strong>24 Monatsraten</strong> bezahlen. Mit <a href="https://www.x-sieben.at/jetzt-weiterbilden-bezahlen-in-bis-zu-24-raten-mit-klarna/">Klarna</a>.
                         </td>
                     </tr>
                 </table>';
@@ -719,8 +847,8 @@ class CRM_Pdf_Presenter
     {
         return '<table cellpadding="0" cellspacing="0" border="0" style="margin: 0; padding: 0;">'
             . '<tr><td style="margin: 0; padding: 0; line-height: 1; text-align: left;">' . $signatur_icon . '</td></tr>'
-            . '<tr><td style="margin: 0; padding: 4px 0 0 0; font-size: 10pt; color: #0f172a; line-height: 1.2; text-align: left;">' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '</td></tr>'
-            . '<tr><td style="margin: 0; padding: 2px 0 0 0; font-size: 9pt; color: #475569; line-height: 1.2; text-align: left;">' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</td></tr>'
+            . '<tr><td style="margin: 0; padding: 2px 0 0 0; font-size: 9.5pt; color: #0f172a; line-height: 12pt; text-align: left; font-weight: bold;">' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '</td></tr>'
+            . '<tr><td style="margin: 0; padding: 1px 0 0 0; font-size: 8pt; color: #475569; line-height: 10pt; text-align: left;">' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</td></tr>'
             . '</table>';
     }
 
@@ -735,7 +863,13 @@ class CRM_Pdf_Presenter
         if (!empty(trim(strip_tags($agb_custom)))) {
             return $agb_custom;
         }
-        return '<p>Mit Ihrer Anmeldung bestätigen Sie die <a href="https://x-sieben.at/wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf">AGB</a> samt Widerrufsbelehrung der X SIEBEN Wirtschaftstraining GmbH gelesen und akzeptiert zu haben. Diese finden Sie auf unserer Website unter ‚AGB‘ oder auf Wunsch per E-Mail. Die Datenschutzerklärung finden Sie <a href="https://x-sieben.at/datenschutzerklaerung/">hier</a></p>';
+        return '<table cellpadding="6" cellspacing="0" border="0" style="width: 100%; background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 3.5px solid #007C90; margin-top: 4pt; margin-bottom: 6pt;">
+            <tr>
+                <td style="font-size: 8.5pt; line-height: 12.5pt; color: #334155;">
+                    Mit Ihrer Anmeldung bestätigen Sie die <a href="https://x-sieben.at/wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf">AGB</a> samt Widerrufsbelehrung der X SIEBEN Wirtschaftstraining GmbH gelesen und akzeptiert zu haben. Diese finden Sie auf unserer Homepage unter ‚AGB‘. Auf Ersuchen senden wir Ihnen die AGB auch gerne per E-Mail zu. Unsere Datenschutzerklärung finden Sie unter: <a href="https://x-sieben.at/datenschutzerklaerung/">www.x-sieben.at/datenschutzerklaerung/</a>
+                </td>
+            </tr>
+        </table>';
     }
 
     /**
@@ -758,17 +892,20 @@ class CRM_Pdf_Presenter
         $html .= '</tr>';
         if (function_exists('have_rows') && have_rows('zertifizierungen', $post_id)) {
             while (have_rows('zertifizierungen', $post_id)) : the_row();
-                $preis = (float) get_sub_field('preis');
-                $ust_satz = (float) get_sub_field('Ust_satz');
-                $ust = ($preis / (100 + $ust_satz)) * $ust_satz;
-                $zert_preis_netto = $preis - $ust;
-                $zert_preis_brutto = $zert_preis_netto + $ust;
+                $preis = self::parse_price_float(get_sub_field('preis'));
+                $ust_satz = self::parse_price_float(get_sub_field('Ust_satz'));
+                if ($ust_satz <= 0) {
+                    $ust_satz = 20.00;
+                }
+                $ust = round(($preis / (100 + $ust_satz)) * $ust_satz, 2);
+                $zert_preis_netto = round($preis - $ust, 2);
+                $zert_preis_brutto = round($zert_preis_netto + $ust, 2);
                 $html .= '<tr>';
                 $html .= '<td style="width: 70%">' . esc_html(get_sub_field('name-zert')) . '</td>';
                 $html .= '<td style="width: 30%; text-align:right">' . number_format($zert_preis_netto, 2, ',', '.') . ' €</td>';
                 $html .= '</tr><tr>';
                 $html .= '<td>+ ' . esc_html((string)$ust_satz) . '% (von ' . number_format($zert_preis_netto, 2, ',', '.') . ' €) </td>';
-                $html .= '<td style="text-align:right">' . number_format($ust, 2, ',', '.') . '€ </td>';
+                $html .= '<td style="text-align:right">' . number_format($ust, 2, ',', '.') . ' € </td>';
                 $html .= '</tr><tr><td colspan="2" style="border-top: 1px solid #cbd5e1; height: 1px; font-size: 1pt;">&nbsp;</td></tr><tr>';
                 $html .= '<td><strong>Gesamt Brutto</strong> </td><td style="text-align:right"><strong>' . number_format($zert_preis_brutto, 2, ',', '.') . ' €</strong> </td></tr>';
             endwhile;
@@ -807,15 +944,14 @@ class CRM_Pdf_Presenter
 
         foreach ($certifications_data as $cert) {
             $name = htmlspecialchars($cert['name']);
-            $price = str_replace(['.', ','], ['', '.'], $cert['price']);
-            $percentage_raw = rtrim($cert['percentage'], '%');
+            $price = self::parse_price_float($cert['price']);
+            $percentage_raw = rtrim((string)($cert['percentage'] ?? '20'), '%');
 
-            $ust_satz = ($percentage_raw === 'N/A') ? 20.00 : (float) $percentage_raw;
-            $price = (float) $price;
+            $ust_satz = ($percentage_raw === 'N/A' || empty($percentage_raw)) ? 20.00 : self::parse_price_float($percentage_raw);
 
-            $ust = ($price / (100 + $ust_satz)) * $ust_satz;
-            $zert_preis_netto = $price - $ust;
-            $zert_preis_brutto = $zert_preis_netto + $ust;
+            $ust = round(($price / (100 + $ust_satz)) * $ust_satz, 2);
+            $zert_preis_netto = round($price - $ust, 2);
+            $zert_preis_brutto = round($zert_preis_netto + $ust, 2);
 
             $total_brutto += $zert_preis_brutto;
             $total_netto  += $zert_preis_netto;
@@ -832,6 +968,9 @@ class CRM_Pdf_Presenter
             <hr style="border-top:0.5pt dashed #ccc; margin-top: 2px; margin-bottom: 2px;">
         ';
         }
+
+        $total_netto = round($total_netto, 2);
+        $total_brutto = round($total_brutto, 2);
 
         $html .= '
     <div style="font-family:dejavusans; font-size:10pt; margin-top: 8px;">

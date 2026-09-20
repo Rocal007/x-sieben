@@ -7,7 +7,7 @@ class CRM_Model
 {
     public $post_id, $title, $titel_short, $permalink, $start_datum, $end_datum, $preis_netto, $preis_brutto, $title_preis, $kurstyp, $abschluss;
     public $angebot_beschreibung, $anzahl_le, $le_single, $kursart, $kursart_t = '', $kursart_a = '', $kursart_we = '';
-    public $voraussetzungen = [], $kurszeiten = [], $module_html = [], $selbststudium = [], $termine_pdf, $zertifizierungen = [], $zertifizierungen_images = [];
+    public $voraussetzungen = [], $kurszeiten = [], $module_html = '', $module_gliederung_html = '', $zeiteinteilung_html = '', $selbststudium = [], $termine_pdf, $zertifizierungen = [], $zertifizierungen_images = [];
     public $address_components = [], $nummer, $kurszeiten_datum, $pdfAuthor;
     public $ams_img, $web_icon, $mail_icon, $fax_icon, $phone_icon;
     public $calender_icon, $ort_icon, $abschluss_icon, $diplom_icon, $proven_icon;
@@ -54,6 +54,25 @@ class CRM_Model
     public $anmeldebestaetigung_email;
     public $anmeldung_email;
     public $diplom_email;
+
+    // Erweiterte Kurs- und Förderdaten
+    public $le_praesenz = 0;
+    public $le_selbststudium = 0;
+    public $le_projekt_transfer = 0;
+    public $durchfuehrungsmodus = '';
+    public $startgarantie = 0;
+    public $ust_satz = 20.0;
+    public $kosten_pruefung = 0.0;
+    public $kosten_unterlagen_inkl = 0;
+    public $seminarnummer = '';
+    public $waff_themencode = '';
+    public $bildungskarenz_geeignet = 0;
+    public $wba_punkte = '';
+    public $abschluss_typ = '';
+    public $mindestanwesenheit_prozent = 75;
+    public $pruefungsmodus = '';
+    public $online_plattform = '';
+    public $durchfuehrung = '';
 
     // Standardisierte Platzhalter & Aliase für E-Mails und PDFs
     public $kurstitel;
@@ -119,8 +138,18 @@ class CRM_Model
         $this->post_id = absint($post_id);
         $entry_id      = !empty($entry_id) ? absint($entry_id) : null;
 
-        // Fallback: Falls keine gültige Kurs-ID übergeben wurde, ersten publizierten Kurs als Muster wählen
-        if ($this->post_id <= 0) {
+        // Fallback: Falls keine gültige Kurs-ID oder Page-ID 47 (Kontakt) übergeben wurde: Aus Anfrage-Nachricht ermitteln
+        if (($this->post_id <= 0 || $this->post_id == 47 || get_post_type($this->post_id) !== 'courses') && !empty($entry_id)) {
+            if (function_exists('crm_detect_course_from_message')) {
+                $det = crm_detect_course_from_message('', [], $entry_id);
+                if ($det && !empty($det['course_id'])) {
+                    $this->post_id = (int)$det['course_id'];
+                }
+            }
+        }
+
+        // Letzter Fallback: ersten publizierten Kurs als Muster wählen falls weiterhin 0
+        if ($this->post_id <= 0 || get_post_type($this->post_id) !== 'courses') {
             $fallback_courses = get_posts([
                 'post_type'      => 'courses',
                 'posts_per_page' => 1,
@@ -159,16 +188,35 @@ class CRM_Model
         } else {
             $this->end_datum = $this->format_date_meta('end_datum');
         }
-        $this->preis_netto = number_format((float)get_post_meta($post_id, 'kosten', true), 2, ',', '');
-        $this->preis_brutto = !empty($tempKosten = get_post_meta($post_id, "kosten", true))
-            ? number_format((float)$tempKosten * 1.20, 2, '.', '')
-            : 0;
+        $raw_kosten = get_post_meta($post_id, 'kosten', true);
+        $netto_kurs_float = CRM_Pdf_Presenter::parse_price_float($raw_kosten);
+        $this->preis_netto = number_format($netto_kurs_float, 2, ',', '');
+        $this->preis_brutto = number_format(round($netto_kurs_float * 1.20, 2), 2, '.', '');
         $this->title_preis = $this->title;
         $this->angebot_beschreibung = get_post_meta($post_id, 'angebot_beschreibung', true);
+
+        // Unterstützung für freie Geschäftsanfragen
+        $entry_status = ($entry_id && function_exists('crm_get_entry_status')) ? crm_get_entry_status($entry_id) : null;
+        if (!empty($entry_status['inquiry_type']) && $entry_status['inquiry_type'] === 'freie_anfrage') {
+            if (!empty($entry_status['custom_title'])) {
+                $this->title = $entry_status['custom_title'];
+                $this->title_preis = $entry_status['custom_title'];
+                $this->titel_short = $entry_status['custom_title'];
+            }
+            $this->kurstyp = __('Inhouse / Freie Geschäftsanfrage', 'custom-crm');
+            if (!empty($entry_status['course_start_date'])) {
+                $this->start_datum = $entry_status['course_start_date'];
+            }
+            if (!empty($entry_status['course_end_date'])) {
+                $this->end_datum = $entry_status['course_end_date'];
+            }
+        }
 
         // Direktaufrufe statt Cache
         $this->zertifizierungen_images = $this->get_zertifizierungen_images();
         $this->zertifizierungen_images_html = $this->get_zertifizierungen_images_html();
+        $this->module_gliederung_html = $this->get_module_gliederung_html();
+        $this->zeiteinteilung_html = $this->get_zeiteinteilung_html();
         $this->module_html = $this->get_module_html();
         $this->anmeldung_agb = $this->get_anmeldung_agb_html();
         $this->inhalte = $this->get_inhalte_dyn();
@@ -183,23 +231,58 @@ class CRM_Model
         $this->termine_pdf = get_field('kurszeiten_details_pdf', $post_id);
         $this->zielgruppe = sanitize_text_field(get_field('teilnehmeruberblick', $post_id));
         $anzahl_le_val = absint($this->anzahl_le);
-        $preis_brutto_val = (float) str_replace(',', '.', (string)$this->preis_brutto);
+        $preis_brutto_val = CRM_Pdf_Presenter::parse_price_float($this->preis_brutto);
         $this->le_single = ($anzahl_le_val > 0) ? number_format($preis_brutto_val / $anzahl_le_val, 2, ',', '.') : '0,00';
-        $this->kurstyp = $this->get_coursetype();
+        if (empty($entry_status['inquiry_type']) || $entry_status['inquiry_type'] !== 'freie_anfrage') {
+            $this->kurstyp = $this->get_coursetype();
+        }
         $this->abschluss = get_post_meta($post_id, ["zertifikat"][0], true);
 
         $this->form_certifications = $this->get_form_zertifizierungen_loop_html();
         $this->kursgebuehr_html = $this->get_kursgebuehr_html();
-        $this->texte_fur_diplom_links = get_field('texte_fur_diplom_links', $post_id) ?? '';
-        $this->texte_fur_diplom_rechts = get_field('texte_fur_diplom_rechts', $post_id) ?? '';
+        $this->texte_fur_diplom_links = get_field('texte_fur_diplom_links', $post_id) ?: get_post_meta($post_id, 'diplom_text_links', true) ?: '';
+        $this->texte_fur_diplom_rechts = get_field('texte_fur_diplom_rechts', $post_id) ?: get_post_meta($post_id, 'diplom_text_rechts', true) ?: '';
         $this->termine_link = get_field('kurszeiten_details_pdf', $post_id) ?? '';
 
-        // Kursart Handling
+        // Kursart & Durchführungsmodus
         $this->set_kursart(get_post_meta($post_id, 'tages_abend_wochenende_', true));
+        $this->durchfuehrungsmodus = get_post_meta($post_id, 'durchfuehrungsmodus', true) ?: '';
+        $this->startgarantie = (int)get_post_meta($post_id, 'startgarantie', true);
+
+        // Durchführungsform ermitteln (inkl. DaF/DaZ Spezifikationen)
+        $is_ams_aktion = (stripos($this->title, 'AMS Aktion') !== false || stripos($this->permalink, 'ams-aktion') !== false || $post_id == 65629);
+        $is_daf_daz    = (stripos($this->title, 'DaF') !== false || stripos($this->title, 'DaZ') !== false || $post_id == 701 || $post_id == 65629);
+        if ($is_daf_daz && !$is_ams_aktion) {
+            $this->durchfuehrung = 'via Live-Online-Event und in 1070 Wien (spezifische DaF/DaZ-Grammatikvermittlung mit Mag. Isabella Lichtenegger)';
+        } elseif ($is_ams_aktion) {
+            $this->durchfuehrung = 'als Live-Online-Event';
+        } elseif (!empty($this->durchfuehrungsmodus)) {
+            $this->durchfuehrung = $this->durchfuehrungsmodus;
+        } else {
+            $this->durchfuehrung = 'Live-Online-Event (Zoom)';
+        }
+
+        // LE-Splitting & Gebühren
+        $this->le_praesenz = (int)get_post_meta($post_id, 'le_praesenz', true);
+        $this->le_selbststudium = (int)get_post_meta($post_id, 'le_selbststudium', true);
+        $this->le_projekt_transfer = (int)get_post_meta($post_id, 'le_projekt_transfer', true);
+        $this->ust_satz = get_post_meta($post_id, 'ust_satz', true) !== '' ? (float)get_post_meta($post_id, 'ust_satz', true) : 20.0;
+        $this->kosten_pruefung = (float)get_post_meta($post_id, 'kosten_pruefung', true);
+        $this->kosten_unterlagen_inkl = (int)get_post_meta($post_id, 'kosten_unterlagen_inkl', true);
+
+        // Förderungen & Abschluss
+        $this->seminarnummer = trim((string)get_post_meta($post_id, 'seminarnummer', true));
+        $this->waff_themencode = trim((string)get_post_meta($post_id, 'waff_themencode', true));
+        $this->bildungskarenz_geeignet = (int)get_post_meta($post_id, 'bildungskarenz_geeignet', true);
+        $this->wba_punkte = trim((string)get_post_meta($post_id, 'wba_punkte', true));
+        $this->abschluss_typ = get_post_meta($post_id, 'abschluss_typ', true) ?: 'diplom';
+        $this->mindestanwesenheit_prozent = get_post_meta($post_id, 'mindestanwesenheit_prozent', true) ?: 75;
+        $this->pruefungsmodus = get_post_meta($post_id, 'pruefungsmodus', true) ?: 'ohne';
+        $this->online_plattform = trim((string)get_post_meta($post_id, 'online_plattform', true));
 
         // Kurszeiten
         $this->kurszeiten    = $this->build_days(get_field("kurszeiten", $post_id));
-        $this->selbststudium = $this->build_days(get_field("selbstudium", $post_id));
+        $this->selbststudium = $this->build_days(get_field("selbstudium", $post_id) ?: get_field("selbststudium", $post_id));
 
 
         // Zertifizierungen
@@ -272,30 +355,36 @@ class CRM_Model
      */
     private function set_personal_data(): void
     {
-        $this->anrede = $this->get_wpforms_field_by_id(88);
-        $this->titel = $this->get_wpforms_field_by_id(90);
-        $this->vorname = $this->get_wpforms_field_by_id(86);
-        $this->nachname = $this->get_wpforms_field_by_id(89);
-        $this->email = $this->get_wpforms_field_by_id(93);
-        $this->svr = $this->get_wpforms_field_by_id(29);
-        $this->customer_company = trim((string)$this->get_wpforms_field_by_id(25));
+        $raw_anrede = (string)$this->get_wpforms_field_by_id(88);
+        $this->titel = (string)$this->get_wpforms_field_by_id(90);
+        $this->vorname = (string)$this->get_wpforms_field_by_id(86);
+        $this->nachname = (string)$this->get_wpforms_field_by_id(89);
+        $this->email = (string)$this->get_wpforms_field_by_id(93);
+        $this->svr = (string)$this->get_wpforms_field_by_id(29);
+        $raw_company = trim((string)$this->get_wpforms_field_by_id(25));
+        $this->customer_company = (stripos($raw_company, 'Privatperson') !== false || stripos($raw_company, 'Angebot für') !== false || stripos($raw_company, 'Angebot') !== false || strcasecmp($raw_company, 'Unternehmen') === 0) ? '' : $raw_company;
         $this->customer_type    = trim((string)$this->get_wpforms_field_by_id(3));
 
         // Intelligente Fallbacks über Feld-Synonyme (falls IDs durch Formularänderung abweichen)
         if (function_exists('crm_match_field_value') && !empty($this->entry_data) && is_array($this->entry_data)) {
-            if (empty($this->anrede))           $this->anrede = crm_match_field_value($this->entry_data, 'anrede');
-            if (empty($this->titel))            $this->titel = crm_match_field_value($this->entry_data, 'titel');
-            if (empty($this->vorname))          $this->vorname = crm_match_field_value($this->entry_data, 'vorname');
-            if (empty($this->nachname))         $this->nachname = crm_match_field_value($this->entry_data, 'nachname');
-            if (empty($this->email))            $this->email = crm_match_field_value($this->entry_data, 'e-mail');
-            if (empty($this->customer_company)) $this->customer_company = crm_match_field_value($this->entry_data, 'firma');
+            if (empty($raw_anrede))             $raw_anrede = (string)crm_match_field_value($this->entry_data, 'anrede');
+            if (empty($this->titel))            $this->titel = (string)crm_match_field_value($this->entry_data, 'titel');
+            if (empty($this->vorname))          $this->vorname = (string)crm_match_field_value($this->entry_data, 'vorname');
+            if (empty($this->nachname))         $this->nachname = (string)crm_match_field_value($this->entry_data, 'nachname');
+            if (empty($this->email))            $this->email = (string)crm_match_field_value($this->entry_data, 'e-mail');
+            if (empty($this->customer_company)) {
+                $matched_c = (string)crm_match_field_value($this->entry_data, 'firma');
+                if (stripos($matched_c, 'Privatperson') === false && stripos($matched_c, 'Angebot für') === false && stripos($matched_c, 'Angebot') === false && strcasecmp($matched_c, 'Unternehmen') !== 0) {
+                    $this->customer_company = $matched_c;
+                }
+            }
         }
 
         // Fallback: Falls Feld 25 leer ist, im gesamten Entry nach Feldern wie 'firma' suchen
         if (empty($this->customer_company) && !empty($this->entry_data) && is_array($this->entry_data)) {
             foreach ($this->entry_data as $fld) {
                 if (!empty($fld['name']) && (stripos($fld['name'], 'firma') !== false || stripos($fld['name'], 'unternehmung') !== false)) {
-                    if (!empty($fld['value']) && is_string($fld['value']) && stripos($fld['name'], 'privat') === false) {
+                    if (!empty($fld['value']) && is_string($fld['value']) && stripos($fld['name'], 'privat') === false && stripos($fld['value'], 'Privatperson') === false && stripos($fld['value'], 'Angebot für') === false) {
                         $this->customer_company = trim($fld['value']);
                         break;
                     }
@@ -303,12 +392,20 @@ class CRM_Model
             }
         }
 
-        if ($this->anrede === 'Herr') {
+        // Anrede bereinigen: "Angebot für eine Privatperson" / Formulartexte ausfiltern
+        if (stripos($raw_anrede, 'Herr') !== false) {
+            $this->anrede = 'Herr';
             $this->salutation = "Sehr geehrter Herr";
-        } elseif ($this->anrede === 'Frau') {
+        } elseif (stripos($raw_anrede, 'Frau') !== false) {
+            $this->anrede = 'Frau';
             $this->salutation = "Sehr geehrte Frau";
         } else {
-            $this->salutation = "Sehr geehrte(r) Frau/Herr";
+            if (stripos($raw_anrede, 'Privatperson') !== false || stripos($raw_anrede, 'Unternehmen') !== false || stripos($raw_anrede, 'Angebot') !== false) {
+                $this->anrede = '';
+            } else {
+                $this->anrede = trim($raw_anrede);
+            }
+            $this->salutation = "Sehr geehrte Damen und Herren";
         }
     }
 
@@ -335,7 +432,7 @@ class CRM_Model
             $postal_salutation = 'Familie';
         } elseif (strcasecmp($salutation_clean, 'Eheleute') === 0) {
             $postal_salutation = 'Eheleute';
-        } elseif (strcasecmp($salutation_clean, 'Firma') === 0) {
+        } elseif (strcasecmp($salutation_clean, 'Firma') === 0 || stripos($salutation_clean, 'Privatperson') !== false || stripos($salutation_clean, 'Angebot') !== false || stripos($salutation_clean, 'Unternehmen') !== false) {
             $postal_salutation = '';
         } else {
             $postal_salutation = $salutation_clean;
@@ -344,7 +441,8 @@ class CRM_Model
         $title_clean    = trim((string)($this->titel ?? ''));
         $vorname_clean  = trim((string)($this->vorname ?? ''));
         $nachname_clean = trim((string)($this->nachname ?? ''));
-        $firma_clean    = trim((string)($this->customer_company ?? ''));
+        $raw_firma      = trim((string)($this->customer_company ?? ''));
+        $firma_clean    = (stripos($raw_firma, 'Privatperson') !== false || stripos($raw_firma, 'Angebot für') !== false || stripos($raw_firma, 'Angebot') !== false || strcasecmp($raw_firma, 'Unternehmen') === 0) ? '' : $raw_firma;
 
         // Namenszusammensetzung (Vermeidung von Dopplungen falls Titel bereits im Namen steht)
         $name_parts = [];
@@ -380,13 +478,10 @@ class CRM_Model
                 // Mit Titel: z. B. "Frau Dr. Martina Muster" bzw. "Herrn Prof. Dr. Max Muster"
                 $lines[] = $person_line;
             } else {
-                // Ohne Titel:
-                // Zeile 1: Anrede (z. B. "Herrn" oder "Frau" oder "Familie" oder "Eheleute")
-                // Zeile 2: Name
-                if (!empty($postal_salutation)) {
-                    $lines[] = $postal_salutation;
-                }
-                if (!empty($person_line)) {
+                // Ohne Titel: "Frau Nina Biskup" bzw. "Herrn Max Muster"
+                if (!empty($postal_salutation) && !empty($person_line)) {
+                    $lines[] = trim($postal_salutation . ' ' . $person_line);
+                } elseif (!empty($person_line)) {
                     $lines[] = $person_line;
                 }
             }
@@ -428,7 +523,7 @@ class CRM_Model
     // Inside the CRM_Model class
     public function get_crm_field($title)
     {
-        $fields = get_option('crm_custom_fields', []);
+        $fields = function_exists('crm_get_merged_custom_fields') ? crm_get_merged_custom_fields() : get_option('crm_custom_fields', []);
         if (empty($fields) || !is_array($fields)) {
             return '';
         }
@@ -508,7 +603,7 @@ class CRM_Model
                     return (string)$this->$key;
                 }
 
-                // 3. Umfassende Aliase (Kursdaten, Personen, Firma & CI)
+                // 3. Umfassende Aliase (Kursdaten, Personen, Firma & CI Stammdaten)
                 $aliases = [
                     // Kurs- und Veranstaltungsdaten
                     'kurstitel'          => 'title',
@@ -542,21 +637,70 @@ class CRM_Model
                     'anrede_brief'       => 'salutation',
                     'telefon'            => 'company_phone',
 
-                    // Instituts- & Firmendaten
+                    // Instituts- & Firmendaten (Stammdaten-Vererbung)
                     'schulungsinstitut'  => 'company_name',
                     'institut_name'      => 'company_name',
+                    'institut'           => 'company_name',
+                    'firmenname'         => 'company_name',
+                    'company_name'       => 'company_name',
                     'institut_kurz'      => 'company_short_name',
-                    'institut_adresse'   => 'company_address',
-                    'institut_telefon'   => 'company_phone',
-                    'institut_email'     => 'company_email',
-                    'institut_website'   => 'company_website',
-                    'institut_uid'       => 'company_uid',
-                    'institut_fn'        => 'company_fn',
-                    'institut_gericht'   => 'company_court',
-                    'institut_bank'      => 'company_bank',
-                    'institut_logo'      => 'company_logo',
+                    'company_short_name' => 'company_short_name',
+                    'company_legal_form' => 'company_legal_form',
                     'geschaeftsfuehrung' => 'company_management',
                     'institutsleiter'    => 'company_management',
+                    'company_management' => 'company_management',
+                    'institut_adresse'   => 'company_address',
+                    'company_address'    => 'company_address',
+                    'firmenadresse'      => 'company_address',
+                    'adresse'            => 'company_address',
+                    'company_street'     => 'company_street',
+                    'company_zip'        => 'company_zip',
+                    'company_city'       => 'company_city',
+                    'company_country'    => 'company_country',
+                    'location_wien'      => 'location_wien',
+                    'location_wien_name' => 'location_wien_name',
+                    'location_wien_street' => 'location_wien_street',
+                    'location_wien_zip'  => 'location_wien_zip',
+                    'location_wien_city' => 'location_wien_city',
+                    'location_wien_notice' => 'location_wien_notice',
+                    'institut_telefon'   => 'company_phone',
+                    'company_phone'      => 'company_phone',
+                    'institut_email'     => 'company_email',
+                    'company_email'      => 'company_email',
+                    'institut_website'   => 'company_website',
+                    'company_website'    => 'company_website',
+                    'website'            => 'company_website',
+                    'backoffice_name'    => 'backoffice_name',
+                    'backoffice_email'   => 'backoffice_email',
+                    'backoffice_phone'   => 'backoffice_phone',
+                    'institut_uid'       => 'company_uid',
+                    'company_uid'        => 'company_uid',
+                    'uid'                => 'company_uid',
+                    'institut_fn'        => 'company_fn',
+                    'company_fn'         => 'company_fn',
+                    'fn'                 => 'company_fn',
+                    'institut_gericht'   => 'company_court',
+                    'company_court'      => 'company_court',
+                    'gericht'            => 'company_court',
+                    'company_chamber'    => 'company_chamber',
+                    'kammer'             => 'company_chamber',
+                    'institut_bank'      => 'company_bank',
+                    'company_bank'       => 'company_bank',
+                    'bank'               => 'company_bank',
+                    'bankverbindung'     => 'company_bank',
+                    'institut_logo'      => 'company_logo',
+                    'company_logo'       => 'company_logo',
+                    'logo'               => 'company_logo',
+                    'company_logo_url'   => 'company_logo_url',
+                    'logo_url'           => 'company_logo_url',
+                    'agb_url'            => 'agb_url',
+                    'legal_agb_url'      => 'agb_url',
+                    'privacy_url'        => 'privacy_url',
+                    'legal_privacy_url'  => 'privacy_url',
+                    'imprint_url'        => 'imprint_url',
+                    'legal_imprint_url'  => 'imprint_url',
+                    'durchfuehrung'      => 'durchfuehrung',
+                    'durchfuehrungsform' => 'durchfuehrung',
                 ];
 
                 if (isset($aliases[$key])) {
@@ -567,6 +711,8 @@ class CRM_Model
                 }
 
                 // 4. E-Mail-Komponenten (Bausteine) auflösen
+                // Verbindliche Signatur für Kunden-E-Mails stammt direkt aus dem Baustein 'E-Mail Signatur'
+
                 $component_map = [
                     'signatur_email'          => 'E-Mail Signatur',
                     'signatur'                => 'E-Mail Signatur',
@@ -589,8 +735,8 @@ class CRM_Model
                     }
                 }
 
-                // 5. Dynamische Prüfung in crm_custom_fields für alle benutzerdefinierten Bausteine
-                $custom_fields = get_option('crm_custom_fields', []);
+                // 5. Dynamische Prüfung in crm_merged_custom_fields für alle definierten Bausteine
+                $custom_fields = function_exists('crm_get_merged_custom_fields') ? crm_get_merged_custom_fields() : get_option('crm_custom_fields', []);
                 if (is_array($custom_fields)) {
                     foreach ($custom_fields as $cf) {
                         if (empty($cf['title'])) {
@@ -666,6 +812,10 @@ class CRM_Model
     }
     public function get_certifications_from_form_field(): array
     {
+        if (isset($this->override_certifications) && is_array($this->override_certifications)) {
+            return $this->override_certifications;
+        }
+
         // Check for the entry data from the form field with ID 99.
         $cert_data_string = $this->get_wpforms_field_by_id(99);
 
@@ -840,7 +990,7 @@ class CRM_Model
             'ipma_logo'      => ['file' => 'impa.png', 'width' => ''],
             'email_logos'    => ['file' => 'email_zerts.png', 'width' => '100px', 'style' => 'padding-left: 54px;'],
             'ams_img'        => ['file' => 'ams.png', 'width' => '160px'],
-            'signatur_icon'  => ['file' => 'Signatur_Blau.png', 'width' => '180px'],
+            'signatur_icon'  => ['file' => 'Signatur_Blau.png', 'width' => '125px'],
             'xsieben_logo'   => ['file' => 'xsieben_logo.png', 'width' => '200px'],
         ];
         foreach ($icons as $prop => $config) {
@@ -882,12 +1032,32 @@ class CRM_Model
     }
 
     /**
+     * Generiert HTML für die Gliederung der Module (Modulübersicht).
+     *
+     * @return string
+     */
+    public function get_module_gliederung_html(): string
+    {
+        return CRM_Pdf_Presenter::render_module_gliederung($this->post_id);
+    }
+
+    /**
+     * Generiert HTML für die Zeiteinteilung und Lehreinheiten-Aufteilung.
+     *
+     * @return string
+     */
+    public function get_zeiteinteilung_html(): string
+    {
+        return CRM_Pdf_Presenter::render_zeiteinteilung($this->post_id);
+    }
+
+    /**
      * Generiert HTML für die Module und Zeiteinteilung, basierend auf den ACF-Daten.
      * Delegiert an CRM_Pdf_Presenter zur Wahrung von Separation of Concerns (SoC).
      *
      * @return string Der generierte HTML-Tabellen-String der Module.
      */
-    private function get_module_html(): string
+    public function get_module_html(): string
     {
         return CRM_Pdf_Presenter::render_module_html($this->post_id);
     }
@@ -994,11 +1164,28 @@ class CRM_Model
                     $query->the_post();
                     if (get_the_ID() != 5793) {
                         $thumb_id = get_post_thumbnail_id(get_the_ID());
-                        $local_file = $thumb_id ? get_attached_file($thumb_id) : '';
+                        $local_file = '';
+                        if ($thumb_id) {
+                            $im_data = function_exists('image_get_intermediate_size')
+                                ? (image_get_intermediate_size($thumb_id, 'medium') ?: image_get_intermediate_size($thumb_id, 'thumbnail'))
+                                : null;
+                            if (!empty($im_data['file'])) {
+                                $orig_file = get_attached_file($thumb_id);
+                                if ($orig_file) {
+                                    $cand = dirname($orig_file) . '/' . $im_data['file'];
+                                    if (file_exists($cand)) {
+                                        $local_file = $cand;
+                                    }
+                                }
+                            }
+                            if (!$local_file) {
+                                $local_file = get_attached_file($thumb_id) ?: '';
+                            }
+                        }
                         if ($local_file && file_exists($local_file)) {
                             $zert_images_src[] = $local_file;
                         } else {
-                            $image_url = get_the_post_thumbnail_url(get_the_ID(), 'full');
+                            $image_url = get_the_post_thumbnail_url(get_the_ID(), 'medium') ?: get_the_post_thumbnail_url(get_the_ID(), 'thumbnail') ?: get_the_post_thumbnail_url(get_the_ID(), 'full');
                             if ($image_url) {
                                 $zert_images_src[] = $image_url;
                             }

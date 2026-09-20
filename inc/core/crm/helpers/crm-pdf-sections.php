@@ -73,6 +73,8 @@ function crm_get_pdf_master_header_footer(): array
         'header_logo'    => true,
         'header_address' => true,
         'header_custom'  => '',
+        'header_margin_top'    => 8.0,        // mm von oben (TCPDF Header Y-Position, Standard: 8 mm)
+        'header_margin_bottom' => 32.0,       // mm bis zum Seiteninhalt (TCPDF SetTopMargin, Standard: 32 mm)
         'footer_mode'    => 'standard',    // 'standard' (Firmendaten+Seitenzahlen), 'full' (+Datum), 'page_numbers_only', 'company_only', 'none', 'custom'
         'footer_company' => true,
         'footer_page_num'=> true,
@@ -96,18 +98,103 @@ function crm_get_pdf_master_header_footer(): array
 function crm_save_pdf_master_header_footer(array $data): bool
 {
     $sanitized = [
-        'header_mode'    => sanitize_key($data['header_mode'] ?? 'full'),
-        'header_logo'    => !empty($data['header_logo']),
-        'header_address' => !empty($data['header_address']),
-        'header_custom'  => wp_kses_post(wp_unslash($data['header_custom'] ?? '')),
-        'footer_mode'    => sanitize_key($data['footer_mode'] ?? 'standard'),
-        'footer_company' => !empty($data['footer_company']),
-        'footer_page_num'=> !empty($data['footer_page_num']),
-        'footer_date'    => !empty($data['footer_date']),
-        'footer_custom'  => sanitize_textarea_field(wp_unslash($data['footer_custom'] ?? '')),
+        'header_mode'          => sanitize_key($data['header_mode'] ?? 'full'),
+        'header_logo'          => !empty($data['header_logo']),
+        'header_address'       => !empty($data['header_address']),
+        'header_custom'        => wp_kses_post(wp_unslash($data['header_custom'] ?? '')),
+        'header_margin_top'    => isset($data['header_margin_top']) && $data['header_margin_top'] !== '' ? max(0.0, floatval($data['header_margin_top'])) : 8.0,
+        'header_margin_bottom' => isset($data['header_margin_bottom']) && $data['header_margin_bottom'] !== '' ? max(5.0, floatval($data['header_margin_bottom'])) : 32.0,
+        'footer_mode'          => sanitize_key($data['footer_mode'] ?? 'standard'),
+        'footer_company'       => !empty($data['footer_company']),
+        'footer_page_num'      => !empty($data['footer_page_num']),
+        'footer_date'          => !empty($data['footer_date']),
+        'footer_custom'        => sanitize_textarea_field(wp_unslash($data['footer_custom'] ?? '')),
     ];
     return update_option('crm_pdf_master_header_footer', $sanitized);
 }
+
+/**
+ * Liefert die globalen Master-Einstellungen für PDF-Element-Abstände (in pt).
+ *
+ * @return array
+ */
+function crm_get_pdf_elements_spacing(): array
+{
+    $defaults = [
+        'spacing_top'          => 0,  // Standard-Elemente in pt (0 = Standard-Layout / kein Zusatzabstand)
+        'spacing_bottom'       => 0,  // Standard-Elemente in pt (0 = Standard-Layout / kein Zusatzabstand)
+        'title_spacing_top'    => 13, // Master Dokumententitel Abstand oben in pt (Standard: 13)
+        'title_spacing_bottom' => 11, // Master Dokumententitel Abstand unten in pt (Standard: 11)
+    ];
+
+    $saved = get_option('crm_pdf_elements_spacing', []);
+    if (!is_array($saved)) {
+        return $defaults;
+    }
+    return wp_parse_args($saved, $defaults);
+}
+
+/**
+ * Speichert die globalen Master-Einstellungen für PDF-Element-Abstände.
+ *
+ * @param array $data
+ * @return bool
+ */
+function crm_save_pdf_elements_spacing(array $data): bool
+{
+    $sanitized = [
+        'spacing_top'          => isset($data['spacing_top']) && is_numeric($data['spacing_top']) ? max(0, floatval($data['spacing_top'])) : 0,
+        'spacing_bottom'       => isset($data['spacing_bottom']) && is_numeric($data['spacing_bottom']) ? max(0, floatval($data['spacing_bottom'])) : 0,
+        'title_spacing_top'    => isset($data['title_spacing_top']) && is_numeric($data['title_spacing_top']) ? max(0, floatval($data['title_spacing_top'])) : 13,
+        'title_spacing_bottom' => isset($data['title_spacing_bottom']) && is_numeric($data['title_spacing_bottom']) ? max(0, floatval($data['title_spacing_bottom'])) : 11,
+    ];
+    return update_option('crm_pdf_elements_spacing', $sanitized);
+}
+
+/**
+ * Erzeugt ein TCPDF-konformes Spacer-HTML für einen vertikalen Abstand in pt.
+ *
+ * @param float $pt
+ * @return string
+ */
+function crm_get_pdf_spacing_html(float $pt): string
+{
+    if ($pt <= 0.0) {
+        return '';
+    }
+    $pt_clean = round($pt, 1);
+    return '<div class="crm-pdf-spacer" style="font-size:' . $pt_clean . 'pt; line-height:' . $pt_clean . 'pt; height:' . $pt_clean . 'pt;">&nbsp;</div>';
+}
+
+/**
+ * Ermittelt die effektiven vertikalen Abstände (oben & unten) für ein Element oder einen Abschnitt.
+ * Berücksichtigt elementspezifische Werte und fällt optional auf globale Master-Werte zurück.
+ *
+ * @param array $item Abschnitt oder Unterabschnitt
+ * @param array|null $global Globale Spacing-Konfiguration (null = automatisch laden)
+ * @return array ['top' => float, 'bottom' => float]
+ */
+function crm_get_pdf_effective_spacing(array $item, ?array $global = null): array
+{
+    if ($global === null) {
+        $global = crm_get_pdf_elements_spacing();
+    }
+
+    $key = $item['key'] ?? '';
+    $is_title = ($key === 'titel' || (is_string($key) && str_ends_with($key, '_titel')) || $key === 'haupttitel');
+
+    $has_top    = isset($item['spacing_top']) && $item['spacing_top'] !== '' && is_numeric($item['spacing_top']) && floatval($item['spacing_top']) > 0;
+    $has_bottom = isset($item['spacing_bottom']) && $item['spacing_bottom'] !== '' && is_numeric($item['spacing_bottom']) && floatval($item['spacing_bottom']) > 0;
+
+    $top    = $has_top ? floatval($item['spacing_top']) : ($is_title ? floatval($global['title_spacing_top'] ?? 13.0) : floatval($global['spacing_top'] ?? 0.0));
+    $bottom = $has_bottom ? floatval($item['spacing_bottom']) : ($is_title ? floatval($global['title_spacing_bottom'] ?? 11.0) : floatval($global['spacing_bottom'] ?? 0.0));
+
+    return [
+        'top'    => max(0.0, (float)$top),
+        'bottom' => max(0.0, (float)$bottom),
+    ];
+}
+
 
 /**
  * Liefert die verfügbaren Modi für die Kopfzeile (Header).
@@ -272,8 +359,8 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
                 'footer_page_num'=> true,
                 'footer_date'    => false,
                 'subsections' => [
-                    'titel' => [
-                        'title'           => __('Titelzeile', 'custom-crm'),
+                    'veranstaltung_titel' => [
+                        'title'           => __('Titelzeile: Veranstaltungsinformationen', 'custom-crm'),
                         'desc'            => __('Kopfzeile "Veranstaltungsinformationen".', 'custom-crm'),
                         'default'         => true,
                         'default_content' => "Veranstaltungsinformationen: {kurstitel_short}",
@@ -291,8 +378,14 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
                         'default_content' => "Diese Veranstaltung beinhaltet {le} Lehreinheiten (LE, 1 LE = 45min).",
                     ],
                     'module' => [
-                        'title'           => __('Modulübersicht', 'custom-crm'),
-                        'desc'            => __('Aufzählung aller Module und Trainingseinheiten.', 'custom-crm'),
+                        'title'           => __('Modulübersicht & Themeninhalte', 'custom-crm'),
+                        'desc'            => __('Aufzählung aller Module, Gliederung und Themenbereiche.', 'custom-crm'),
+                        'default'         => true,
+                        'default_content' => "{standard}",
+                    ],
+                    'zeiteinteilung' => [
+                        'title'           => __('Zeiteinteilung & Lehreinheiten-Aufteilung', 'custom-crm'),
+                        'desc'            => __('Detaillierte Aufteilung der Lehreinheiten (Unterricht, Selbststudium, Praxis) inkl. Summenzeile.', 'custom-crm'),
                         'default'         => true,
                         'default_content' => "{standard}",
                     ],
@@ -313,8 +406,8 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
                 'footer_page_num'=> true,
                 'footer_date'    => false,
                 'subsections' => [
-                    'titel' => [
-                        'title'           => __('Titelzeile', 'custom-crm'),
+                    'abschluss_titel' => [
+                        'title'           => __('Titelzeile: Ihr persönlicher Abschluss', 'custom-crm'),
                         'desc'            => __('Kopfzeile des Abschlusses.', 'custom-crm'),
                         'default'         => true,
                         'default_content' => "Ihr persönlicher Abschluss: {kurstitel_short}",
@@ -366,8 +459,8 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
                 'footer_page_num'=> true,
                 'footer_date'    => false,
                 'subsections' => [
-                    'titel' => [
-                        'title'           => __('Titelzeile', 'custom-crm'),
+                    'kosten_titel' => [
+                        'title'           => __('Titelzeile: Ihre Investition & Kosten', 'custom-crm'),
                         'desc'            => __('Kopfzeile "Ihre Investition".', 'custom-crm'),
                         'default'         => true,
                         'default_content' => "Kursgebühr inkl. optionale Zertifizierungen",
@@ -407,8 +500,8 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
                 'footer_page_num'=> true,
                 'footer_date'    => false,
                 'subsections' => [
-                    'titel' => [
-                        'title'           => __('Titelzeile', 'custom-crm'),
+                    'anmeldung_titel' => [
+                        'title'           => __('Titelzeile: Anmeldung', 'custom-crm'),
                         'desc'            => __('Kopfzeile "ANMELDUNG".', 'custom-crm'),
                         'default'         => true,
                         'default_content' => "ANMELDUNG: {kurstitel}",
@@ -454,8 +547,8 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
                 'footer_page_num'=> true,
                 'footer_date'    => false,
                 'subsections' => [
-                    'titel' => [
-                        'title'           => __('Titelzeile Anhang 1', 'custom-crm'),
+                    'inhalte_titel' => [
+                        'title'           => __('Titelzeile: Details zu den Inhalten', 'custom-crm'),
                         'desc'            => __('Kopfzeile "Details zu den Inhalten".', 'custom-crm'),
                         'default'         => true,
                         'default_content' => "Details zu den Inhalten (Anhang 1)",
@@ -483,8 +576,8 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
                 'footer_page_num'=> true,
                 'footer_date'    => false,
                 'subsections' => [
-                    'titel' => [
-                        'title'           => __('Titelzeile Anhang 2', 'custom-crm'),
+                    'zusatzleistungen_titel' => [
+                        'title'           => __('Titelzeile: Exklusive Zusatzleistungen', 'custom-crm'),
                         'desc'            => __('Kopfzeile "Exklusive Zusatzleistungen".', 'custom-crm'),
                         'default'         => true,
                         'default_content' => "Exklusive Zusatzleistungen (Anhang 2)",
@@ -1012,6 +1105,12 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
         ],
     ];
 
+    // Angebot 2 (Inkl. Zertifizierung): Erbt die modulare 7-teilige Struktur von Angebot 1
+    $definitions['angebot_2'] = $definitions['angebot'];
+    $definitions['angebot_2']['abschluss']['title'] = __('Ihr persönlicher Abschluss & Zertifizierung', 'custom-crm');
+    $definitions['angebot_2']['kosten']['title']    = __('Ihre Investition & Kosten (inkl. Zertifizierung)', 'custom-crm');
+    $definitions['angebot_2']['kosten']['desc']     = __('Kursgebühr inkl. optionale Zertifizierungen, Gesamtkosten, Angebotsgültigkeit und Bankverbindung.', 'custom-crm');
+
     if ($doc_type !== null) {
         $key = strtolower(trim($doc_type));
         return $definitions[$key] ?? [];
@@ -1033,6 +1132,11 @@ function crm_replace_pdf_placeholders(string $content, $course = null): string
         return $content;
     }
 
+    // Wenn $course ein CRM_Model ist, zuerst parse_string_with_data anwenden
+    if (method_exists($course, 'parse_string_with_data')) {
+        $content = $course->parse_string_with_data($content);
+    }
+
     $c_entry_id = absint($course->entry_id ?? 0);
     $c_course_id = absint($course->course_id ?? 0);
     $diplom_nr_raw = $c_entry_id > 0 ? $c_entry_id : ($c_course_id > 0 ? $c_course_id : 5624);
@@ -1041,11 +1145,14 @@ function crm_replace_pdf_placeholders(string $content, $course = null): string
     $clean_short = html_entity_decode(html_entity_decode($course->titel_short ?? '', ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8');
 
     // Preis- und Mengenberechnung
-    $netto_val = !empty($course->preis_netto) ? (float)str_replace(['.', ','], ['', '.'], (string)$course->preis_netto) : 0.0;
+    $netto_val = CRM_Pdf_Presenter::parse_price_float($course->preis_netto ?? 0);
     if ($netto_val == 0.0 && !empty($course->kosten)) {
-        $netto_val = (float)$course->kosten;
+        $netto_val = CRM_Pdf_Presenter::parse_price_float($course->kosten);
     }
-    $brutto_val = !empty($course->preis_brutto) ? (float)str_replace(['.', ','], ['', '.'], (string)$course->preis_brutto) : ($netto_val * 1.20);
+    $brutto_val = CRM_Pdf_Presenter::parse_price_float($course->preis_brutto ?? 0);
+    if ($brutto_val == 0.0 && $netto_val > 0.0) {
+        $brutto_val = round($netto_val * 1.20, 2);
+    }
     $le_val     = !empty($course->anzahl_le) ? (int)$course->anzahl_le : 1;
     $single_val = $netto_val > 0 && $le_val > 0 ? ($netto_val / $le_val) : 0.0;
 
@@ -1056,6 +1163,17 @@ function crm_replace_pdf_placeholders(string $content, $course = null): string
     $kurstyp_phrase = function_exists('crm_get_diplom_kurstyp_phrase')
         ? crm_get_diplom_kurstyp_phrase($kurstyp_val)
         : ('HAT DEN ' . $kurstyp_upper);
+
+    // Dynamische Bankverbindung
+    $bank_str = !empty($course->company_bank) ? (string)$course->company_bank : 'Erste Bank | IBAN: AT29 3293 7001 0012 5260 | BIC: RLNWATWWWRN';
+    $iban_val = 'AT29 3293 7001 0012 5260';
+    $bic_val  = 'RLNWATWWWRN';
+    if (preg_match('/IBAN:\s*([A-Z0-9 ]+?)(?:\s*\||$)/i', $bank_str, $ib_m)) {
+        $iban_val = trim($ib_m[1]);
+    }
+    if (preg_match('/BIC:\s*([A-Z0-9 ]+?)(?:\s*\||$)/i', $bank_str, $bc_m)) {
+        $bic_val = trim($bc_m[1]);
+    }
 
     $map = [
         'HAT DEN {kurstyp}'       => $kurstyp_phrase,
@@ -1076,37 +1194,47 @@ function crm_replace_pdf_placeholders(string $content, $course = null): string
         '{empfaenger_adresse}' => method_exists($course, 'format_postal_address') ? $course->format_postal_address('A', true) : '',
         '{titel}'              => $course->titel ?? '',
         '{kurstitel}'          => $clean_title,
-        '{kurstitel_short}' => $clean_short,
-        '{startdatum}'      => $course->start_datum ?? '',
-        '{enddatum}'        => $course->end_datum ?? '',
-        '{uhrzeit}'         => !empty($course->uhrzeit) && is_string($course->uhrzeit) ? $course->uhrzeit : (!empty($course->kurszeiten) && is_string($course->kurszeiten) ? $course->kurszeiten : '09:00 – 17:00 Uhr'),
-        '{kurszeiten}'      => !empty($course->kurszeiten) && is_string($course->kurszeiten) ? $course->kurszeiten : (!empty($course->uhrzeit) && is_string($course->uhrzeit) ? $course->uhrzeit : '09:00 – 17:00 Uhr'),
-        '{zeiten}'          => !empty($course->kurszeiten) && is_string($course->kurszeiten) ? $course->kurszeiten : (!empty($course->uhrzeit) && is_string($course->uhrzeit) ? $course->uhrzeit : '09:00 – 17:00 Uhr'),
-        '{preis}'           => number_format($netto_val, 2, ',', '.'),
-        '{preis_netto}'     => number_format($netto_val, 2, ',', '.'),
-        '{preis_brutto}'    => number_format($brutto_val, 2, ',', '.'),
-        '{gesamtpreis}'     => number_format($brutto_val, 2, ',', '.'),
-        '{le_single}'       => number_format($single_val, 2, ',', '.'),
-        '{location_wien}'   => $course->location_wien ?? 'Rochusgasse 6, 1030 Wien',
-        '{salutation}'      => (strcasecmp($course->anrede ?? '', 'Herr') === 0 || strcasecmp($course->anrede ?? '', 'Herrn') === 0) ? 'Sehr geehrter Herr' : ((strcasecmp($course->anrede ?? '', 'Frau') === 0) ? 'Sehr geehrte Frau' : 'Sehr geehrte Damen und Herren'),
-        '{ort}'             => !empty($course->street) ? trim(($course->street ?? '') . ' ' . ($course->house_number ?? '') . ', ' . ($course->zip_code ?? '') . ' ' . ($course->city ?? '')) : ($course->location_wien ?? 'Rochusgasse 6, 1030 Wien bzw. online'),
-        '{schulungsort}'    => $course->location_wien ?? 'Rochusgasse 6, 1030 Wien bzw. online',
-        '{le}'              => $course->anzahl_le ?? '',
-        '{institut}'        => $course->company_name ?? 'X SIEBEN Wirtschaftstraining GmbH',
-        '{datum}'           => date('d.m.Y'),
-        '{current_date}'    => date('d.m.Y'),
-        '{expire}'          => $expire_val,
-        '[Datum]'           => $expire_val,
-        '{angebotsnummer}'  => $course->angebotsnummer ?? '',
-        '{zielgruppe}'      => $course->zielgruppe ?? '',
-        '{firmenname}'      => $course->company_name ?? 'X SIEBEN Wirtschaftstraining GmbH',
-        '{email}'           => $course->email ?? '',
-        '{telefon}'         => $course->phone ?? ($course->company_phone ?? ''),
-        '{diplom_nr}'       => sprintf('%05d', $diplom_nr_raw),
-        '{course_id}'       => $c_course_id,
-        '{entry_id}'        => $c_entry_id,
-        '{iban}'            => 'AT29 3293 7001 0012 5260',
-        '{bic}'             => 'RLNWATWWWRN',
+        '{kurstitel_short}'    => $clean_short,
+        '{startdatum}'         => $course->start_datum ?? '',
+        '{enddatum}'           => $course->end_datum ?? '',
+        '{uhrzeit}'            => !empty($course->uhrzeit) && is_string($course->uhrzeit) ? $course->uhrzeit : (!empty($course->kurszeiten) && is_string($course->kurszeiten) ? $course->kurszeiten : '09:00 – 17:00 Uhr'),
+        '{kurszeiten}'         => !empty($course->kurszeiten) && is_string($course->kurszeiten) ? $course->kurszeiten : (!empty($course->uhrzeit) && is_string($course->uhrzeit) ? $course->uhrzeit : '09:00 – 17:00 Uhr'),
+        '{zeiten}'             => !empty($course->kurszeiten) && is_string($course->kurszeiten) ? $course->kurszeiten : (!empty($course->uhrzeit) && is_string($course->uhrzeit) ? $course->uhrzeit : '09:00 – 17:00 Uhr'),
+        '{preis}'              => number_format($netto_val, 2, ',', '.'),
+        '{preis_netto}'        => number_format($netto_val, 2, ',', '.'),
+        '{preis_brutto}'       => number_format($brutto_val, 2, ',', '.'),
+        '{gesamtpreis}'        => number_format($brutto_val, 2, ',', '.'),
+        '{le_single}'          => number_format($single_val, 2, ',', '.'),
+        '{location_wien}'      => $course->location_wien ?? 'Rochusgasse 6, 1030 Wien',
+        '{salutation}'         => (strcasecmp($course->anrede ?? '', 'Herr') === 0 || strcasecmp($course->anrede ?? '', 'Herrn') === 0) ? 'Sehr geehrter Herr' : ((strcasecmp($course->anrede ?? '', 'Frau') === 0) ? 'Sehr geehrte Frau' : 'Sehr geehrte Damen und Herren'),
+        '{ort}'                => !empty($course->street) ? trim(($course->street ?? '') . ' ' . ($course->house_number ?? '') . ', ' . ($course->zip_code ?? '') . ' ' . ($course->city ?? '')) : ($course->location_wien ?? 'Rochusgasse 6, 1030 Wien bzw. online'),
+        '{schulungsort}'       => $course->location_wien ?? 'Rochusgasse 6, 1030 Wien bzw. online',
+        '{le}'                 => $course->anzahl_le ?? '',
+        '{institut}'           => $course->company_name ?? 'X SIEBEN Wirtschaftstraining GmbH',
+        '{datum}'              => date('d.m.Y'),
+        '{current_date}'       => date('d.m.Y'),
+        '{expire}'             => $expire_val,
+        '[Datum]'              => $expire_val,
+        '{angebotsnummer}'     => $course->angebotsnummer ?? '',
+        '{zielgruppe}'         => $course->zielgruppe ?? '',
+        '{firmenname}'         => $course->company_name ?? 'X SIEBEN Wirtschaftstraining GmbH',
+        '{company_name}'       => $course->company_name ?? 'X SIEBEN Wirtschaftstraining GmbH',
+        '{company_address}'    => $course->company_address ?? '',
+        '{company_phone}'      => $course->company_phone ?? '0800 700 170',
+        '{company_email}'      => $course->company_email ?? 'office@x-sieben.at',
+        '{company_uid}'        => $course->company_uid ?? 'ATU76624137',
+        '{company_fn}'         => $course->company_fn ?? 'FN 550277 g',
+        '{company_court}'      => $course->company_court ?? 'Landesgericht Wiener Neustadt',
+        '{email}'              => $course->email ?? '',
+        '{telefon}'            => $course->phone ?? ($course->company_phone ?? ''),
+        '{diplom_nr}'          => sprintf('%05d', $diplom_nr_raw),
+        '{course_id}'          => $c_course_id,
+        '{entry_id}'           => $c_entry_id,
+        '{bankverbindung}'     => $bank_str,
+        '{iban}'               => $iban_val,
+        '{bic}'                => $bic_val,
+        '{bank_iban}'          => $iban_val,
+        '{bank_bic}'           => $bic_val,
     ];
     return str_replace(array_keys($map), array_values($map), $content);
 }
@@ -1124,6 +1252,11 @@ function crm_is_legacy_default_pdf_content(string $sec_key, string $sub_key, str
 {
     $norm = preg_replace('/\s+/', ' ', trim($content));
     if ($norm === '' || $norm === '{standard}') {
+        return true;
+    }
+
+    // Detect obsolete hardcoded titles (e.g. legacy test snippets with "Digital Marketing Manager")
+    if (stripos($content, 'Digital Marketing Manager') !== false && (stripos($sub_key, 'titel') !== false || stripos($sub_key, 'title') !== false)) {
         return true;
     }
 
@@ -1155,6 +1288,9 @@ function crm_is_legacy_default_pdf_content(string $sec_key, string $sub_key, str
             'titel' => [
                 'Veranstaltungsinformationen: {kurstitel_short}',
             ],
+            'veranstaltung_titel' => [
+                'Veranstaltungsinformationen: {kurstitel_short}',
+            ],
             'zeitraum' => [
                 'Vom {startdatum} bis einschließlich {enddatum}',
             ],
@@ -1169,6 +1305,9 @@ function crm_is_legacy_default_pdf_content(string $sec_key, string $sub_key, str
             'titel' => [
                 'Ihr persönlicher Abschluss: {kurstitel_short}',
             ],
+            'abschluss_titel' => [
+                'Ihr persönlicher Abschluss: {kurstitel_short}',
+            ],
             'ort_durchfuehrung' => [
                 'ORT: X SIEBEN Wirtschaftstraining, Rochusgasse 6 in 1030 Wien Durchführung unserer Schulungen: Online Unterricht | vor Ort in unseren Veranstaltungsräumen | Blended Learning',
             ],
@@ -1178,6 +1317,9 @@ function crm_is_legacy_default_pdf_content(string $sec_key, string $sub_key, str
         ],
         'kosten' => [
             'titel' => [
+                'Kursgebühr inkl. optionale Zertifizierungen',
+            ],
+            'kosten_titel' => [
                 'Kursgebühr inkl. optionale Zertifizierungen',
             ],
             'gueltigkeit' => [
@@ -1191,6 +1333,9 @@ function crm_is_legacy_default_pdf_content(string $sec_key, string $sub_key, str
             'titel' => [
                 'ANMELDUNG: {kurstitel}',
             ],
+            'anmeldung_titel' => [
+                'ANMELDUNG: {kurstitel}',
+            ],
             'agb' => [
                 'Bitte beachten Sie unsere Allgemeinen Geschäftsbedingungen (AGB). Mit Ihrer Buchung akzeptieren Sie unsere Richtlinien.',
             ],
@@ -1202,9 +1347,15 @@ function crm_is_legacy_default_pdf_content(string $sec_key, string $sub_key, str
             'titel' => [
                 'Details zu den Inhalten (Anhang 1)',
             ],
+            'inhalte_titel' => [
+                'Details zu den Inhalten (Anhang 1)',
+            ],
         ],
         'zusatzleistungen' => [
             'titel' => [
+                'Exklusive Zusatzleistungen (Anhang 2)',
+            ],
+            'zusatzleistungen_titel' => [
                 'Exklusive Zusatzleistungen (Anhang 2)',
             ],
             'garantien' => [
@@ -1216,8 +1367,19 @@ function crm_is_legacy_default_pdf_content(string $sec_key, string $sub_key, str
     if (isset($legacy_map[$sec_key][$sub_key])) {
         foreach ($legacy_map[$sec_key][$sub_key] as $snippet) {
             $norm_snippet = preg_replace('/\s+/', ' ', trim($snippet));
-            if ($norm === $norm_snippet || (strlen($norm_snippet) > 20 && strpos($norm, $norm_snippet) !== false)) {
+            if ($norm === $norm_snippet) {
                 return true;
+            }
+        }
+    } else {
+        foreach ($legacy_map as $sec_k => $subs) {
+            if (isset($subs[$sub_key])) {
+                foreach ($subs[$sub_key] as $snippet) {
+                    $norm_snippet = preg_replace('/\s+/', ' ', trim($snippet));
+                    if ($norm === $norm_snippet) {
+                        return true;
+                    }
+                }
             }
         }
     }
@@ -1242,7 +1404,15 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
     }
 
     // 1. Eintragsbezogene Konfiguration (falls vorhanden)
-    $saved_order = null;
+    $saved_order    = null;
+    $global_opt_key = 'crm_pdf_section_order_' . $doc_type;
+    $global_order   = get_option($global_opt_key, null);
+
+    // Fallback für Angebot 2: Wenn für angebot_2 noch keine eigene Konfiguration existiert, von angebot erben
+    if ($doc_type === 'angebot_2' && $global_order === null) {
+        $global_order = get_option('crm_pdf_section_order_angebot', null);
+    }
+
     if (!empty($entry_id)) {
         $entry_opt_key = 'crm_pdf_sec_' . $doc_type . '_' . intval($entry_id);
         $entry_val     = get_option($entry_opt_key, null);
@@ -1251,14 +1421,29 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
         }
     }
 
-    // 2. Globale Konfiguration
+    // 2. Globale Konfiguration (falls kein Eintrags-Order vorliegt)
     if ($saved_order === null) {
-        $global_opt_key = 'crm_pdf_section_order_' . $doc_type;
-        $saved_order    = get_option($global_opt_key, null);
+        $saved_order = $global_order;
+    }
+
+    // Index global definierter benutzerdefinierter Unterabschnitte aufbauen (für Vererbung)
+    $global_custom_subs = [];
+    if (is_array($global_order)) {
+        foreach ($global_order as $g_sec) {
+            if (is_array($g_sec) && !empty($g_sec['subsections']) && is_array($g_sec['subsections'])) {
+                foreach ($g_sec['subsections'] as $g_sub) {
+                    $g_k = $g_sub['key'] ?? '';
+                    $g_c = trim($g_sub['content'] ?? '');
+                    if (!empty($g_k) && !empty($g_c) && $g_c !== '{standard}') {
+                        $global_custom_subs[$g_k] = $g_sub['content'];
+                    }
+                }
+            }
+        }
     }
 
     // Auto-Migration für Angebot: zertifizierungen & ort_durchfuehrung von veranstaltung (Seite 2) nach abschluss (Seite 3) verschieben
-    if ($doc_type === 'angebot' && is_array($saved_order)) {
+    if (in_array($doc_type, ['angebot', 'angebot_2'], true) && is_array($saved_order)) {
         $moved_subs = [];
         $need_migration = false;
         foreach ($saved_order as &$sec_item) {
@@ -1319,6 +1504,37 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
     $result    = [];
     $seen_keys = [];
 
+    // Globale Registry aller definierten Standard-Unterabschnitte aufbauen (für seitenübergreifendes Drag & Drop)
+    $all_sub_defs = [];
+    foreach ($definitions as $sec_k => $sec_d) {
+        if (!empty($sec_d['subsections'])) {
+            foreach ($sec_d['subsections'] as $sub_k => $sub_d) {
+                $all_sub_defs[$sub_k] = $sub_d;
+            }
+        }
+    }
+
+    // Erfassen aller Unterabschnitts-Schlüssel, die irgendwo in der gespeicherten Struktur existieren
+    $saved_subs_global = [];
+    if (is_array($saved_order)) {
+        foreach ($saved_order as $item) {
+            $item_sec_k = is_array($item) ? ($item['key'] ?? '') : (string)$item;
+            if (is_array($item) && !empty($item['subsections']) && is_array($item['subsections'])) {
+                foreach ($item['subsections'] as $sub) {
+                    $sk = is_array($sub) ? ($sub['key'] ?? '') : (string)$sub;
+                    if ($sk === 'titel' && $item_sec_k !== 'deckblatt' && !empty($item_sec_k)) {
+                        $sk = "{$item_sec_k}_titel";
+                    }
+                    if (!empty($sk)) {
+                        $saved_subs_global[$sk] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    $globally_seen_subs = [];
+
     // Gespeicherte Struktur parsen
     if (is_array($saved_order)) {
         foreach ($saved_order as $item) {
@@ -1340,19 +1556,25 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
                 if (is_array($item) && isset($item['subsections']) && is_array($item['subsections'])) {
                     foreach ($item['subsections'] as $sub) {
                         $s_key     = $sub['key'] ?? '';
+                        // Legacy-Mapping für sektionsspezifische Titel:
+                        if ($s_key === 'titel' && $key !== 'deckblatt') {
+                            $s_key = "{$key}_titel";
+                        }
                         $s_enabled = !empty($sub['enabled']);
                         $s_custom  = !empty($sub['is_custom']);
 
-                        if (empty($s_key) || isset($seen_subs[$s_key])) {
+                        if (empty($s_key) || isset($seen_subs[$s_key]) || isset($globally_seen_subs[$s_key])) {
                             continue;
                         }
 
-                        if (isset($def['subsections'][$s_key])) {
-                            $sub_def = $def['subsections'][$s_key];
+                        // Unterabschnitt-Definition finden: lokal oder seitenübergreifend
+                        $sub_def = $def['subsections'][$s_key] ?? ($all_sub_defs[$s_key] ?? null);
+
+                        if (!$s_custom && $sub_def !== null) {
                             $raw_content = $sub['content'] ?? '';
 
                             // AUTO-CLEANUP / HEALING FÜR BESTEHENDE DATEN:
-                            if (!$s_custom && !empty($raw_content)) {
+                            if (!empty($raw_content)) {
                                 $def_content = $sub_def['default_content'] ?? '';
                                 $norm_raw = preg_replace('/\s+/', ' ', trim($raw_content));
                                 $norm_def = preg_replace('/\s+/', ' ', trim($def_content));
@@ -1360,6 +1582,17 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
                                     $raw_content = '';
                                 }
                             }
+
+                            // Kaskadierende Vererbung: Wenn für diesen Eintrag kein individueller Inhalt vorliegt,
+                            // aber global ein benutzerdefiniertes Standard-HTML gespeichert wurde, dieses erben!
+                            if (empty($raw_content) && !empty($global_custom_subs[$s_key])) {
+                                $raw_content = $global_custom_subs[$s_key];
+                            }
+
+                            $sub_sp_top = isset($sub['spacing_top']) && is_numeric($sub['spacing_top']) ? max(0.0, floatval($sub['spacing_top'])) : 0.0;
+                            $sub_sp_bottom = isset($sub['spacing_bottom']) && is_numeric($sub['spacing_bottom']) ? max(0.0, floatval($sub['spacing_bottom'])) : 0.0;
+
+                            $effective_default_content = !empty($global_custom_subs[$s_key]) ? $global_custom_subs[$s_key] : ($sub_def['default_content'] ?? '');
 
                             $subsections[] = [
                                 'key'             => $s_key,
@@ -1369,10 +1602,16 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
                                 'enabled'         => $s_enabled,
                                 'is_custom'       => false,
                                 'content'         => $raw_content,
-                                'default_content' => $sub_def['default_content'] ?? '',
+                                'default_content' => $effective_default_content,
+                                'spacing_top'     => $sub_sp_top,
+                                'spacing_bottom'  => $sub_sp_bottom,
                             ];
                             $seen_subs[$s_key] = true;
+                            $globally_seen_subs[$s_key] = true;
                         } elseif ($s_custom) {
+                            $sub_sp_top = isset($sub['spacing_top']) && is_numeric($sub['spacing_top']) ? max(0.0, floatval($sub['spacing_top'])) : 0.0;
+                            $sub_sp_bottom = isset($sub['spacing_bottom']) && is_numeric($sub['spacing_bottom']) ? max(0.0, floatval($sub['spacing_bottom'])) : 0.0;
+
                             $subsections[] = [
                                 'key'             => $s_key,
                                 'title'           => $sub['title'] ?? __('Benutzerdefinierter Unterabschnitt', 'custom-crm'),
@@ -1382,27 +1621,41 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
                                 'is_custom'       => true,
                                 'content'         => $sub['content'] ?? '',
                                 'default_content' => '',
+                                'spacing_top'     => $sub_sp_top,
+                                'spacing_bottom'  => $sub_sp_bottom,
                             ];
                             $seen_subs[$s_key] = true;
+                            $globally_seen_subs[$s_key] = true;
                         }
                     }
                 }
 
-                // Fehlende Standard-Unterabschnitte anfügen
+                // Fehlende Standard-Unterabschnitte anfügen (NUR wenn sie nicht auf einer anderen Seite platziert wurden!)
                 if (!empty($def['subsections'])) {
                     foreach ($def['subsections'] as $s_key => $sub_def) {
-                        if (!isset($seen_subs[$s_key])) {
-                            $subsections[] = [
+                        if (!isset($seen_subs[$s_key]) && !isset($globally_seen_subs[$s_key]) && !isset($saved_subs_global[$s_key])) {
+                            $effective_default = !empty($global_custom_subs[$s_key]) ? $global_custom_subs[$s_key] : ($sub_def['default_content'] ?? '');
+                            $new_sub = [
                                 'key'             => $s_key,
                                 'title'           => $sub_def['title'],
                                 'orig_title'      => $sub_def['title'],
                                 'desc'            => $sub_def['desc'] ?? '',
                                 'enabled'         => $sub_def['default'] ?? true,
                                 'is_custom'       => false,
-                                'content'         => '',
-                                'default_content' => $sub_def['default_content'] ?? '',
+                                'content'         => !empty($global_custom_subs[$s_key]) ? $global_custom_subs[$s_key] : '',
+                                'default_content' => $effective_default,
+                                'spacing_top'     => 0.0,
+                                'spacing_bottom'  => 0.0,
                             ];
+                            // Fehlende Kopf-/Titelzeilen gehören an die oberste Position (Index 0) der Seite
+                            $is_first_in_def = (array_key_first($def['subsections']) === $s_key);
+                            if ($is_first_in_def && str_ends_with($s_key, '_titel')) {
+                                array_unshift($subsections, $new_sub);
+                            } else {
+                                $subsections[] = $new_sub;
+                            }
                             $seen_subs[$s_key] = true;
+                            $globally_seen_subs[$s_key] = true;
                         }
                     }
                 }
@@ -1411,12 +1664,17 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
                 $h_logo     = isset($item['header_logo']) ? !empty($item['header_logo']) : ($def['header_logo'] ?? true);
                 $h_addr     = isset($item['header_address']) ? !empty($item['header_address']) : ($def['header_address'] ?? true);
                 $h_custom   = isset($item['header_custom']) ? wp_kses_post(wp_unslash($item['header_custom'])) : ($def['header_custom'] ?? '');
+                $h_sp_top   = (isset($item['header_margin_top']) && $item['header_margin_top'] !== '' && is_numeric($item['header_margin_top'])) ? max(0.0, floatval($item['header_margin_top'])) : null;
+                $h_sp_bottom= (isset($item['header_margin_bottom']) && $item['header_margin_bottom'] !== '' && is_numeric($item['header_margin_bottom'])) ? max(5.0, floatval($item['header_margin_bottom'])) : null;
 
                 $f_mode     = isset($item['footer_mode']) ? sanitize_key($item['footer_mode']) : ($def['footer_mode'] ?? 'master');
                 $f_company  = isset($item['footer_company']) ? !empty($item['footer_company']) : ($def['footer_company'] ?? true);
                 $f_page_num = isset($item['footer_page_num']) ? !empty($item['footer_page_num']) : ($def['footer_page_num'] ?? true);
                 $f_date     = isset($item['footer_date']) ? !empty($item['footer_date']) : ($def['footer_date'] ?? false);
                 $f_custom   = isset($item['footer_custom']) ? sanitize_textarea_field(wp_unslash($item['footer_custom'])) : ($def['footer_custom'] ?? '');
+
+                $sec_sp_top    = isset($item['spacing_top']) && is_numeric($item['spacing_top']) ? max(0.0, floatval($item['spacing_top'])) : floatval($def['spacing_top'] ?? 0.0);
+                $sec_sp_bottom = isset($item['spacing_bottom']) && is_numeric($item['spacing_bottom']) ? max(0.0, floatval($item['spacing_bottom'])) : floatval($def['spacing_bottom'] ?? 0.0);
 
                 $result[] = [
                     'key'            => $key,
@@ -1432,30 +1690,48 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
                     'header_logo'    => (bool)$h_logo,
                     'header_address' => (bool)$h_addr,
                     'header_custom'  => $h_custom,
+                    'header_margin_top'    => $h_sp_top,
+                    'header_margin_bottom' => $h_sp_bottom,
                     'footer_mode'    => $f_mode,
                     'footer_company' => (bool)$f_company,
                     'footer_page_num'=> (bool)$f_page_num,
                     'footer_date'    => (bool)$f_date,
                     'footer_custom'  => $f_custom,
+                    'spacing_top'    => $sec_sp_top,
+                    'spacing_bottom' => $sec_sp_bottom,
                     'subsections'    => $subsections,
                 ];
                 $seen_keys[$key] = true;
 
             } elseif ($is_custom) {
-                // Benutzerdefinierter neuer Hauptabschnitt / neue Seite
                 $subsections = [];
                 if (is_array($item) && isset($item['subsections']) && is_array($item['subsections'])) {
                     foreach ($item['subsections'] as $sub) {
+                        $sk = $sub['key'] ?? '';
+                        if (!empty($sk) && isset($globally_seen_subs[$sk])) {
+                            continue;
+                        }
+                        $sub_sp_top = isset($sub['spacing_top']) && is_numeric($sub['spacing_top']) ? max(0.0, floatval($sub['spacing_top'])) : 0.0;
+                        $sub_sp_bottom = isset($sub['spacing_bottom']) && is_numeric($sub['spacing_bottom']) ? max(0.0, floatval($sub['spacing_bottom'])) : 0.0;
+
+                        $is_sub_custom = !empty($sub['is_custom']);
+                        $sub_def       = (!$is_sub_custom && !empty($sk) && isset($all_sub_defs[$sk])) ? $all_sub_defs[$sk] : null;
+
                         $subsections[] = [
-                            'key'             => $sub['key'] ?? uniqid('sub_'),
-                            'title'           => $sub['title'] ?? __('Unterabschnitt', 'custom-crm'),
-                            'orig_title'      => $sub['title'] ?? __('Unterabschnitt', 'custom-crm'),
-                            'desc'            => __('Eigener Text / HTML', 'custom-crm'),
+                            'key'             => $sk ?: uniqid('sub_'),
+                            'title'           => $sub['title'] ?? ($sub_def['title'] ?? __('Unterabschnitt', 'custom-crm')),
+                            'orig_title'      => $sub_def['title'] ?? ($sub['title'] ?? __('Unterabschnitt', 'custom-crm')),
+                            'desc'            => $sub_def['desc'] ?? __('Eigener Text / HTML', 'custom-crm'),
                             'enabled'         => !empty($sub['enabled']),
-                            'is_custom'       => true,
+                            'is_custom'       => $sub_def === null,
                             'content'         => $sub['content'] ?? '',
-                            'default_content' => '',
+                            'default_content' => $sub_def['default_content'] ?? '',
+                            'spacing_top'     => $sub_sp_top,
+                            'spacing_bottom'  => $sub_sp_bottom,
                         ];
+                        if (!empty($sk)) {
+                            $globally_seen_subs[$sk] = true;
+                        }
                     }
                 }
 
@@ -1463,12 +1739,17 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
                 $h_logo     = isset($item['header_logo']) ? !empty($item['header_logo']) : true;
                 $h_addr     = isset($item['header_address']) ? !empty($item['header_address']) : true;
                 $h_custom   = isset($item['header_custom']) ? wp_kses_post(wp_unslash($item['header_custom'])) : '';
+                $h_sp_top   = (isset($item['header_margin_top']) && $item['header_margin_top'] !== '' && is_numeric($item['header_margin_top'])) ? max(0.0, floatval($item['header_margin_top'])) : null;
+                $h_sp_bottom= (isset($item['header_margin_bottom']) && $item['header_margin_bottom'] !== '' && is_numeric($item['header_margin_bottom'])) ? max(5.0, floatval($item['header_margin_bottom'])) : null;
 
                 $f_mode     = isset($item['footer_mode']) ? sanitize_key($item['footer_mode']) : 'master';
                 $f_company  = isset($item['footer_company']) ? !empty($item['footer_company']) : true;
                 $f_page_num = isset($item['footer_page_num']) ? !empty($item['footer_page_num']) : true;
                 $f_date     = isset($item['footer_date']) ? !empty($item['footer_date']) : false;
                 $f_custom   = isset($item['footer_custom']) ? sanitize_textarea_field(wp_unslash($item['footer_custom'])) : '';
+
+                $sec_sp_top    = isset($item['spacing_top']) && is_numeric($item['spacing_top']) ? max(0.0, floatval($item['spacing_top'])) : 0.0;
+                $sec_sp_bottom = isset($item['spacing_bottom']) && is_numeric($item['spacing_bottom']) ? max(0.0, floatval($item['spacing_bottom'])) : 0.0;
 
                 $result[] = [
                     'key'            => $key,
@@ -1484,11 +1765,15 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
                     'header_logo'    => (bool)$h_logo,
                     'header_address' => (bool)$h_addr,
                     'header_custom'  => $h_custom,
+                    'header_margin_top'    => $h_sp_top,
+                    'header_margin_bottom' => $h_sp_bottom,
                     'footer_mode'    => $f_mode,
                     'footer_company' => (bool)$f_company,
                     'footer_page_num'=> (bool)$f_page_num,
                     'footer_date'    => (bool)$f_date,
                     'footer_custom'  => $f_custom,
+                    'spacing_top'    => $sec_sp_top,
+                    'spacing_bottom' => $sec_sp_bottom,
                     'subsections'    => $subsections,
                 ];
                 $seen_keys[$key] = true;
@@ -1511,6 +1796,8 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
                         'is_custom'       => false,
                         'content'         => '',
                         'default_content' => $sub_def['default_content'] ?? '',
+                        'spacing_top'     => 0.0,
+                        'spacing_bottom'  => 0.0,
                     ];
                 }
             }
@@ -1529,11 +1816,15 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
                 'header_logo'    => $def['header_logo'] ?? true,
                 'header_address' => $def['header_address'] ?? true,
                 'header_custom'  => '',
+                'header_margin_top'    => null,
+                'header_margin_bottom' => null,
                 'footer_mode'    => $def['footer_mode'] ?? 'master',
                 'footer_company' => $def['footer_company'] ?? true,
                 'footer_page_num'=> $def['footer_page_num'] ?? true,
                 'footer_date'    => $def['footer_date'] ?? false,
                 'footer_custom'  => '',
+                'spacing_top'    => floatval($def['spacing_top'] ?? 0.0),
+                'spacing_bottom' => floatval($def['spacing_bottom'] ?? 0.0),
                 'subsections'    => $subsections,
             ];
             $seen_keys[$key] = true;
@@ -1650,6 +1941,18 @@ function crm_save_pdf_section_order(string $doc_type, array $ordered_sections, $
     $sanitized = [];
     $seen      = [];
 
+    // Globale Registry aller definierten Standard-Unterabschnitte
+    $all_sub_defs = [];
+    foreach ($definitions as $sec_k => $sec_d) {
+        if (!empty($sec_d['subsections'])) {
+            foreach ($sec_d['subsections'] as $sub_k => $sub_d) {
+                $all_sub_defs[$sub_k] = $sub_d;
+            }
+        }
+    }
+
+    $globally_seen_subs = [];
+
     foreach ($ordered_sections as $item) {
         $key       = is_array($item) ? sanitize_key($item['key'] ?? '') : sanitize_key((string)$item);
         $enabled   = is_array($item) ? (!empty($item['enabled'])) : true;
@@ -1665,30 +1968,42 @@ function crm_save_pdf_section_order(string $doc_type, array $ordered_sections, $
             $seen_subs = [];
             foreach ($item['subsections'] as $sub) {
                 $sub_key     = sanitize_key($sub['key'] ?? '');
+                // Legacy-Mapping für sektionsspezifische Titel:
+                if ($sub_key === 'titel' && $key !== 'deckblatt') {
+                    $sub_key = "{$key}_titel";
+                }
                 $sub_enabled = !empty($sub['enabled']);
                 $sub_custom  = !empty($sub['is_custom']);
                 $sub_title   = sanitize_text_field($sub['title'] ?? '');
                 $sub_content = wp_kses_post(wp_unslash($sub['content'] ?? ''));
 
-                if (!empty($sub_key) && !isset($seen_subs[$sub_key])) {
-                    // Standard-Unterabschnitte bereinigen: Wenn Content leer, {standard} oder dem Standard-Snippet entspricht, als leer ('') speichern!
-                    if (!$sub_custom && isset($definitions[$key]['subsections'][$sub_key])) {
-                        $def_sub_content = $definitions[$key]['subsections'][$sub_key]['default_content'] ?? '';
+                if (!empty($sub_key) && !isset($seen_subs[$sub_key]) && !isset($globally_seen_subs[$sub_key])) {
+                    // Standard-Unterabschnitt Definition ermitteln (lokal oder seitenübergreifend)
+                    $sub_def = $definitions[$key]['subsections'][$sub_key] ?? ($all_sub_defs[$sub_key] ?? null);
+
+                    if (!$sub_custom && $sub_def !== null) {
+                        $def_sub_content = $sub_def['default_content'] ?? '';
                         $norm_sub = preg_replace('/\s+/', ' ', trim($sub_content));
                         $norm_def = preg_replace('/\s+/', ' ', trim($def_sub_content));
-                        if ($norm_sub === $norm_def || $norm_sub === '{standard}' || crm_is_legacy_default_pdf_content($key, $sub_key, $norm_sub)) {
+                        if ($norm_sub === $norm_def || $norm_sub === '{standard}') {
                             $sub_content = '';
                         }
                     }
 
+                    $sub_sp_top    = isset($sub['spacing_top']) && is_numeric($sub['spacing_top']) ? max(0.0, floatval($sub['spacing_top'])) : 0.0;
+                    $sub_sp_bottom = isset($sub['spacing_bottom']) && is_numeric($sub['spacing_bottom']) ? max(0.0, floatval($sub['spacing_bottom'])) : 0.0;
+
                     $subsections[] = [
-                        'key'       => $sub_key,
-                        'enabled'   => (bool)$sub_enabled,
-                        'is_custom' => (bool)$sub_custom,
-                        'title'     => $sub_title,
-                        'content'   => $sub_content,
+                        'key'            => $sub_key,
+                        'enabled'        => (bool)$sub_enabled,
+                        'is_custom'      => (bool)$sub_custom,
+                        'title'          => $sub_title,
+                        'content'        => $sub_content,
+                        'spacing_top'    => $sub_sp_top,
+                        'spacing_bottom' => $sub_sp_bottom,
                     ];
                     $seen_subs[$sub_key] = true;
+                    $globally_seen_subs[$sub_key] = true;
                 }
             }
         }
@@ -1697,12 +2012,17 @@ function crm_save_pdf_section_order(string $doc_type, array $ordered_sections, $
         $h_logo     = !empty($item['header_logo']);
         $h_addr     = !empty($item['header_address']);
         $h_custom   = wp_kses_post(wp_unslash($item['header_custom'] ?? ''));
+        $h_sp_top   = (isset($item['header_margin_top']) && $item['header_margin_top'] !== '' && is_numeric($item['header_margin_top'])) ? max(0.0, floatval($item['header_margin_top'])) : null;
+        $h_sp_bottom= (isset($item['header_margin_bottom']) && $item['header_margin_bottom'] !== '' && is_numeric($item['header_margin_bottom'])) ? max(5.0, floatval($item['header_margin_bottom'])) : null;
 
         $f_mode     = sanitize_key($item['footer_mode'] ?? 'master');
         $f_company  = !empty($item['footer_company']);
         $f_page_num = !empty($item['footer_page_num']);
         $f_date     = !empty($item['footer_date']);
         $f_custom   = sanitize_textarea_field(wp_unslash($item['footer_custom'] ?? ''));
+
+        $sec_sp_top    = isset($item['spacing_top']) && is_numeric($item['spacing_top']) ? max(0.0, floatval($item['spacing_top'])) : 0.0;
+        $sec_sp_bottom = isset($item['spacing_bottom']) && is_numeric($item['spacing_bottom']) ? max(0.0, floatval($item['spacing_bottom'])) : 0.0;
 
         if (!empty($key) && !isset($seen[$key])) {
             $sanitized[] = [
@@ -1717,11 +2037,15 @@ function crm_save_pdf_section_order(string $doc_type, array $ordered_sections, $
                 'header_logo'    => (bool)$h_logo,
                 'header_address' => (bool)$h_addr,
                 'header_custom'  => $h_custom,
+                'header_margin_top'    => $h_sp_top,
+                'header_margin_bottom' => $h_sp_bottom,
                 'footer_mode'    => $f_mode,
                 'footer_company' => (bool)$f_company,
                 'footer_page_num'=> (bool)$f_page_num,
                 'footer_date'    => (bool)$f_date,
                 'footer_custom'  => $f_custom,
+                'spacing_top'    => $sec_sp_top,
+                'spacing_bottom' => $sec_sp_bottom,
                 'subsections'    => $subsections,
             ];
             $seen[$key] = true;
@@ -1734,13 +2058,18 @@ function crm_save_pdf_section_order(string $doc_type, array $ordered_sections, $
             $default_subs = [];
             if (!empty($d['subsections'])) {
                 foreach ($d['subsections'] as $sk => $sd) {
-                    $default_subs[] = [
-                        'key'       => $sk,
-                        'enabled'   => false,
-                        'is_custom' => false,
-                        'title'     => $sd['title'] ?? '',
-                        'content'   => '',
-                    ];
+                    if (!isset($globally_seen_subs[$sk])) {
+                        $default_subs[] = [
+                            'key'            => $sk,
+                            'enabled'        => false,
+                            'is_custom'      => false,
+                            'title'          => $sd['title'] ?? '',
+                            'content'        => '',
+                            'spacing_top'    => 0.0,
+                            'spacing_bottom' => 0.0,
+                        ];
+                        $globally_seen_subs[$sk] = true;
+                    }
                 }
             }
             $sanitized[] = [
@@ -1755,11 +2084,15 @@ function crm_save_pdf_section_order(string $doc_type, array $ordered_sections, $
                 'header_logo'    => $d['header_logo'] ?? true,
                 'header_address' => $d['header_address'] ?? true,
                 'header_custom'  => '',
+                'header_margin_top'    => null,
+                'header_margin_bottom' => null,
                 'footer_mode'    => $d['footer_mode'] ?? 'master',
                 'footer_company' => $d['footer_company'] ?? true,
                 'footer_page_num'=> $d['footer_page_num'] ?? true,
                 'footer_date'    => $d['footer_date'] ?? false,
                 'footer_custom'  => '',
+                'spacing_top'    => floatval($d['spacing_top'] ?? 0.0),
+                'spacing_bottom' => floatval($d['spacing_bottom'] ?? 0.0),
                 'subsections'    => $default_subs,
             ];
         }
@@ -1771,6 +2104,10 @@ function crm_save_pdf_section_order(string $doc_type, array $ordered_sections, $
     } else {
         $opt_key = 'crm_pdf_section_order_' . $doc_type;
         $saved = update_option($opt_key, $sanitized);
+    }
+
+    if (!$saved && get_option($opt_key) === $sanitized) {
+        $saved = true;
     }
 
     if ($saved && function_exists('crm_on_partial_cache_update')) {
@@ -1804,6 +2141,243 @@ function crm_reset_pdf_section_order(string $doc_type, $entry_id = null): bool
     }
 
     return (bool) $deleted;
+}
+
+/**
+ * Holt den standardmäßig dynamisch generierten HTML-Inhalt eines Unterabschnitts.
+ * Ermöglicht dem Benutzer, das Original-HTML von {standard}-Komponenten in den Editor zu laden.
+ *
+ * @param string $doc_type 'angebot', 'kb', 'tb', 'diplom', 'invoice'
+ * @param string $sec_key Hauptabschnitts-Schlüssel
+ * @param string $sub_key Unterabschnitts-Schlüssel
+ * @param int|null $entry_id Optionaler WPForms Eintrag
+ * @param int|null $course_id Optionaler Kurs-Post-ID
+ * @return string Gerendertes HTML / Vorlagentext
+ */
+function crm_get_subsection_default_html(string $doc_type, string $sec_key, string $sub_key, $entry_id = null, $course_id = null): string
+{
+    $doc_type = strtolower(trim($doc_type));
+    if (empty($doc_type)) {
+        $doc_type = 'angebot';
+    }
+    $sec_key  = sanitize_key($sec_key);
+    $sub_key  = sanitize_key($sub_key);
+    $entry_id = !empty($entry_id) ? absint($entry_id) : null;
+    $course_id = !empty($course_id) ? absint($course_id) : null;
+
+    if (!empty($entry_id) && empty($course_id)) {
+        $course_id = absint(get_post_meta($entry_id, 'course_id', true));
+    }
+
+    if (empty($course_id) && function_exists('crm_get_preview_sample_data')) {
+        $sample = crm_get_preview_sample_data();
+        if (empty($entry_id) && !empty($sample['entry_id'])) {
+            $entry_id = absint($sample['entry_id']);
+        }
+        if (!empty($sample['course_id'])) {
+            $course_id = absint($sample['course_id']);
+        }
+    }
+
+    require_once dirname(__DIR__) . '/crm-model.php';
+    $course = new CRM_Model($course_id ?: 0, $entry_id);
+
+    if ($doc_type === 'angebot_2' && function_exists('crm_resolve_course_certification')) {
+        $course->override_certifications = crm_resolve_course_certification($entry_id, $course_id);
+    }
+
+    $gens = [];
+
+    switch ($doc_type) {
+        case 'angebot':
+        case 'angebot_2':
+            require_once dirname(__DIR__) . '/pdf/elements/offer-elements.php';
+            $angebotsnummer  = 'A_' . ($entry_id ?: '0') . '-' . ($course->post_id ?? '0');
+            $salutation_name = trim($course->salutation . ' ' . trim($course->titel . ' ' . $course->vorname . ' ' . $course->nachname));
+            $salutation_name = preg_replace('/\s+/', ' ', $salutation_name);
+            $angebot_default_intro = 'Danke für Ihr Interesse und willkommen bei der beliebten X SIEBEN Veranstaltung ' . $course->title . ' mit lernförderndem Kleingruppen-Unterricht.<br><br>Diese Veranstaltung fokussiert auf ' . $course->zielgruppe;
+            $angebot_intro = $course->get_crm_field_with_default('Angebot - Einleitung', $angebot_default_intro);
+            $angebot_gruss = $course->get_crm_field_with_default('Angebot - Grußformel', "Ich freue mich über Ihre Rückmeldung / Buchung.<br>\nMit freundlichen Grüßen,");
+            $gens = CRM_Pdf_Offer_Elements::get_subsections_generators($course, [
+                'angebotsnummer'  => $angebotsnummer,
+                'salutation_name' => $salutation_name,
+                'angebot_intro'   => $angebot_intro,
+                'angebot_gruss'   => $angebot_gruss,
+            ]);
+            break;
+
+        case 'kb':
+            require_once dirname(__DIR__) . '/pdf/elements/kb-elements.php';
+            $stempel_file = function_exists('crm_resolve_asset_path') ? crm_resolve_asset_path('stempel.png') : '';
+            $default_kb_institut = !empty($course->company_name) ? $course->company_name : 'X SIEBEN Wirtschaftstraining GmbH';
+            $default_kb_ort      = !empty($course->location_wien) ? ($course->location_wien . ' bzw. online') : 'Rochusgasse 6, 1030 Wien bzw. online';
+            $kb_title        = $course->get_crm_field_with_default('KB - Titel', 'Bestätigung Kurszeiten');
+            $kb_institut     = $course->get_crm_field_with_default('KB - Kursinstitut Name', $default_kb_institut);
+            $kb_ort          = $course->get_crm_field_with_default('KB - Schulungsort', $default_kb_ort);
+            $kb_hinweis      = $course->get_crm_field_with_default('KB - Hinweistext', 'Bei unregelmäßigen Kurszeiten ist ein Ablaufplan der einzelnen Kurswochen beizulegen.');
+            $kurszeiten_datum = date('d.m.Y');
+            $kb_sig_institut = $course->get_crm_field_with_default('KB - Signatur Institut', 'Wien, ' . $kurszeiten_datum . '<br>Unterschrift, Stampiglie Kursinstitut');
+            $kb_sig_kunde    = $course->get_crm_field_with_default('KB - Signatur Kunde', 'Ort, Datum, Unterschrift, Kunde/Kundin');
+            $display_title   = !empty($course->titel_short) ? $course->titel_short : $course->title;
+            $startdatum      = $course->start_datum ?: date('d.m.Y');
+            $enddatum        = $course->end_datum ?: date('d.m.Y');
+            $vorname         = $course->vorname ?: '';
+            $nachname        = $course->nachname ?: '';
+            $svr             = $course->svr ?: '';
+            $kursart_t       = (string)($course->kursart_t ?? '');
+            $kursart_a       = (string)($course->kursart_a ?? '');
+            $kursart_we      = (string)($course->kursart_we ?? '');
+            $kurszeiten      = is_array($course->kurszeiten) ? $course->kurszeiten : [];
+            $selbststudium   = is_array($course->selbststudium) ? $course->selbststudium : [];
+
+            $gens = [
+                'titel'      => ['haupttitel' => CRM_Pdf_Kb_Elements::render_titel($kb_title)],
+                'institut'   => CRM_Pdf_Kb_Elements::get_institut_subs($kb_institut, $kb_ort, $display_title, $startdatum, $enddatum),
+                'teilnehmer' => CRM_Pdf_Kb_Elements::get_teilnehmer_subs($vorname, $nachname, $svr),
+                'kurstyp'    => ['kurstyp_box' => CRM_Pdf_Kb_Elements::render_kurstyp($kursart_t, $kursart_a, $kursart_we)],
+                'kurszeiten' => ['kurszeiten_box' => CRM_Pdf_Kb_Elements::render_kurszeiten($kurszeiten, $selbststudium)],
+                'hinweis'    => ['hinweis_box' => CRM_Pdf_Kb_Elements::render_hinweis($kb_hinweis)],
+                'signatur'   => ['signatur_box' => CRM_Pdf_Kb_Elements::render_signatur($stempel_file, $kb_sig_institut, $kb_sig_kunde)],
+            ];
+            break;
+
+        case 'tb':
+            require_once dirname(__DIR__) . '/pdf/elements/tb-elements.php';
+            $tb_title       = $course->get_crm_field_with_default('TB - Titel', 'Teilnahmebestätigung');
+            $tb_einleitung  = $course->get_crm_field_with_default('TB - Einleitungstext', 'Wir bestätigen, dass');
+            $tb_teilnahme   = $course->get_crm_field_with_default('TB - Teilnahmetext', 'an der Ausbildung: <strong>"' . $course->title . '"</strong> (' . $course->anzahl_le . ' LE) teilgenommen hat.');
+            $tb_datum       = $course->get_crm_field_with_default('TB - Ausstellungsdatum', date('d.m.Y'));
+            $tb_unterschrift= $course->get_crm_field_with_default('TB - Unterschriftszeile', "Mag. Dr. Johannes Gasberger\nGeschäftsführung");
+            $tn_name        = trim($course->anrede . ' ' . $course->vorname . ' ' . $course->nachname);
+            $tn_svr         = $course->svr ?: '';
+            $tn_adresse     = $course->street ?: '';
+            $tn_plz         = $course->postcode ?: '';
+            $tn_ort         = $course->city ?: '';
+            $start_datum    = $course->start_datum ?: date('d.m.Y');
+            $end_datum      = $course->end_datum ?: date('d.m.Y');
+            $tb_betrieb_name= $course->company_name ?: 'X SIEBEN Wirtschaftstraining GmbH';
+            $tb_betrieb_str = $course->company_address ?: 'Rochusgasse 6';
+            $tb_betrieb_plz = '1030';
+            $tb_betrieb_ort = 'Wien';
+            $tb_ort_str     = !empty($course->location_wien) ? $course->location_wien : 'Rochusgasse 6';
+            $tb_ort_plz     = '1030';
+            $tb_ort_ort     = 'Wien';
+
+            $gens = [
+                'titel'              => CRM_Pdf_Tb_Elements::get_titel_subs($tb_title, $tb_einleitung),
+                'teilnehmer'         => ['teilnehmer_box' => CRM_Pdf_Tb_Elements::render_teilnehmer($tn_name, $tn_svr, $tn_adresse, $tn_plz, $tn_ort)],
+                'zeitraum'           => ['zeitraum_box' => CRM_Pdf_Tb_Elements::render_zeitraum($start_datum, $end_datum)],
+                'ausbildungsstaette' => ['ausbildungsstaette_box' => CRM_Pdf_Tb_Elements::render_ausbildungsstaette($tb_betrieb_name, $tb_betrieb_str, $tb_betrieb_plz, $tb_betrieb_ort, $tb_ort_str, $tb_ort_plz, $tb_ort_ort)],
+                'teilnahme'          => ['teilnahme_box' => CRM_Pdf_Tb_Elements::render_teilnahme($tb_teilnahme)],
+                'signatur'           => ['signatur_box' => CRM_Pdf_Tb_Elements::render_signatur($tb_datum, $tb_unterschrift, $course->signatur)],
+            ];
+            break;
+
+        case 'diplom':
+            require_once dirname(__DIR__) . '/pdf/elements/diplom-elements.php';
+            $logo_path        = function_exists('crm_resolve_asset_path') ? crm_resolve_asset_path('logo.png') : '';
+            $stempel_path     = function_exists('crm_resolve_asset_path') ? crm_resolve_asset_path('stempel.png') : '';
+            $full_name_html   = CRM_Pdf_Diplom_Elements::render_name($course->anrede, $course->vorname, $course->nachname, $course->titel);
+            $kurstyp_phrase   = 'HAT DEN LEHRGANG';
+            $main_title_upper = mb_strtoupper($course->title ?: 'KURS', 'UTF-8');
+            $subtitle_upper   = mb_strtoupper($course->titel_short ?: '', 'UTF-8');
+            $anzahl_le        = $course->anzahl_le ?: '0';
+            $start_formatted  = $course->start_datum ?: date('d.m.Y');
+            $end_formatted    = $course->end_datum ?: date('d.m.Y');
+            $diplom_nr        = 'D_' . ($entry_id ?: '0') . '-' . ($course->post_id ?? '0');
+            $issue_date       = date('d.m.Y');
+            $clean_links      = !empty($course->texte_fur_diplom_links) ? $course->texte_fur_diplom_links : 'Einführung in das Themengebiet<br>Erfolgsfaktoren und Zieldefinition<br>Planung und Ressourcensteuerung';
+            $clean_rechts     = !empty($course->texte_fur_diplom_rechts) ? $course->texte_fur_diplom_rechts : 'Vertiefende Fachkompetenzen<br>Agile Methoden und Frameworks<br>Abschließende Reflexion';
+
+            $gens = [
+                'header'          => CRM_Pdf_Diplom_Elements::get_header_subs($logo_path, ''),
+                'titel_absolvent' => CRM_Pdf_Diplom_Elements::get_titel_subs($full_name_html),
+                'lehrgang'        => CRM_Pdf_Diplom_Elements::get_lehrgang_subs($kurstyp_phrase, $main_title_upper, $subtitle_upper, $anzahl_le, $start_formatted, $end_formatted),
+                'abschluss'       => CRM_Pdf_Diplom_Elements::get_abschluss_subs('', 'ERFOLGREICH'),
+                'beglaubigung'    => CRM_Pdf_Diplom_Elements::get_beglaubigung_subs($diplom_nr, $issue_date, $stempel_path),
+                'inhalte'         => CRM_Pdf_Diplom_Elements::get_inhalte_subs($clean_links, $clean_rechts),
+            ];
+            break;
+
+        case 'invoice':
+            require_once dirname(__DIR__) . '/pdf/elements/invoice-elements.php';
+            $clean_course_title = $course->title ?: 'Kurs';
+            $due_date = date('d.m.Y', strtotime('+14 days'));
+            $le_count = $course->anzahl_le ?: 0;
+            $netto_kurs = CRM_Pdf_Presenter::parse_price_float($course->preis_netto ?? 0);
+            if ($netto_kurs == 0.0 && !empty($course->kosten)) {
+                $netto_kurs = CRM_Pdf_Presenter::parse_price_float($course->kosten);
+            }
+            $single_le = !empty($le_count) ? round($netto_kurs / floatval($le_count), 2) : 0;
+            $cert_rows = [];
+            $total_netto = $netto_kurs;
+            $total_ust = round($total_netto * 0.20, 2);
+            $total_brutto = round($total_netto + $total_ust, 2);
+            $hn_einleitung_val = 'Hiermit stellen wir Ihnen nachfolgende Leistungen gemäß unseren Vereinbarungen in Rechnung.';
+            $title_header_subs = CRM_Pdf_Invoice_Elements::get_titel_header_subs(
+                $course->company_name,
+                $course->company_court,
+                $course->company_fn,
+                $course->company_uid,
+                $course->location_wien,
+                $course->company_address,
+                $course->company_phone,
+                $course->company_email
+            );
+            $default_footer_html = CRM_Pdf_Invoice_Elements::render_fusszeile(
+                $course->company_name,
+                $course->company_address,
+                $course->company_phone,
+                $course->company_email,
+                $course->company_fn,
+                $course->company_court,
+                $course->company_uid,
+                $course->bank_iban,
+                $course->bank_bic
+            );
+            $gens = [
+                'titel_header' => $title_header_subs,
+                'kopfzeile'    => $title_header_subs,
+                'empfaenger'   => CRM_Pdf_Invoice_Elements::get_empfaenger_subs($course->format_postal_address('A', true), $course->svr, $due_date, $clean_course_title),
+                'einleitung'   => CRM_Pdf_Invoice_Elements::get_einleitung_subs($hn_einleitung_val),
+                'positionen'   => CRM_Pdf_Invoice_Elements::get_positionen_subs($clean_course_title, $course->start_datum, $course->end_datum, $le_count, $single_le, $netto_kurs, $cert_rows, $total_netto, $total_ust, $total_brutto),
+                'zahlung'      => CRM_Pdf_Invoice_Elements::get_zahlung_subs($due_date, $course->company_name),
+                'signatur'     => ['aussteller_info' => $default_footer_html],
+                'fusszeile'    => ['aussteller_info' => $default_footer_html],
+            ];
+            break;
+    }
+
+    $html = '';
+    if (isset($gens[$sec_key][$sub_key])) {
+        $html = $gens[$sec_key][$sub_key];
+    } else {
+        foreach ($gens as $s_k => $subs) {
+            if (is_array($subs) && isset($subs[$sub_key])) {
+                $html = $subs[$sub_key];
+                break;
+            }
+        }
+    }
+
+    // Fallback falls kein HTML-Generator greift, aber Standard-Definition Text enthält
+    if (empty($html)) {
+        $defs = crm_get_pdf_sections_definitions($doc_type);
+        $sub_def = $defs[$sec_key]['subsections'][$sub_key] ?? null;
+        if (!$sub_def) {
+            foreach ($defs as $s_k => $s_d) {
+                if (!empty($s_d['subsections'][$sub_key])) {
+                    $sub_def = $s_d['subsections'][$sub_key];
+                    break;
+                }
+            }
+        }
+        if ($sub_def && !empty($sub_def['default_content']) && $sub_def['default_content'] !== '{standard}') {
+            $html = crm_replace_pdf_placeholders($sub_def['default_content'], $course);
+        }
+    }
+
+    return trim((string)$html);
 }
 
 /**
@@ -1898,11 +2472,15 @@ function crm_render_pdf_sections_manager(string $doc_type = 'angebot', $entry_id
                     data-header-logo="<?php echo !empty($sec['header_logo']) ? '1' : '0'; ?>"
                     data-header-address="<?php echo !empty($sec['header_address']) ? '1' : '0'; ?>"
                     data-header-custom="<?php echo esc_attr($sec['header_custom'] ?? ''); ?>"
+                    data-header-margin-top="<?php echo isset($sec['header_margin_top']) && $sec['header_margin_top'] !== null && $sec['header_margin_top'] !== '' ? esc_attr($sec['header_margin_top']) : ''; ?>"
+                    data-header-margin-bottom="<?php echo isset($sec['header_margin_bottom']) && $sec['header_margin_bottom'] !== null && $sec['header_margin_bottom'] !== '' ? esc_attr($sec['header_margin_bottom']) : ''; ?>"
                     data-footer-mode="<?php echo esc_attr($sec['footer_mode'] ?? 'master'); ?>"
                     data-footer-company="<?php echo !empty($sec['footer_company']) ? '1' : '0'; ?>"
                     data-footer-page-num="<?php echo !empty($sec['footer_page_num']) ? '1' : '0'; ?>"
                     data-footer-date="<?php echo !empty($sec['footer_date']) ? '1' : '0'; ?>"
                     data-footer-custom="<?php echo esc_attr($sec['footer_custom'] ?? ''); ?>"
+                    data-spacing-top="<?php echo esc_attr($sec['spacing_top'] ?? 0); ?>"
+                    data-spacing-bottom="<?php echo esc_attr($sec['spacing_bottom'] ?? 0); ?>"
                     style="margin-bottom:9px; background:#ffffff; border:1px solid <?php echo $is_enabled ? '#cbd5e1' : '#e2e8f0'; ?>; border-left:4px solid <?php echo esc_attr($item_color); ?>; border-radius:6px; box-shadow:0 1px 2px rgba(0,0,0,0.03); transition:all 0.15s ease;">
 
                     <!-- Section Item Header Bar -->
@@ -1949,6 +2527,18 @@ function crm_render_pdf_sections_manager(string $doc_type = 'angebot', $entry_id
                                 </div>
                             <?php endif; ?>
                         </div>
+
+                        <!-- Spacing Toggle Pill -->
+                        <?php
+                        $sec_sp_top = isset($sec['spacing_top']) ? floatval($sec['spacing_top']) : 0;
+                        $sec_sp_bottom = isset($sec['spacing_bottom']) ? floatval($sec['spacing_bottom']) : 0;
+                        $spacing_summary = sprintf(__('Abstand: ↑%s pt / ↓%s pt', 'custom-crm'), $sec_sp_top, $sec_sp_bottom);
+                        ?>
+                        <button type="button" class="button-link crm-toggle-spacing-btn" title="<?php esc_attr_e('Abstand oben & unten für dieses Element anpassen', 'custom-crm'); ?>" style="font-size:10px; font-weight:600; padding:2px 7px; border-radius:12px; background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; display:inline-flex; align-items:center; gap:3px; text-decoration:none; cursor:pointer; user-select:none; white-space:nowrap;" onclick="event.preventDefault(); event.stopPropagation(); jQuery(this).closest('.crm-pdf-section-item').find('> .crm-spacing-drawer').slideToggle(180);">
+                            <span class="dashicons dashicons-editor-expand" style="font-size:12px; width:12px; height:12px; line-height:12px;"></span>
+                            <span class="crm-spacing-summary-text"><?php echo esc_html($spacing_summary); ?></span>
+                            <span class="crm-spacing-chevron">&#x25BE;</span>
+                        </button>
 
                         <!-- Header & Footer Toggle Pill -->
                         <?php $hf_summary = crm_get_pdf_hf_summary_label($sec); ?>
@@ -2030,6 +2620,27 @@ function crm_render_pdf_sections_manager(string $doc_type = 'angebot', $entry_id
                                     </label>
                                     <textarea class="crm-hf-header-custom" rows="2" style="width:100%; font-size:11px; font-family:monospace;" placeholder="<?php esc_attr_e('HTML oder Platzhalter wie {kurstitel}...', 'custom-crm'); ?>"><?php echo esc_textarea($sec['header_custom'] ?? ''); ?></textarea>
                                 </div>
+
+                                <div class="crm-hf-header-spacing-row" style="display:flex; gap:10px; margin-top:8px; padding-top:8px; border-top:1px dashed #cbd5e1;">
+                                    <div style="flex:1;">
+                                        <label style="display:block; font-size:10px; font-weight:600; color:#475569; margin-bottom:2px;" title="<?php esc_attr_e('Y-Abstand von oberer Blattkante bis Beginn Header in mm', 'custom-crm'); ?>">
+                                            <?php esc_html_e('Header-Abstand oben (mm):', 'custom-crm'); ?>
+                                        </label>
+                                        <input type="number" step="0.5" min="0" max="100" class="crm-hf-header-margin-top regular-text"
+                                               style="width:100%; height:26px; font-size:11px;"
+                                               value="<?php echo isset($sec['header_margin_top']) && $sec['header_margin_top'] !== null && $sec['header_margin_top'] !== '' ? esc_attr($sec['header_margin_top']) : ''; ?>"
+                                               placeholder="<?php esc_attr_e('Master: 8', 'custom-crm'); ?>">
+                                    </div>
+                                    <div style="flex:1;">
+                                        <label style="display:block; font-size:10px; font-weight:600; color:#475569; margin-bottom:2px;" title="<?php esc_attr_e('Abstand von oberer Blattkante bis Beginn Dokumenteninhalt in mm', 'custom-crm'); ?>">
+                                            <?php esc_html_e('Abstand Inhalt (mm):', 'custom-crm'); ?>
+                                        </label>
+                                        <input type="number" step="0.5" min="5" max="150" class="crm-hf-header-margin-bottom regular-text"
+                                               style="width:100%; height:26px; font-size:11px;"
+                                               value="<?php echo isset($sec['header_margin_bottom']) && $sec['header_margin_bottom'] !== null && $sec['header_margin_bottom'] !== '' ? esc_attr($sec['header_margin_bottom']) : ''; ?>"
+                                               placeholder="<?php esc_attr_e('Master: 32', 'custom-crm'); ?>">
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- FUSSZEILE (FOOTER) -->
@@ -2079,6 +2690,33 @@ function crm_render_pdf_sections_manager(string $doc_type = 'angebot', $entry_id
                         </div>
                     </div>
 
+                    <!-- Spacing Drawer (Initially Collapsed) -->
+                    <div class="crm-spacing-drawer" style="display:none; padding:10px 14px; background:#f0fdf4; border-top:1px solid #bbf7d0; border-bottom:1px solid #cbd5e1;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+                            <span style="font-size:11.5px; font-weight:700; color:#15803d; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:5px;">
+                                <span class="dashicons dashicons-editor-expand" style="font-size:14px; width:14px; height:14px;"></span>
+                                <?php esc_html_e('Element-Abstände (in pt):', 'custom-crm'); ?>
+                            </span>
+                            <small style="color:#64748b; font-size:10.5px;">
+                                <?php esc_html_e('0 pt = Standard-Layout / kein Zusatzabstand. 10 pt entsprechen ca. 3,5 mm.', 'custom-crm'); ?>
+                            </small>
+                        </div>
+                        <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <label style="font-size:11px; font-weight:600; color:#334155;">
+                                    <?php esc_html_e('Abstand oben (pt):', 'custom-crm'); ?>
+                                </label>
+                                <input type="number" step="1" min="0" max="300" class="crm-sec-spacing-top" value="<?php echo esc_attr($sec_sp_top); ?>" style="width:75px; height:28px; font-size:11.5px; text-align:center;">
+                            </div>
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <label style="font-size:11px; font-weight:600; color:#334155;">
+                                    <?php esc_html_e('Abstand unten (pt):', 'custom-crm'); ?>
+                                </label>
+                                <input type="number" step="1" min="0" max="300" class="crm-sec-spacing-bottom" value="<?php echo esc_attr($sec_sp_bottom); ?>" style="width:75px; height:28px; font-size:11.5px; text-align:center;">
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Subsections Drawer (Initially Collapsed) -->
                     <div class="crm-subsections-drawer" style="display:none; padding:10px 14px 12px 14px; background:#f8fafc; border-top:1px solid #e2e8f0; border-radius:0 0 6px 6px;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid #e2e8f0;">
@@ -2086,12 +2724,12 @@ function crm_render_pdf_sections_manager(string $doc_type = 'angebot', $entry_id
                                 <?php esc_html_e('Unterabschnitte dieser Seite:', 'custom-crm'); ?>
                             </span>
                             <small style="color:#64748b; font-size:10.5px;">
-                                <?php esc_html_e('Ziehen zum Sortieren | Häkchen zum Ein-/Ausblenden', 'custom-crm'); ?>
+                                <?php esc_html_e('Ziehen zum Sortieren & Seitenwechsel | Häkchen zum Ein-/Ausblenden', 'custom-crm'); ?>
                             </small>
                         </div>
 
                         <!-- Nested Sortable Subsections List -->
-                        <ul class="crm-sortable-subsections" style="list-style:none; margin:0 0 10px 0; padding:0;">
+                        <ul class="crm-sortable-subsections" style="list-style:none; margin:0 0 10px 0; padding:4px; min-height:35px; border-radius:4px;">
                             <?php if (!empty($sec['subsections'])) :
                                 foreach ($sec['subsections'] as $sub) :
                                     $sub_enabled = !empty($sub['enabled']);
@@ -2104,12 +2742,14 @@ function crm_render_pdf_sections_manager(string $doc_type = 'angebot', $entry_id
                                     data-orig-title="<?php echo esc_attr($sub['orig_title'] ?? $sub['title']); ?>"
                                     data-content="<?php echo esc_attr($sub['content'] ?? ''); ?>"
                                     data-default-content="<?php echo esc_attr($sub['default_content'] ?? ''); ?>"
+                                    data-spacing-top="<?php echo esc_attr($sub['spacing_top'] ?? 0); ?>"
+                                    data-spacing-bottom="<?php echo esc_attr($sub['spacing_bottom'] ?? 0); ?>"
                                     style="display:block; margin-bottom:6px; background:#ffffff; border:1px solid <?php echo $sub_enabled ? '#cbd5e1' : '#e2e8f0'; ?>; border-radius:5px; transition:all 0.12s ease; overflow:hidden;">
 
                                     <!-- Sub Row Bar -->
                                     <div class="crm-sub-row" style="display:flex; align-items:center; gap:8px; padding:6px 10px; cursor:grab;">
                                         <!-- Sub Drag Handle -->
-                                        <span class="crm-sub-drag-handle" title="<?php esc_attr_e('Ziehen zum Sortieren', 'custom-crm'); ?>" style="color:#94a3b8; font-size:14px; cursor:grab; user-select:none;">
+                                        <span class="crm-sub-drag-handle" title="<?php esc_attr_e('Ziehen zum Sortieren & Seitenwechsel', 'custom-crm'); ?>" style="color:#94a3b8; font-size:14px; cursor:grab; user-select:none;">
                                             &#x22EE;&#x22EE;
                                         </span>
 
@@ -2170,8 +2810,31 @@ function crm_render_pdf_sections_manager(string $doc_type = 'angebot', $entry_id
                                             <input type="text" class="crm-sub-input-title regular-text" value="<?php echo esc_attr($sub['title']); ?>" style="width:100%; height:26px; font-size:11.5px;">
                                         </div>
 
+                                        <!-- Spacing Inputs for Subsections -->
+                                        <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px; background:#ffffff; padding:6px 10px; border-radius:4px; border:1px solid #e2e8f0;">
+                                            <span style="font-size:10.5px; font-weight:700; color:#15803d; display:inline-flex; align-items:center; gap:3px;">
+                                                <span class="dashicons dashicons-editor-expand" style="font-size:12px; width:12px; height:12px;"></span>
+                                                <?php esc_html_e('Abstand (in pt):', 'custom-crm'); ?>
+                                            </span>
+                                            <div style="display:flex; align-items:center; gap:4px;">
+                                                <label style="font-size:10.5px; font-weight:600; color:#334155;">
+                                                    <?php esc_html_e('Oben:', 'custom-crm'); ?>
+                                                </label>
+                                                <input type="number" step="1" min="0" max="300" class="crm-sub-spacing-top" value="<?php echo esc_attr($sub['spacing_top'] ?? 0); ?>" style="width:65px; height:24px; font-size:11px; text-align:center;">
+                                            </div>
+                                            <div style="display:flex; align-items:center; gap:4px;">
+                                                <label style="font-size:10.5px; font-weight:600; color:#334155;">
+                                                    <?php esc_html_e('Unten:', 'custom-crm'); ?>
+                                                </label>
+                                                <input type="number" step="1" min="0" max="300" class="crm-sub-spacing-bottom" value="<?php echo esc_attr($sub['spacing_bottom'] ?? 0); ?>" style="width:65px; height:24px; font-size:11px; text-align:center;">
+                                            </div>
+                                            <span style="font-size:9.5px; color:#64748b; margin-left:auto;">
+                                                <?php esc_html_e('0 = kein Zusatzabstand', 'custom-crm'); ?>
+                                            </span>
+                                        </div>
+
                                         <div style="margin-bottom:6px;">
-                                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                                                 <label style="font-size:10.5px; font-weight:600; color:#334155;">
                                                     <?php esc_html_e('Inhalt / Text / HTML:', 'custom-crm'); ?>
                                                 </label>
@@ -2181,10 +2844,33 @@ function crm_render_pdf_sections_manager(string $doc_type = 'angebot', $entry_id
                                                     </span>
                                                 <?php endif; ?>
                                             </div>
+
+                                            <?php if (!$sub_custom) : ?>
+                                                <div class="crm-sub-standard-notice" style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:4px; padding:6px 10px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                                                    <div style="font-size:10px; color:#166534; line-height:1.35;">
+                                                        <span class="dashicons dashicons-editor-code" style="font-size:13px; width:13px; height:13px; vertical-align:middle; color:#15803d;"></span>
+                                                        <strong><?php esc_html_e('Standard-Komponente:', 'custom-crm'); ?></strong>
+                                                        <span class="crm-standard-notice-text">
+                                                            <?php echo !empty($sub['content']) ? esc_html__('Aktuell angepasst. Klicken Sie auf den Button, um den System-Standard neu zu laden.', 'custom-crm') : esc_html__('Dynamischer Systemstandard. Klicken Sie auf den Button, um das Original-HTML in diesen Editor zu laden und frei anzupassen.', 'custom-crm'); ?>
+                                                        </span>
+                                                    </div>
+                                                    <button type="button"
+                                                            class="button button-small crm-sub-load-standard-btn"
+                                                            data-doc="<?php echo esc_attr($doc_type); ?>"
+                                                            data-sec="<?php echo esc_attr($sec['key']); ?>"
+                                                            data-sub="<?php echo esc_attr($sub['key']); ?>"
+                                                            title="<?php esc_attr_e('Vollständiges Standard-HTML dieses Elements in das Textfeld laden', 'custom-crm'); ?>"
+                                                            style="background:#007C90; color:#ffffff; border-color:#007C90; font-size:10.5px; height:24px; line-height:22px; padding:0 8px; white-space:nowrap; display:inline-flex; align-items:center; gap:3px; cursor:pointer;">
+                                                        ⚡ <?php esc_html_e('Standard-HTML laden', 'custom-crm'); ?>
+                                                    </button>
+                                                </div>
+                                            <?php endif; ?>
+
                                             <?php
                                             $sub_content_display = !empty($sub['content']) ? $sub['content'] : (!empty($sub['default_content']) ? $sub['default_content'] : '');
+                                            $textarea_rows = (strlen($sub_content_display) > 200) ? 8 : 4;
                                             ?>
-                                            <textarea class="crm-sub-input-content" rows="4" style="width:100%; font-size:11.5px; font-family:monospace; line-height:1.4;" placeholder="<?php esc_attr_e('Standardinhalt bearbeiten oder eigenen Text eingeben...', 'custom-crm'); ?>"><?php echo esc_textarea($sub_content_display); ?></textarea>
+                                            <textarea class="crm-sub-input-content" rows="<?php echo $textarea_rows; ?>" style="width:100%; font-size:11.5px; font-family:monospace; line-height:1.4;" placeholder="<?php esc_attr_e('Standardinhalt bearbeiten oder eigenen Text eingeben...', 'custom-crm'); ?>"><?php echo esc_textarea($sub_content_display); ?></textarea>
                                         </div>
 
                                         <!-- Placeholder Chips -->

@@ -240,24 +240,10 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
         $wba_logo_html = '<img src="' . esc_attr(crm_resolve_asset_path('wba-1.png')) . '" width="75">';
     }
 
+    require_once __DIR__ . '/elements/diplom-elements.php';
+
     // Fußzeilen-Tabelle mit Partnerlogos
-    $bottom_certs_html = '
-    <table cellspacing="0" cellpadding="0" style="width: 100%; text-align: center;">
-        <tr>
-            <td style="width: 25%; vertical-align: middle; text-align: center;">
-                <img src="' . esc_attr(crm_resolve_asset_path('oecert.png')) . '" height="24" style="height: 24px;">
-            </td>
-            <td style="width: 25%; vertical-align: middle; text-align: center;">
-                <img src="' . esc_attr(crm_resolve_asset_path('tuef.png')) . '" height="28" style="height: 28px;">
-            </td>
-            <td style="width: 25%; vertical-align: middle; text-align: center;">
-                <img src="' . esc_attr(crm_resolve_asset_path('system-1.png')) . '" height="22" style="height: 22px;">
-            </td>
-            <td style="width: 25%; vertical-align: middle; text-align: center;">
-                <img src="' . esc_attr(crm_resolve_asset_path('PMA-1.png')) . '" height="26" style="height: 26px;">
-            </td>
-        </tr>
-    </table>';
+    $bottom_certs_html = CRM_Pdf_Diplom_Elements::render_guetesiegel();
 
     // Ausbildungsinhalte aus ACF-Feldern: "diplom links" und "diplom rechts"
     $clean_links  = crm_clean_diplom_html($course->texte_fur_diplom_links ?? (function_exists('get_field') ? get_field('texte_fur_diplom_links', $course_id) : ''));
@@ -269,19 +255,6 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
         $clean_rechts = 'Vertiefende Fachkompetenzen<br>Agile Methoden und Frameworks<br>Qualitätssicherung und Prozessoptimierung<br>Abschließende Reflexion und Praxistransfer';
     }
 
-    $inhalte_html = '
-    <table cellspacing="0" cellpadding="0" style="width: 100%;">
-        <tr>
-            <td style="width: 48%; vertical-align: top; text-align: center; font-size: 6.2pt; line-height: 1.2; color: #1e293b;">
-                ' . $clean_links . '
-            </td>
-            <td style="width: 4%;"></td>
-            <td style="width: 48%; vertical-align: top; text-align: center; font-size: 6.2pt; line-height: 1.2; color: #1e293b;">
-                ' . $clean_rechts . '
-            </td>
-        </tr>
-    </table>';
-
     // Prüfungsabschluss-Satz je nach Erfolgs-Typ
     $exam_suffix = $succ_info['has_mit'] ? ' MIT' : '';
 
@@ -290,50 +263,51 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
     $kurstyp_phrase = crm_get_diplom_kurstyp_phrase($kurstyp_raw);
 
     // Standard-Vorlagen für Abschnitte und Unterabschnitte
-    $dip_header_subs = [
-        'logo_links' => '<td style="width: 60%; text-align: left; vertical-align: top;"><img src="' . esc_attr($logo_path) . '" width="135"></td>',
-        'logo_wba'   => '<td style="width: 40%; text-align: right; vertical-align: top;">' . $wba_logo_html . '</td>',
+    $dip_header_subs       = CRM_Pdf_Diplom_Elements::get_header_subs($logo_path, $wba_logo_html);
+    $dip_titel_subs        = CRM_Pdf_Diplom_Elements::get_titel_subs($full_name_html);
+    $dip_lehrgang_subs     = CRM_Pdf_Diplom_Elements::get_lehrgang_subs($kurstyp_phrase, $main_title_upper, $subtitle_upper, $anzahl_le, $start_formatted, $end_formatted);
+    $dip_abschluss_subs    = CRM_Pdf_Diplom_Elements::get_abschluss_subs($exam_suffix, $succ_info['text']);
+    $dip_beglaubigung_subs = CRM_Pdf_Diplom_Elements::get_beglaubigung_subs($diplom_nr, $issue_date, $stempel_path);
+    $dip_inhalte_subs      = CRM_Pdf_Diplom_Elements::get_inhalte_subs($clean_links, $clean_rechts);
+
+    $dip_subsections = [
+        'header'          => $dip_header_subs,
+        'titel_absolvent' => $dip_titel_subs,
+        'lehrgang'        => $dip_lehrgang_subs,
+        'abschluss'       => $dip_abschluss_subs,
+        'beglaubigung'    => $dip_beglaubigung_subs,
+        'inhalte'         => $dip_inhalte_subs,
     ];
 
-    $dip_titel_subs = [
-        'haupttitel'     => '<div style="font-size: 24pt; font-weight: bold; color: #007C90; letter-spacing: 5px;">D I P L O M</div><div style="font-size: 4pt;">&nbsp;</div>',
-        'absolvent_name' => '<div style="font-size: 17pt; color: #0f172a;">' . $full_name_html . '</div><div style="font-size: 5pt;">&nbsp;</div>',
-    ];
-
-    $dip_lehrgang_subs = [
-        'lehrgang_titel'    => '<div style="font-size: 8pt; color: #64748b; letter-spacing: 2px;">' . esc_html($kurstyp_phrase) . '</div><div style="font-size: 3pt;">&nbsp;</div><div style="font-size: 13.5pt; font-weight: bold; color: #0f172a; letter-spacing: 0.5px;">' . esc_html($main_title_upper) . '</div>' . (!empty($subtitle_upper) ? '<div style="font-size: 10pt; font-weight: bold; color: #0f172a; letter-spacing: 1px;">' . esc_html($subtitle_upper) . '</div>' : '') . '<div style="font-size: 4pt;">&nbsp;</div>',
-        'lehrgang_zeitraum' => '<div style="font-size: 7pt; color: #475569; letter-spacing: 0.3px; line-height: 1.35;">IM AUSMASS VON ' . $anzahl_le . ' LEHREINHEITEN A’ JE 45 MINUTEN<br>IM ZEITRAUM VOM ' . $start_formatted . ' BIS ZUM ' . $end_formatted . ' BESUCHT</div><div style="font-size: 4pt;">&nbsp;</div>',
-    ];
-
-    $dip_abschluss_subs = [
-        'abschluss_formel' => '<div style="font-size: 7pt; color: #475569; letter-spacing: 0.3px; line-height: 1.35;">UND NACH POSITIVER BEGUTACHTUNG DER ABSCHLUSSARBEIT SOWIE ERFOLGREICHER<br>ABSOLVIERUNG DER SCHRIFTLICHEN ABSCHLUSSPRÜFUNG' . $exam_suffix . '</div><div style="font-size: 4pt;">&nbsp;</div>',
-        'erfolg_grad'      => '<div style="font-size: 13.5pt; font-weight: bold; color: #0f172a; letter-spacing: 1.5px;">' . esc_html($succ_info['text']) . '</div><div style="font-size: 2pt;">&nbsp;</div><div style="font-size: 7.5pt; color: #64748b; letter-spacing: 1px;">ABGESCHLOSSEN.</div><div style="font-size: 4pt;">&nbsp;</div>',
-    ];
-
-    $dip_beglaubigung_subs = [
-        'diplom_nr'               => '<div style="font-size: 7.5pt; font-weight: bold; color: #334155; letter-spacing: 0.5px;">DIPLOM-NUMMER ' . $diplom_nr . ' - WIEN, ' . $issue_date . '</div><div style="font-size: 4pt;">&nbsp;</div>',
-        'stampiglie_unterschrift' => '<div style="font-size: 7.5pt; font-weight: bold; color: #0f172a;">X SIEBEN WIRTSCHAFTSTRAINING GmbH</div><div style="padding-top: 1px; padding-bottom: 1px;"><img src="' . esc_attr($stempel_path) . '" width="120"></div><div style="font-size: 8pt; font-weight: bold; color: #0f172a; line-height: 1.1;">Mag. Dr. Johannes Gasberger</div><div style="font-size: 7pt; color: #475569;">Institutsleiter</div><div style="font-size: 4pt;">&nbsp;</div>',
-    ];
-
-    $dip_inhalte_subs = [
-        'inhalte_titel'  => '<div style="font-size: 4pt;">&nbsp;</div><div style="text-align: center; font-size: 8pt; font-weight: bold; color: #0f172a; letter-spacing: 3px;">A U S B I L D U N G S I N H A L T E</div><div style="font-size: 3pt;">&nbsp;</div>',
-        'inhalte_matrix' => $inhalte_html,
-    ];
+    $flattened_sub_generators = [];
+    foreach ($dip_subsections as $sec_k => $subs) {
+        if (is_array($subs)) {
+            foreach ($subs as $sub_k => $sub_gen) {
+                $flattened_sub_generators[$sub_k] = $sub_gen;
+            }
+        }
+    }
 
     $footer_certs_final = $bottom_certs_html;
 
     // Abschnitte abrufen und ggf. filtern
-    $all_sections = crm_get_pdf_section_order('diplom', $entry_id);
-    if (is_array($custom_sections) && !empty($custom_sections)) {
-        $allowed_keys = is_string(reset($custom_sections)) ? $custom_sections : array_column($custom_sections, 'key');
-        $filtered = [];
-        foreach ($all_sections as $sec) {
-            if (in_array($sec['key'], $allowed_keys, true)) {
-                $filtered[] = $sec;
+    if (is_array($custom_sections) && !empty($custom_sections) && is_array(reset($custom_sections)) && isset(reset($custom_sections)['key'])) {
+        $all_sections = $custom_sections;
+    } else {
+        $all_sections = crm_get_pdf_section_order('diplom', $entry_id);
+        // Filter falls $custom_sections als Key-Liste übergeben wurde
+        if (is_array($custom_sections) && !empty($custom_sections)) {
+            $allowed_keys = is_string(reset($custom_sections)) ? $custom_sections : array_column($custom_sections, 'key');
+            $filtered = [];
+            foreach ($all_sections as $sec) {
+                if (in_array($sec['key'], $allowed_keys, true)) {
+                    $filtered[] = $sec;
+                }
             }
+            $all_sections = $filtered;
         }
-        $all_sections = $filtered;
     }
+    $global_spacing = function_exists('crm_get_pdf_elements_spacing') ? crm_get_pdf_elements_spacing() : ['spacing_top' => 0, 'spacing_bottom' => 0];
 
     $html = '';
     foreach ($all_sections as $sec) {
@@ -344,8 +318,14 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
             continue;
         }
 
-        $sec_key   = $sec['key'];
-        $is_custom = !empty($sec['is_custom']);
+        $sec_key     = $sec['key'];
+        $is_custom   = !empty($sec['is_custom']);
+        $sec_spacing = function_exists('crm_get_pdf_effective_spacing')
+            ? crm_get_pdf_effective_spacing($sec, $global_spacing)
+            : ['top' => 0, 'bottom' => 0];
+        $sec_prefix  = function_exists('crm_get_pdf_spacing_html') ? crm_get_pdf_spacing_html($sec_spacing['top']) : '';
+        $sec_suffix  = function_exists('crm_get_pdf_spacing_html') ? crm_get_pdf_spacing_html($sec_spacing['bottom']) : '';
+        $sec_content = '';
 
         if ($is_custom) {
             $custom_body = '<div style="margin-bottom:6px; font-size:8pt; text-align:center;">';
@@ -357,13 +337,41 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
             }
             if (!empty($sec['subsections'])) {
                 foreach ($sec['subsections'] as $sub) {
-                    if (!empty($sub['enabled']) && !empty($sub['content'])) {
-                        $custom_body .= '<div style="margin-top:4px;">' . crm_replace_pdf_placeholders(nl2br($sub['content']), $course) . '</div>';
+                    if (empty($sub['enabled'])) continue;
+                    $sub_sp_top = isset($sub['spacing_top']) && is_numeric($sub['spacing_top']) ? floatval($sub['spacing_top']) : 0.0;
+                    $sub_sp_bottom = isset($sub['spacing_bottom']) && is_numeric($sub['spacing_bottom']) ? floatval($sub['spacing_bottom']) : 0.0;
+                    $sub_prefix = ($sub_sp_top > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_top) : '';
+                    $sub_suffix = ($sub_sp_bottom > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_bottom) : '';
+
+                    $sk = $sub['key'] ?? '';
+                    $sub_html = '';
+                    if (!empty($sub['is_custom'])) {
+                        if (!empty($sub['title'])) {
+                            $sub_html .= '<div style="font-weight:bold; font-size:9pt; margin-top:4px; margin-bottom:2px;">' . esc_html($sub['title']) . '</div>';
+                        }
+                        if (!empty($sub['content'])) {
+                            $sub_html .= '<div style="margin-top:2px;">' . crm_replace_pdf_placeholders(nl2br($sub['content']), $course) . '</div>';
+                        }
+                    } elseif (isset($flattened_sub_generators[$sk])) {
+                        $def_sub = $flattened_sub_generators[$sk];
+                        if (!empty($sub['content']) && $sub['content'] !== '{standard}') {
+                            $custom = (strpos($sub['content'], '{standard}') !== false)
+                                ? str_replace('{standard}', $def_sub, $sub['content'])
+                                : $sub['content'];
+                            $sub_html .= crm_replace_pdf_placeholders($custom, $course);
+                        } else {
+                            $sub_html .= $def_sub;
+                        }
+                    } elseif (!empty($sub['content'])) {
+                        $sub_html .= '<div style="margin-top:2px;">' . crm_replace_pdf_placeholders(nl2br($sub['content']), $course) . '</div>';
+                    }
+                    if (!empty($sub_html)) {
+                        $custom_body .= $sub_prefix . $sub_html . $sub_suffix;
                     }
                 }
             }
             $custom_body .= '</div>';
-            $html .= '<table cellspacing="0" cellpadding="0" style="width: 100%; text-align: center;"><tr><td>' . $custom_body . '</td></tr></table>';
+            $sec_content = '<table cellspacing="0" cellpadding="0" style="width: 100%; text-align: center;"><tr><td>' . $custom_body . '</td></tr></table>';
 
         } elseif ($sec_key === 'header') {
             $tds = [];
@@ -373,8 +381,8 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
                     $sk = $sub['key'];
                     if (!empty($sub['is_custom']) && !empty($sub['content'])) {
                         $tds[] = '<td style="text-align:center; vertical-align:top;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</td>';
-                    } elseif (isset($dip_header_subs[$sk])) {
-                        $def_sub = $dip_header_subs[$sk];
+                    } elseif (isset($dip_header_subs[$sk]) || isset($flattened_sub_generators[$sk])) {
+                        $def_sub = $dip_header_subs[$sk] ?? $flattened_sub_generators[$sk];
                         if (!empty($sub['content'])) {
                             if (strpos($sub['content'], '{standard}') !== false) {
                                 $custom = str_replace('{standard}', $def_sub, $sub['content']);
@@ -391,7 +399,7 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
                 $tds = array_values($dip_header_subs);
             }
             if (!empty($tds)) {
-                $html .= '<table cellspacing="0" cellpadding="0" style="width: 100%;"><tr>' . implode('', $tds) . '</tr></table><div style="font-size: 8pt;">&nbsp;</div>';
+                $sec_content = '<table cellspacing="0" cellpadding="0" style="width: 100%;"><tr>' . implode('', $tds) . '</tr></table><div style="font-size: 8pt;">&nbsp;</div>';
             }
 
         } elseif ($sec_key === 'titel_absolvent') {
@@ -402,8 +410,8 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
                     $sk = $sub['key'];
                     if (!empty($sub['is_custom']) && !empty($sub['content'])) {
                         $inner .= '<div style="margin:4px 0;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
-                    } elseif (isset($dip_titel_subs[$sk])) {
-                        $def_sub = $dip_titel_subs[$sk];
+                    } elseif (isset($dip_titel_subs[$sk]) || isset($flattened_sub_generators[$sk])) {
+                        $def_sub = $dip_titel_subs[$sk] ?? $flattened_sub_generators[$sk];
                         if (!empty($sub['content'])) {
                             if (strpos($sub['content'], '{standard}') !== false) {
                                 $custom = str_replace('{standard}', $def_sub, $sub['content']);
@@ -420,7 +428,7 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
                 $inner = implode('', $dip_titel_subs);
             }
             if (!empty($inner)) {
-                $html .= '<table cellspacing="0" cellpadding="0" style="width: 100%; text-align: center;"><tr><td>' . $inner . '</td></tr></table>';
+                $sec_content = '<table cellspacing="0" cellpadding="0" style="width: 100%; text-align: center;"><tr><td>' . $inner . '</td></tr></table>';
             }
 
         } elseif ($sec_key === 'lehrgang') {
@@ -431,8 +439,8 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
                     $sk = $sub['key'];
                     if (!empty($sub['is_custom']) && !empty($sub['content'])) {
                         $inner .= '<div style="margin:4px 0;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
-                    } elseif (isset($dip_lehrgang_subs[$sk])) {
-                        $def_sub = $dip_lehrgang_subs[$sk];
+                    } elseif (isset($dip_lehrgang_subs[$sk]) || isset($flattened_sub_generators[$sk])) {
+                        $def_sub = $dip_lehrgang_subs[$sk] ?? $flattened_sub_generators[$sk];
                         if (!empty($sub['content'])) {
                             if (strpos($sub['content'], '{standard}') !== false) {
                                 $custom = str_replace('{standard}', $def_sub, $sub['content']);
@@ -449,7 +457,7 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
                 $inner = implode('', $dip_lehrgang_subs);
             }
             if (!empty($inner)) {
-                $html .= '<table cellspacing="0" cellpadding="0" style="width: 100%; text-align: center;"><tr><td>' . $inner . '</td></tr></table>';
+                $sec_content = '<table cellspacing="0" cellpadding="0" style="width: 100%; text-align: center;"><tr><td>' . $inner . '</td></tr></table>';
             }
 
         } elseif ($sec_key === 'abschluss') {
@@ -460,8 +468,8 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
                     $sk = $sub['key'];
                     if (!empty($sub['is_custom']) && !empty($sub['content'])) {
                         $inner .= '<div style="margin:4px 0;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
-                    } elseif (isset($dip_abschluss_subs[$sk])) {
-                        $def_sub = $dip_abschluss_subs[$sk];
+                    } elseif (isset($dip_abschluss_subs[$sk]) || isset($flattened_sub_generators[$sk])) {
+                        $def_sub = $dip_abschluss_subs[$sk] ?? $flattened_sub_generators[$sk];
                         if (!empty($sub['content'])) {
                             if (strpos($sub['content'], '{standard}') !== false) {
                                 $custom = str_replace('{standard}', $def_sub, $sub['content']);
@@ -478,7 +486,7 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
                 $inner = implode('', $dip_abschluss_subs);
             }
             if (!empty($inner)) {
-                $html .= '<table cellspacing="0" cellpadding="0" style="width: 100%; text-align: center;"><tr><td>' . $inner . '</td></tr></table>';
+                $sec_content = '<table cellspacing="0" cellpadding="0" style="width: 100%; text-align: center;"><tr><td>' . $inner . '</td></tr></table>';
             }
 
         } elseif ($sec_key === 'beglaubigung') {
@@ -489,8 +497,8 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
                     $sk = $sub['key'];
                     if (!empty($sub['is_custom']) && !empty($sub['content'])) {
                         $inner .= '<div style="margin:4px 0;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
-                    } elseif (isset($dip_beglaubigung_subs[$sk])) {
-                        $def_sub = $dip_beglaubigung_subs[$sk];
+                    } elseif (isset($dip_beglaubigung_subs[$sk]) || isset($flattened_sub_generators[$sk])) {
+                        $def_sub = $dip_beglaubigung_subs[$sk] ?? $flattened_sub_generators[$sk];
                         if (!empty($sub['content'])) {
                             if (strpos($sub['content'], '{standard}') !== false) {
                                 $custom = str_replace('{standard}', $def_sub, $sub['content']);
@@ -507,7 +515,7 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
                 $inner = implode('', $dip_beglaubigung_subs);
             }
             if (!empty($inner)) {
-                $html .= '<table cellspacing="0" cellpadding="0" style="width: 100%; text-align: center;"><tr><td>' . $inner . '</td></tr></table>';
+                $sec_content = '<table cellspacing="0" cellpadding="0" style="width: 100%; text-align: center;"><tr><td>' . $inner . '</td></tr></table>';
             }
 
         } elseif ($sec_key === 'inhalte') {
@@ -518,8 +526,8 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
                     $sk = $sub['key'];
                     if (!empty($sub['is_custom']) && !empty($sub['content'])) {
                         $inner .= '<div style="margin:4px 0; text-align:center;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
-                    } elseif (isset($dip_inhalte_subs[$sk])) {
-                        $def_sub = $dip_inhalte_subs[$sk];
+                    } elseif (isset($dip_inhalte_subs[$sk]) || isset($flattened_sub_generators[$sk])) {
+                        $def_sub = $dip_inhalte_subs[$sk] ?? $flattened_sub_generators[$sk];
                         if (!empty($sub['content'])) {
                             if (strpos($sub['content'], '{standard}') !== false) {
                                 $custom = str_replace('{standard}', $def_sub, $sub['content']);
@@ -536,7 +544,7 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
                 $inner = implode('', $dip_inhalte_subs);
             }
             if (!empty($inner)) {
-                $html .= $inner;
+                $sec_content = $inner;
             }
 
         } elseif ($sec_key === 'guetesiegel') {
@@ -553,6 +561,10 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
                     }
                 }
             }
+        }
+
+        if (!empty($sec_content)) {
+            $html .= $sec_prefix . $sec_content . $sec_suffix;
         }
     }
 

@@ -13,6 +13,12 @@ class COURSE_Model
 
     // Kursdetails
     public $angebot_beschreibung, $anzahl_le, $uebungseinheiten;
+    public $le_praesenz, $le_selbststudium, $le_projekt_transfer;
+    public $durchfuehrungsmodus, $startgarantie, $teilnehmer_max;
+    public $ust_satz, $kosten_pruefung, $kosten_unterlagen_inkl;
+    public $api_ams_publish, $api_waff_publish, $seminarnummer, $waff_themencode, $bildungskarenz_geeignet, $wba_punkte;
+    public $abschluss_typ, $mindestanwesenheit_prozent, $pruefungsmodus, $diplom_text_links, $diplom_text_rechts;
+    public $online_plattform;
     public $kurstyp, $abschluss, $kursart, $kurszeiten, $selbststudium;
     public $termin_auf_anfrage, $fernlehre_ohne_praesenz, $barrierefreier_zugang, $kinderbetreuung, $spezielles_uebungsangebot;
     public $teilnehmer_min, $seminarplatze, $unterrichtssprache, $lehrmethode, $ermaessigungen;
@@ -29,9 +35,11 @@ class COURSE_Model
     public $image_3col;
 
     public $large_desktop_url;
-    // Zertifizierungen
+    // Zertifizierungen & Repeatable Fields
     public $zertifizierungen = [];
     public $zertifizierungen_images = [];
+    public $terminplan_repeater = [];
+    public $voraussetzungen_repeater = [];
 
     // Kampagne & Klassifizierungen
     public $education_term, $isced_kategorie, $nqr_kategorie, $kampagne;
@@ -87,7 +95,7 @@ class COURSE_Model
 $this->preis_netto = !empty($tempKosten) ? (float)$tempKosten : 0;
 
 // Brutto-Preis (numeric)
-$this->preis_brutto = $this->preis_netto * 1.2;
+$this->preis_brutto = round($this->preis_netto * 1.2, 2);
 
 // Formatted versions (strings for display)
 $this->preis_netto_formatted = number_format($this->preis_netto, 2, ",", ".");
@@ -129,10 +137,15 @@ $this->le_single = $this->anzahl_le > 0 ? number_format($this->preis_brutto / $t
                 $this->zertifizierungen[] = [
                     'name' => get_sub_field('name-zert'),
                     'preis' => get_sub_field('preis'),
-                    'ust' => get_sub_field('Ust_satz')
+                    'ust' => get_sub_field('Ust_satz'),
+                    'beschreibung' => get_sub_field('beschreibungtooltip'),
                 ];
             }
         }
+
+        // Repeatable Fields: Terminplan & Voraussetzungen
+        $this->terminplan_repeater = $this->get_terminplan_repeater();
+        $this->voraussetzungen_repeater = $this->get_voraussetzungen_repeater();
         // Meta data for SEO
         $this->meta_data = [
             'yoast_title'       => $this->get_yoast_title(),
@@ -140,36 +153,65 @@ $this->le_single = $this->anzahl_le > 0 ? number_format($this->preis_brutto / $t
             'yoast_focuskw'     => get_post_meta($this->post_id, '_yoast_wpseo_focuskw', true), // optional
             'yoast_primary_cat' => get_post_meta($this->post_id, '_yoast_wpseo_primary_category', true), // optional
         ];
-        // Kursarten
+        // Kursarten & Altlasten-Fallbacks
         $this->kursart = get_post_meta($post_id, 'tages_abend_wochenende_', true);
+        if (is_array($this->kursart)) {
+            $this->kursart = reset($this->kursart);
+        }
         $this->kurszeiten = $this->build_days(get_field("kurszeiten", $post_id));
-        $this->selbststudium = $this->build_days(get_field("selbststudium", $post_id), true);
+        $selbst_raw = get_field("selbststudium", $post_id) ?: get_field("selbstudium", $post_id);
+        $this->selbststudium = $this->build_days($selbst_raw, true);
 
         // Typ & Abschluss
         $this->kurstyp = $this->get_coursetype();
-        $this->abschluss = get_post_meta($post_id, "zertifikat", true);
+        $this->abschluss = get_post_meta($post_id, "zertifikat", true) ?: get_post_meta($post_id, "abschluss", true);
 
         // Zielgruppe & PDF
         $this->zielgruppe = sanitize_text_field(get_field('teilnehmeruberblick', $post_id));
         $this->termine_pdf = get_field('kurszeiten_details_pdf', $post_id);
 
         // Booleans & Teilnehmer
+        $this->durchfuehrungsmodus = get_post_meta($post_id, "durchfuehrungsmodus", true);
+        $this->startgarantie = (int)get_post_meta($post_id, "startgarantie", true);
         $this->termin_auf_anfrage = (int)get_post_meta($post_id, "termin_auf_anfrage", true);
         $this->fernlehre_ohne_praesenz = (int)(get_post_meta($post_id, "fernlehre_ohne_praesenz", true) ?: 1);
         $this->barrierefreier_zugang = (int)get_post_meta($post_id, "barrierefreier_zugang", true);
         $this->kinderbetreuung = (int)get_post_meta($post_id, "kinderbetreuung", true);
-        $this->spezielles_uebungsangebot = (int)get_post_meta($post_id, "spezielles_uebungsangebot", true);
+        $this->spezielles_uebungsangebot = (int)(get_post_meta($post_id, "spezielles_uebungsangebot", true) ?: get_post_meta($post_id, "spezielles_ubungsangebot", true));
         $this->teilnehmer_min = (int)(get_post_meta($post_id, "teilnehmer_min", true) ?: 1);
-        $this->seminarplatze = get_post_meta($post_id, "seminarplatze", true);
+        $this->seminarplatze = get_post_meta($post_id, "seminarplatze", true) ?: get_field('maximale_gruppengrose', $post_id);
+        $this->teilnehmer_max = (int)$this->seminarplatze;
         $this->unterrichtssprache = trim((string)get_post_meta($post_id, "unterrichtssprache", true));
         $this->lehrmethode = trim((string)get_post_meta($post_id, "lehrmethode", true));
         $this->ermaessigungen = trim((string)get_post_meta($post_id, "ermaessigungen", true));
 
-        // Klassifizierungen
+        // LE-Splitting & Finanzen
+        $this->le_praesenz = (int)get_post_meta($post_id, "le_praesenz", true);
+        $this->le_selbststudium = (int)get_post_meta($post_id, "le_selbststudium", true);
+        $this->le_projekt_transfer = (int)get_post_meta($post_id, "le_projekt_transfer", true);
+        $this->ust_satz = get_post_meta($post_id, "ust_satz", true) !== '' ? (float)get_post_meta($post_id, "ust_satz", true) : 20.0;
+        $this->kosten_pruefung = (float)get_post_meta($post_id, "kosten_pruefung", true);
+        $this->kosten_unterlagen_inkl = (int)get_post_meta($post_id, "kosten_unterlagen_inkl", true);
+
+        // Förderungen & Schnittstellen
+        $this->api_ams_publish = (int)get_post_meta($post_id, "api_ams_publish", true);
+        $this->seminarnummer = trim((string)get_post_meta($post_id, "seminarnummer", true));
+        $this->api_waff_publish = (int)get_post_meta($post_id, "api_waff_publish", true);
+        $this->waff_themencode = trim((string)get_post_meta($post_id, "waff_themencode", true));
         $this->education_term = get_post_meta($post_id, "waff_number", true);
         $this->isced_kategorie = trim(get_post_meta($post_id, "isced_kategorie", true));
         $this->nqr_kategorie = trim(get_post_meta($post_id, "nqr_kategorie", true));
+        $this->bildungskarenz_geeignet = (int)get_post_meta($post_id, "bildungskarenz_geeignet", true);
+        $this->wba_punkte = trim((string)get_post_meta($post_id, "wba_punkte", true));
         $this->kampagne = !empty(trim(get_post_meta($post_id, "kampagne", true))) ? trim(get_post_meta($post_id, "kampagne", true)) : 'elearn,digi';
+
+        // Abschluss & Diplom
+        $this->abschluss_typ = get_post_meta($post_id, "abschluss_typ", true);
+        $this->mindestanwesenheit_prozent = get_post_meta($post_id, "mindestanwesenheit_prozent", true) ?: 75;
+        $this->pruefungsmodus = get_post_meta($post_id, "pruefungsmodus", true);
+        $this->diplom_text_links = get_post_meta($post_id, "diplom_text_links", true) ?: get_field('texte_fur_diplom_links', $post_id);
+        $this->diplom_text_rechts = get_post_meta($post_id, "diplom_text_rechts", true) ?: get_field('texte_fur_diplom_rechts', $post_id);
+        $this->online_plattform = trim((string)get_post_meta($post_id, "online_plattform", true));
 
         // Kontaktperson
         $this->kontakt = [
@@ -224,10 +266,44 @@ $this->le_single = $this->anzahl_le > 0 ? number_format($this->preis_brutto / $t
                     'nr' => get_sub_field('modul'),
                     'titel' => get_sub_field('modul_titel'),
                     'le' => get_sub_field('anzahl_le'),
+                    'inhalte' => get_sub_field('inhalte') ?: '',
+                    'trainer' => get_sub_field('trainer') ?: '',
                 ];
             }
         }
         return $modules;
+    }
+
+    private function get_terminplan_repeater(): array
+    {
+        $termine = [];
+        if (have_rows('nachster_termine', $this->post_id)) {
+            while (have_rows('nachster_termine', $this->post_id)) {
+                the_row();
+                $datum_raw = get_sub_field('datum');
+                $termine[] = [
+                    'datum' => !empty($datum_raw) && strtotime($datum_raw) ? date('d.m.Y', strtotime($datum_raw)) : $datum_raw,
+                    'trainer_kurzel' => get_sub_field('trainer_kurzel'),
+                    'inhalte' => get_sub_field('inhalte'),
+                ];
+            }
+        }
+        return $termine;
+    }
+
+    private function get_voraussetzungen_repeater(): array
+    {
+        $voraussetzungen = [];
+        if (have_rows('voraussetzungen_abschluss', $this->post_id)) {
+            while (have_rows('voraussetzungen_abschluss', $this->post_id)) {
+                the_row();
+                $req = trim((string)get_sub_field('requirements'));
+                if (!empty($req)) {
+                    $voraussetzungen[] = $req;
+                }
+            }
+        }
+        return $voraussetzungen;
     }
 
     private function get_inhalte_dyn(string $accordion_title = 'Inhalte'): array

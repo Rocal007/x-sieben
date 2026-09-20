@@ -57,20 +57,20 @@ function xsieben_invoice_pdf($entry_id, $course_id, $output_to_browser = true, $
     $customer_city       = trim(($course->zip_code ?? '') . ' ' . ($course->city ?? ''));
 
     // Preis- und Mengenberechnung
-    $netto_kurs  = !empty($course->preis_netto) ? (float)str_replace(['.', ','], ['', '.'], (string)$course->preis_netto) : 0.0;
+    $netto_kurs  = CRM_Pdf_Presenter::parse_price_float($course->preis_netto ?? 0);
     if ($netto_kurs == 0.0 && !empty($course->kosten)) {
-        $netto_kurs = (float)$course->kosten;
+        $netto_kurs = CRM_Pdf_Presenter::parse_price_float($course->kosten);
     }
     $ust_satz    = 20.00;
-    $ust_kurs    = ($netto_kurs / 100) * $ust_satz;
-    $brutto_kurs = $netto_kurs + $ust_kurs;
+    $ust_kurs    = round(($netto_kurs / 100) * $ust_satz, 2);
+    $brutto_kurs = round($netto_kurs + $ust_kurs, 2);
 
     $total_netto  = $netto_kurs;
     $total_ust    = $ust_kurs;
     $total_brutto = $brutto_kurs;
 
     $le_count  = !empty($course->anzahl_le) ? (int)$course->anzahl_le : 1;
-    $single_le = $le_count > 0 ? ($netto_kurs / $le_count) : $netto_kurs;
+    $single_le = $le_count > 0 ? round($netto_kurs / $le_count, 2) : $netto_kurs;
 
     // Zertifizierungen hinzurechnen falls vorhanden
     $cert_rows = '';
@@ -78,17 +78,16 @@ function xsieben_invoice_pdf($entry_id, $course_id, $output_to_browser = true, $
     if (!empty($certifications_data) && is_array($certifications_data)) {
         foreach ($certifications_data as $cert) {
             $c_name  = htmlspecialchars($clean_text($cert['name']));
-            $c_price = (float)str_replace(['.', ','], ['', '.'], $cert['price'] ?? 0);
-            $pct_raw = rtrim($cert['percentage'] ?? '20', '%');
-            $c_ust_satz = ($pct_raw === 'N/A' || empty($pct_raw)) ? 20.00 : (float)$pct_raw;
+            $c_price = CRM_Pdf_Presenter::parse_price_float($cert['price'] ?? 0);
+            $pct_raw = rtrim((string)($cert['percentage'] ?? '20'), '%');
+            $c_ust_satz = ($pct_raw === 'N/A' || empty($pct_raw)) ? 20.00 : CRM_Pdf_Presenter::parse_price_float($pct_raw);
 
-            $c_ust    = ($c_price / (100 + $c_ust_satz)) * $c_ust_satz;
-            $c_netto  = $c_price - $c_ust;
-            $c_brutto = $c_price;
+            $c_ust    = round(($c_price / (100 + $c_ust_satz)) * $c_ust_satz, 2);
+            $c_netto  = round($c_price - $c_ust, 2);
+            $c_brutto = round($c_netto + $c_ust, 2);
 
             $total_netto  += $c_netto;
             $total_ust    += $c_ust;
-            $total_brutto += $c_brutto;
 
             $cert_rows .= '
             <tr>
@@ -99,6 +98,10 @@ function xsieben_invoice_pdf($entry_id, $course_id, $output_to_browser = true, $
             </tr>';
         }
     }
+
+    $total_netto  = round($total_netto, 2);
+    $total_ust    = round($total_ust, 2);
+    $total_brutto = round($total_netto + $total_ust, 2);
 
     // Logo ermitteln (mit URL-Fallback für Live-Server)
     $logo_src  = crm_resolve_asset_path('xsieben_logo.png');
@@ -113,123 +116,50 @@ function xsieben_invoice_pdf($entry_id, $course_id, $output_to_browser = true, $
     $hn_zahlung_raw    = $course->get_crm_field_with_default('Honorarnote - Zahlungsanweisung', 'Bitte überweisen Sie den Betrag bis zum {expire} auf das Konto von X SIEBEN Wirtschaftstraining GmbH.<br>IBAN: AT29 3293 7001 0012 5260 | BIC: RLNWATWWWRN');
     $hn_zahlung_raw    = str_replace('[Datum]', $due_date, $hn_zahlung_raw);
 
+    require_once __DIR__ . '/elements/invoice-elements.php';
+
     // Standard HTML Subsections
-    $title_header_subs = [
-        'rechnung_titel' => '<table cellspacing="0" cellpadding="0" style="width: 100%;">
-            <tr>
-                <td style="font-size: 15pt; font-weight: bold; color: #007C90; text-align: center;">
-                    ' . htmlspecialchars($hn_title_val) . '
-                </td>
-            </tr>
-        </table>
-        <div style="font-size: 4pt">&nbsp;</div>',
+    $title_header_subs = CRM_Pdf_Invoice_Elements::get_titel_subs($hn_title_val, $invoice_num, $invoice_date);
 
-        'nummer_datum' => '<table cellspacing="0" cellpadding="2" style="width: 100%; font-size: 8.5pt; border-bottom: 1px solid #007C90; padding-bottom: 3px;">
-            <tr>
-                <td style="width: 50%; color: #334155;"><strong>Rechnungsnummer:</strong> ' . htmlspecialchars($invoice_num) . '</td>
-                <td style="width: 50%; text-align: right; color: #334155;"><strong>Datum:</strong> ' . htmlspecialchars($invoice_date) . '</td>
-            </tr>
-        </table>
-        <div style="font-size: 6pt">&nbsp;</div>',
-    ];
-
-    $default_footer_html = '<table cellpadding="0" cellspacing="0" style="width: 100%; border-top: 1px solid #cbd5e1; padding-top: 5px; font-size: 7.5pt; color: #64748b; line-height: 1.35;">
-        <tr>
-            <td style="width: 55%;">
-                <strong>' . htmlspecialchars($course->company_name) . '</strong><br>
-                Geschäftsführung: ' . htmlspecialchars($course->company_management) . '<br>
-                Firmenbuchgericht: ' . htmlspecialchars($course->company_court) . ' | ' . htmlspecialchars($course->company_fn) . ' | UID: ' . htmlspecialchars($course->company_uid) . '
-            </td>
-            <td style="width: 45%; text-align: right;">
-                <strong>Seminarzentrum:</strong> ' . htmlspecialchars($course->location_wien) . '<br>
-                <strong>Zentrale:</strong> ' . htmlspecialchars($course->company_address) . '<br>
-                Tel: ' . htmlspecialchars($course->company_phone) . ' | ' . htmlspecialchars($course->company_email) . '
-            </td>
-        </tr>
-    </table>';
+    $default_footer_html = CRM_Pdf_Invoice_Elements::render_fusszeile(
+        $course->company_name,
+        $course->company_management,
+        $course->company_court,
+        $course->company_fn,
+        $course->company_uid,
+        $course->location_wien,
+        $course->company_address,
+        $course->company_phone,
+        $course->company_email
+    );
 
     $subsections_generators = [
         'titel_header' => $title_header_subs,
         'kopfzeile'    => $title_header_subs,
 
-        'empfaenger' => [
-            'kundendaten' => '<table cellspacing="0" cellpadding="4" style="width: 100%; border: 1px solid #e2e8f0; background-color: #f8fafc; font-size: 9pt;">
-                <tr>
-                    <td style="width: 62%; vertical-align: top; font-size: 9pt; line-height: 13pt;">
-                        <span style="color: #007C90; font-size: 7.5pt; font-weight: bold; text-transform: uppercase;">Rechnungsempfänger:</span><br>
-                        ' . $course->format_postal_address('A', true) . '
-                    </td>
-                    <td style="width: 38%; vertical-align: top; text-align: right; font-size: 8.5pt; color: #334155; line-height: 1.4;">
-                        ' . (!empty($course->svr) ? '<strong>SV-Nummer:</strong> ' . htmlspecialchars((string)$course->svr) . '<br>' : '') . '
-                        <strong>Zahlungsziel:</strong> ' . htmlspecialchars($due_date) . '
-                    </td>
-                </tr>
-            </table>',
+        'empfaenger' => CRM_Pdf_Invoice_Elements::get_empfaenger_subs(
+            $course->format_postal_address('A', true),
+            $course->svr,
+            $due_date,
+            $clean_course_title
+        ),
 
-            'veranstaltung_ref' => '<div style="font-size: 4pt">&nbsp;</div>
-            <div style="font-size: 9pt; color: #334155;">
-                <strong>Veranstaltung:</strong> ' . htmlspecialchars($clean_course_title) . '
-            </div>
-            <div style="font-size: 6pt">&nbsp;</div>',
-        ],
+        'einleitung' => CRM_Pdf_Invoice_Elements::get_einleitung_subs($hn_einleitung_val),
 
-        'einleitung' => [
-            'einleitungstext' => '<div style="font-size: 9.5pt; color: #0f172a; margin-bottom: 4px;">
-                ' . $hn_einleitung_val . '
-            </div>',
-        ],
+        'positionen' => CRM_Pdf_Invoice_Elements::get_positionen_subs(
+            $clean_course_title,
+            $course->start_datum,
+            $course->end_datum,
+            $le_count,
+            $single_le,
+            $netto_kurs,
+            $cert_rows,
+            $total_netto,
+            $total_ust,
+            $total_brutto
+        ),
 
-        'positionen' => [
-            'positionen_tabelle' => '<table cellpadding="5" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; font-size: 9pt;">
-                <thead>
-                    <tr style="background-color: #007C90; color: #ffffff;">
-                        <th style="width: 55%; text-align: left; font-weight: bold; padding: 5px 6px;">Leistung / Kurs</th>
-                        <th style="width: 12%; text-align: center; font-weight: bold; padding: 5px 4px;">Menge</th>
-                        <th style="width: 16%; text-align: right; font-weight: bold; padding: 5px 6px;">Einzelpreis</th>
-                        <th style="width: 17%; text-align: right; font-weight: bold; padding: 5px 6px;">Gesamt Netto</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td style="border-bottom: 1px solid #cbd5e1; padding: 6px;">
-                            <strong>' . htmlspecialchars($clean_course_title) . '</strong><br>
-                            <span style="font-size: 8pt; color: #64748b;">Leistungszeitraum: ' . htmlspecialchars($course->start_datum) . ' bis ' . htmlspecialchars($course->end_datum) . '</span>
-                        </td>
-                        <td style="border-bottom: 1px solid #cbd5e1; text-align: center; padding: 6px;">' . $le_count . ' LE</td>
-                        <td style="border-bottom: 1px solid #cbd5e1; text-align: right; padding: 6px;">' . number_format($single_le, 2, ',', '.') . ' €</td>
-                        <td style="border-bottom: 1px solid #cbd5e1; text-align: right; padding: 6px;">' . number_format($netto_kurs, 2, ',', '.') . ' €</td>
-                    </tr>
-                    ' . $cert_rows . '
-                </tbody>
-            </table>',
-
-            'gesamtbetrag' => '<table cellpadding="2" cellspacing="0" border="0" width="100%" style="font-size: 9pt; margin-top: 3px;">
-                <tr>
-                    <td style="width: 72%; text-align: right; color: #64748b;">Summe Netto:</td>
-                    <td style="width: 28%; text-align: right; font-weight: bold; color: #0f172a;">' . number_format($total_netto, 2, ',', '.') . ' €</td>
-                </tr>
-                <tr>
-                    <td style="width: 72%; text-align: right; color: #64748b; font-size: 8.5pt;">+ 20,00% USt:</td>
-                    <td style="width: 28%; text-align: right; color: #64748b; font-size: 8.5pt;">' . number_format($total_ust, 2, ',', '.') . ' €</td>
-                </tr>
-                <tr style="background-color: #f1f5f9;">
-                    <td style="width: 72%; text-align: right; font-size: 10.5pt; font-weight: bold; color: #007C90; border-top: 1.5px solid #007C90; border-bottom: 1.5px solid #007C90; padding: 4px;">Gesamtbetrag (Brutto):</td>
-                    <td style="width: 28%; text-align: right; font-size: 10.5pt; font-weight: bold; color: #007C90; border-top: 1.5px solid #007C90; border-bottom: 1.5px solid #007C90; padding: 4px;">' . number_format($total_brutto, 2, ',', '.') . ' €</td>
-                </tr>
-            </table>
-            <div style="font-size: 6pt">&nbsp;</div>',
-        ],
-
-        'zahlung' => [
-            'zahlungsziel' => '<div style="font-size: 9pt; line-height: 1.4; color: #334155;">
-                Bitte überweisen Sie den Betrag bis zum <strong>' . htmlspecialchars($due_date) . '</strong> auf das Konto von ' . htmlspecialchars($course->company_name) . '.
-            </div>',
-
-            'bankverbindung' => '<div style="font-size: 9pt; font-weight: bold; color: #007C90; margin-top: 3px;">
-                IBAN: AT29 3293 7001 0012 5260 | BIC: RLNWATWWWRN (Raiffeisenlandesbank NÖ-Wien)
-            </div>
-            <div style="font-size: 8pt">&nbsp;</div>',
-        ],
+        'zahlung' => CRM_Pdf_Invoice_Elements::get_zahlung_subs($due_date, $course->company_name),
 
         'signatur' => [
             'aussteller_info' => $default_footer_html,
@@ -239,37 +169,43 @@ function xsieben_invoice_pdf($entry_id, $course_id, $output_to_browser = true, $
         ],
     ];
 
-    // Briefkopf & Firmen-Kopfzeile
-    $html_header = '
-    <table cellpadding="0" cellspacing="0" style="width: 100%; border-bottom: 2px solid #007C90; padding-bottom: 6px; margin-bottom: 6px;">
-        <tr>
-            <td style="width: 55%; vertical-align: middle;">
-                ' . $logo_html . '
-            </td>
-            <td style="width: 45%; vertical-align: middle; text-align: right; font-size: 7.5pt; color: #64748b; line-height: 1.3;">
-                <strong>' . htmlspecialchars($course->company_name) . '</strong><br>
-                ' . htmlspecialchars($course->location_wien) . '<br>
-                Zentrale: ' . htmlspecialchars($course->company_address) . '<br>
-                ' . htmlspecialchars($course->company_email) . ' | ' . htmlspecialchars($course->company_website) . '
-            </td>
-        </tr>
-    </table>
-    <div style="font-size: 4pt">&nbsp;</div>';
-
-    // Holen der geordneten Abschnitte
-    $all_sections = crm_get_pdf_section_order('invoice', $entry_id);
-
-    // Filter falls $custom_sections übergeben wurde
-    if (is_array($custom_sections) && !empty($custom_sections)) {
-        $allowed_keys = is_string(reset($custom_sections)) ? $custom_sections : array_column($custom_sections, 'key');
-        $filtered = [];
-        foreach ($all_sections as $sec) {
-            if (in_array($sec['key'], $allowed_keys, true)) {
-                $filtered[] = $sec;
+    $flattened_sub_generators = [];
+    foreach ($subsections_generators as $sec_k => $subs) {
+        if (is_array($subs)) {
+            foreach ($subs as $sub_k => $sub_html) {
+                $flattened_sub_generators[$sub_k] = $sub_html;
             }
         }
-        $all_sections = $filtered;
     }
+
+    // Briefkopf & Firmen-Kopfzeile
+    $html_header = CRM_Pdf_Invoice_Elements::render_header(
+        $logo_html,
+        $course->company_name,
+        $course->location_wien,
+        $course->company_address,
+        $course->company_email,
+        $course->company_website
+    );
+
+    // Holen der geordneten Abschnitte
+    if (is_array($custom_sections) && !empty($custom_sections) && is_array(reset($custom_sections)) && isset(reset($custom_sections)['key'])) {
+        $all_sections = $custom_sections;
+    } else {
+        $all_sections = crm_get_pdf_section_order('invoice', $entry_id);
+        // Filter falls $custom_sections als Key-Liste übergeben wurde
+        if (is_array($custom_sections) && !empty($custom_sections)) {
+            $allowed_keys = is_string(reset($custom_sections)) ? $custom_sections : array_column($custom_sections, 'key');
+            $filtered = [];
+            foreach ($all_sections as $sec) {
+                if (in_array($sec['key'], $allowed_keys, true)) {
+                    $filtered[] = $sec;
+                }
+            }
+            $all_sections = $filtered;
+        }
+    }
+    $global_spacing = function_exists('crm_get_pdf_elements_spacing') ? crm_get_pdf_elements_spacing() : ['spacing_top' => 0, 'spacing_bottom' => 0];
 
     $body_html = '';
     $footer_html = '';
@@ -283,8 +219,14 @@ function xsieben_invoice_pdf($entry_id, $course_id, $output_to_browser = true, $
             continue;
         }
 
-        $sec_key   = $sec['key'];
-        $is_custom = !empty($sec['is_custom']);
+        $sec_key     = $sec['key'];
+        $is_custom   = !empty($sec['is_custom']);
+        $sec_spacing = function_exists('crm_get_pdf_effective_spacing')
+            ? crm_get_pdf_effective_spacing($sec, $global_spacing)
+            : ['top' => 0, 'bottom' => 0];
+        $sec_prefix  = function_exists('crm_get_pdf_spacing_html') ? crm_get_pdf_spacing_html($sec_spacing['top']) : '';
+        $sec_suffix  = function_exists('crm_get_pdf_spacing_html') ? crm_get_pdf_spacing_html($sec_spacing['bottom']) : '';
+        $sec_html    = '';
 
         // Signatur / Fußzeile wird im TCPDF Footer fixiert, nicht im Fließtext
         if (in_array($sec_key, ['signatur', 'fusszeile', 'footer'], true)) {
@@ -317,15 +259,19 @@ function xsieben_invoice_pdf($entry_id, $course_id, $output_to_browser = true, $
 
         if ($is_custom) {
             if (!empty($sec['title'])) {
-                $body_html .= '<div style="font-size:11pt; font-weight:bold; color:#007C90; margin-top:8px; margin-bottom:4px;">' . esc_html($sec['title']) . '</div>';
+                $sec_html .= '<div style="font-size:11pt; font-weight:bold; color:#007C90; margin-top:8px; margin-bottom:4px;">' . esc_html($sec['title']) . '</div>';
             }
             if (!empty($sec['content'])) {
-                $body_html .= '<div style="font-size:9pt; line-height:1.4;">' . crm_replace_pdf_placeholders($sec['content'], $course) . '</div>';
+                $sec_html .= '<div style="font-size:9pt; line-height:1.4;">' . crm_replace_pdf_placeholders($sec['content'], $course) . '</div>';
             }
             if (!empty($sec['subsections'])) {
                 foreach ($sec['subsections'] as $sub) {
                     if (!empty($sub['enabled']) && !empty($sub['content'])) {
-                        $body_html .= '<div style="font-size:9pt; line-height:1.4; margin-top:4px;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
+                        $sub_sp_top = isset($sub['spacing_top']) && is_numeric($sub['spacing_top']) ? floatval($sub['spacing_top']) : 0.0;
+                        $sub_sp_bottom = isset($sub['spacing_bottom']) && is_numeric($sub['spacing_bottom']) ? floatval($sub['spacing_bottom']) : 0.0;
+                        $sub_prefix = ($sub_sp_top > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_top) : '';
+                        $sub_suffix = ($sub_sp_bottom > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_bottom) : '';
+                        $sec_html .= $sub_prefix . '<div style="font-size:9pt; line-height:1.4; margin-top:4px;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>' . $sub_suffix;
                     }
                 }
             }
@@ -336,32 +282,46 @@ function xsieben_invoice_pdf($entry_id, $course_id, $output_to_browser = true, $
                         continue;
                     }
                     $sub_key = $sub['key'];
+                    $sub_sp_top = isset($sub['spacing_top']) && is_numeric($sub['spacing_top']) ? floatval($sub['spacing_top']) : 0.0;
+                    $sub_sp_bottom = isset($sub['spacing_bottom']) && is_numeric($sub['spacing_bottom']) ? floatval($sub['spacing_bottom']) : 0.0;
+                    $sub_prefix = ($sub_sp_top > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_top) : '';
+                    $sub_suffix = ($sub_sp_bottom > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_bottom) : '';
+                    $sub_html = '';
+
                     if (!empty($sub['is_custom'])) {
                         if (!empty($sub['title'])) {
-                            $body_html .= '<div style="font-size:9.5pt; font-weight:bold; color:#0f172a; margin-top:6px; margin-bottom:2px;">' . esc_html($sub['title']) . '</div>';
+                            $sub_html .= '<div style="font-size:9.5pt; font-weight:bold; color:#0f172a; margin-top:6px; margin-bottom:2px;">' . esc_html($sub['title']) . '</div>';
                         }
                         if (!empty($sub['content'])) {
-                            $body_html .= '<div style="font-size:9pt; line-height:1.4;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
+                            $sub_html .= '<div style="font-size:9pt; line-height:1.4;">' . crm_replace_pdf_placeholders($sub['content'], $course) . '</div>';
                         }
-                    } elseif (isset($subsections_generators[$sec_key][$sub_key])) {
-                        $default_sub = $subsections_generators[$sec_key][$sub_key];
+                    } elseif (isset($subsections_generators[$sec_key][$sub_key]) || isset($flattened_sub_generators[$sub_key])) {
+                        $default_sub = $subsections_generators[$sec_key][$sub_key] ?? $flattened_sub_generators[$sub_key];
                         if (!empty($sub['content'])) {
                             if (strpos($sub['content'], '{standard}') !== false) {
                                 $custom_sub = str_replace('{standard}', $default_sub, $sub['content']);
                             } else {
                                 $custom_sub = $sub['content'];
                             }
-                            $body_html .= crm_replace_pdf_placeholders($custom_sub, $course);
+                            $sub_html .= crm_replace_pdf_placeholders($custom_sub, $course);
                         } else {
-                            $body_html .= $default_sub;
+                            $sub_html .= $default_sub;
                         }
+                    }
+
+                    if (!empty($sub_html)) {
+                        $sec_html .= $sub_prefix . $sub_html . $sub_suffix;
                     }
                 }
             } else {
                 if (isset($subsections_generators[$sec_key])) {
-                    $body_html .= implode('', $subsections_generators[$sec_key]);
+                    $sec_html .= implode('', $subsections_generators[$sec_key]);
                 }
             }
+        }
+
+        if (!empty($sec_html)) {
+            $body_html .= $sec_prefix . $sec_html . $sec_suffix;
         }
     }
 
