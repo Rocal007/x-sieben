@@ -271,6 +271,7 @@ class CrmSeniorDevTestSuite
         $this->testSuite25_TestEmailDeliveryAndTransparency();
         $this->testSuite26_AgbOnlineLinkPolicy();
         $this->testSuite27_PdfSpacingAndPageBreakIntegrity();
+        $this->testSuite28_TinyMceCrmHtmlPreservation();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -2187,6 +2188,59 @@ class CrmSeniorDevTestSuite
         // 5. tab-pdf.php enthält Hinweis auf HTML / Text Umschaltung
         $tabPdf = file_get_contents(dirname(__DIR__) . '/views/settings/tab-pdf.php');
         $this->assert("tab-pdf.php enthält Hinweis auf HTML / Text Umschaltung", strpos($tabPdf, 'Text / HTML') !== false);
+    }
+
+    /**
+     * [SUITE 28] TinyMCE HTML-Toleranz & CRM-Isolation (v2.18.77)
+     */
+    public function testSuite28_TinyMceCrmHtmlPreservation(): void
+    {
+        echo "\n\033[1;33m[SUITE 28] TinyMCE HTML-Toleranz & CRM-Isolation (v2.18.77)\033[0m\n";
+
+        // 1. Versionierung
+        $this->assert("CRM_VERSION ist >= 2.18.77", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.18.77', '>='));
+
+        // 2. Filter-Funktion existiert und Hook ist registriert
+        $this->assert("crm_filter_tinymce_settings existiert", function_exists('crm_filter_tinymce_settings'));
+        $this->assert("tiny_mce_before_init Hook ist registriert", has_filter('tiny_mce_before_init', 'crm_filter_tinymce_settings') !== false);
+
+        // 3. Isolation: Normale WordPress-Editoren werden NICHT verändert
+        $oldPage = $_GET['page'] ?? null;
+        unset($_GET['page']);
+
+        $standardInit = ['verify_html' => true, 'cleanup' => true];
+        $filteredStandard = crm_filter_tinymce_settings($standardInit, 'content');
+        $this->assertEqual("TinyMCE Filter belässt reguläre WP-Editoren unberührt (Isolation)", true, $filteredStandard['verify_html']);
+        $this->assert("Reguläre WP-Editoren erhalten keine CRM extended_valid_elements", !isset($filteredStandard['extended_valid_elements']));
+
+        // 4. CRM-Feld ID Prüfung: greift automatisch bei crm_fields_*
+        $crmFieldInit = ['verify_html' => true, 'cleanup' => true];
+        $filteredCrmField = crm_filter_tinymce_settings($crmFieldInit, 'crm_fields_0_content');
+        $this->assertEqual("TinyMCE deaktiviert verify_html für CRM-Felder", false, $filteredCrmField['verify_html']);
+        $this->assertEqual("TinyMCE deaktiviert cleanup für CRM-Felder", false, $filteredCrmField['cleanup']);
+        $this->assertEqual("TinyMCE deaktiviert cleanup_on_startup für CRM-Felder", false, $filteredCrmField['cleanup_on_startup']);
+        $this->assert("TinyMCE extended_valid_elements enthält div[*]", strpos($filteredCrmField['extended_valid_elements'], 'div[*]') !== false);
+        $this->assert("TinyMCE extended_valid_elements enthält span[*]", strpos($filteredCrmField['extended_valid_elements'], 'span[*]') !== false);
+        $this->assert("TinyMCE extended_valid_elements enthält br[*]", strpos($filteredCrmField['extended_valid_elements'], 'br[*]') !== false);
+        $this->assert("TinyMCE extended_valid_elements enthält p[*]", strpos($filteredCrmField['extended_valid_elements'], 'p[*]') !== false);
+        $this->assertEqual("TinyMCE remove_linebreaks ist false", false, $filteredCrmField['remove_linebreaks']);
+
+        // 5. CRM-Seiten Parameter: greift auf crm-pdf, crm-emails etc.
+        $_GET['page'] = 'crm-pdf';
+        $pageInit = ['verify_html' => true];
+        $filteredPage = crm_filter_tinymce_settings($pageInit, 'any_id');
+        $this->assertEqual("TinyMCE Filter greift auf crm-pdf Seite", false, $filteredPage['verify_html']);
+
+        if ($oldPage !== null) {
+            $_GET['page'] = $oldPage;
+        } else {
+            unset($_GET['page']);
+        }
+
+        // 6. field-editor.php übergibt explizite tinymce Konfiguration
+        $fieldEditorPhp = file_get_contents(dirname(__DIR__) . '/views/settings/components/field-editor.php');
+        $this->assert("field-editor.php übergibt extended_valid_elements an wp_editor", strpos($fieldEditorPhp, "'extended_valid_elements'") !== false);
+        $this->assert("field-editor.php deaktiviert verify_html im wp_editor Array", strpos($fieldEditorPhp, "'verify_html'             => false") !== false);
     }
 }
 

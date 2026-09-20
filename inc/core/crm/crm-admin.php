@@ -19,7 +19,7 @@
 
 // --- Core Setup & Helpers ---
 if (!defined('CRM_VERSION')) {
-    define('CRM_VERSION', '2.18.76');
+    define('CRM_VERSION', '2.18.77');
 }
 
 require_once __DIR__ . '/helpers/crm-cache.php';
@@ -287,6 +287,35 @@ add_action('admin_head', function () {
     </style>
     <?php
 }, 1);
+
+/**
+ * Preserves custom HTML elements, spacing containers and inline styles in TinyMCE on CRM screens.
+ * Ensures that empty spacers (e.g. <div style="..."></div>, <p>&nbsp;</p>, <br>) are not stripped on save or mode switch.
+ * Strictly isolated: ONLY runs on CRM admin pages or for CRM field editors!
+ *
+ * @param array  $mceInit   TinyMCE configuration array.
+ * @param string $editor_id ID of the editor instance.
+ * @return array Modified configuration array.
+ */
+function crm_filter_tinymce_settings($mceInit, $editor_id = '')
+{
+    $crm_pages = ['crm', 'crm-settings', 'crm-elements', 'crm-emails', 'crm-pdf'];
+    $is_crm = (isset($_GET['page']) && in_array($_GET['page'], $crm_pages, true))
+        || (is_string($editor_id) && strpos($editor_id, 'crm_fields_') === 0);
+
+    if ($is_crm && is_array($mceInit)) {
+        $mceInit['verify_html']             = false;
+        $mceInit['cleanup']                 = false;
+        $mceInit['cleanup_on_startup']      = false;
+        $mceInit['extended_valid_elements'] = 'div[*],span[*],p[*],br[*],hr[*],style[*],table[*],tr[*],td[*],th[*],tbody[*],thead[*],tfoot[*]';
+        $mceInit['valid_children']          = '+body[style],+p[div|span|br]';
+        $mceInit['remove_linebreaks']       = false;
+        $mceInit['remove_trailing_brs']     = false;
+        $mceInit['keep_styles']             = true;
+    }
+    return $mceInit;
+}
+add_filter('tiny_mce_before_init', 'crm_filter_tinymce_settings', 10, 2);
 
 
 

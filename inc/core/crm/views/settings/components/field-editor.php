@@ -211,7 +211,16 @@ if (!function_exists('crm_render_editor_field')) {
                             'textarea_name'  => "crm_fields[{$index}][content]",
                             'textarea_rows'  => 8,
                             'media_buttons'  => true,
-                            'tinymce'        => true,
+                            'tinymce'        => [
+                                'verify_html'             => false,
+                                'cleanup'                 => false,
+                                'cleanup_on_startup'      => false,
+                                'extended_valid_elements' => 'div[*],span[*],p[*],br[*],hr[*],style[*]',
+                                'valid_children'          => '+body[style],+p[div|span|br]',
+                                'remove_linebreaks'       => false,
+                                'remove_trailing_brs'     => false,
+                                'keep_styles'             => true,
+                            ],
                             'quicktags'      => true,
                             'default_editor' => 'html',
                         ]
