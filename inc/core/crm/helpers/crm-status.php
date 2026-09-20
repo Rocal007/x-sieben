@@ -3556,44 +3556,82 @@ function crm_get_course_available_certifications(int $course_id, $entry_id = 0):
                 continue;
             }
 
-            // Exakte Übereinstimmungen
+            // 1. Exakte Übereinstimmungen
             if ($clean_l === $rc_name_l || $short_l === $rc_name_l || $raw_l === $rc_name_l) {
                 return true;
             }
+
+            // 2. Spezifische Scrum-Prüfungen (STRIKTE Unterscheidung: PSM I vs. PSPO I vs. Kombi PSM+PSPO)
+            $is_target_scrum = (strpos($clean_l, 'scrum') !== false || strpos($clean_l, 'psm') !== false || strpos($clean_l, 'pspo') !== false || strpos($short_l, 'scrum') !== false || strpos($short_l, 'psm') !== false || strpos($short_l, 'pspo') !== false);
+            $is_rc_scrum     = (strpos($rc_name_l, 'scrum') !== false || strpos($rc_name_l, 'psm') !== false || strpos($rc_name_l, 'pspo') !== false);
+            if ($is_target_scrum || $is_rc_scrum) {
+                if (!$is_target_scrum || !$is_rc_scrum) {
+                    continue;
+                }
+                $clean_has_psm  = (strpos($clean_l, 'psm') !== false || strpos($short_l, 'psm') !== false);
+                $clean_has_pspo = (strpos($clean_l, 'pspo') !== false || strpos($short_l, 'pspo') !== false);
+                $rc_has_psm     = (strpos($rc_name_l, 'psm') !== false);
+                $rc_has_pspo    = (strpos($rc_name_l, 'pspo') !== false);
+
+                // Kombi: PSM + PSPO
+                if ($clean_has_psm && $clean_has_pspo && $rc_has_psm && $rc_has_pspo) {
+                    return true;
+                }
+                // Nur PSM I
+                if ($clean_has_psm && !$clean_has_pspo && $rc_has_psm && !$rc_has_pspo) {
+                    return true;
+                }
+                // Nur PSPO I
+                if (!$clean_has_psm && $clean_has_pspo && !$rc_has_psm && $rc_has_pspo) {
+                    return true;
+                }
+                // Niemals Kombi mit Einzelfach matchen!
+                continue;
+            }
+
+            // 3. Spezifische IPMA Level-Prüfungen (Level D vs. Level C vs. Level B)
+            $is_target_ipma = (strpos($clean_l, 'ipma') !== false || strpos($clean_l, 'pma') !== false || strpos($short_l, 'ipma') !== false);
+            $is_rc_ipma     = (strpos($rc_name_l, 'ipma') !== false || strpos($rc_name_l, 'pma') !== false);
+            if ($is_target_ipma || $is_rc_ipma) {
+                if (!$is_target_ipma || !$is_rc_ipma) {
+                    continue;
+                }
+                if (strpos($clean_l, 'level d') !== false && strpos($rc_name_l, 'level d') !== false) {
+                    return true;
+                }
+                if (strpos($clean_l, 'level c') !== false && strpos($rc_name_l, 'level c') !== false) {
+                    return true;
+                }
+                if (strpos($clean_l, 'level b') !== false && strpos($rc_name_l, 'level b') !== false) {
+                    return true;
+                }
+                continue;
+            }
+
+            // 4. Spezifische TÜV / SystemCERT Prüfungen (strikt getrennt)
+            $is_target_sys = (strpos($clean_l, 'systemcert') !== false || strpos($short_l, 'systemcert') !== false);
+            $is_rc_sys     = (strpos($rc_name_l, 'systemcert') !== false);
+            if ($is_target_sys || $is_rc_sys) {
+                if ($is_target_sys && $is_rc_sys) {
+                    return true;
+                }
+                continue;
+            }
+
+            $is_target_tuev = (strpos($clean_l, 'tüv') !== false || strpos($clean_l, 'tuev') !== false || strpos($short_l, 'tüv') !== false || strpos($short_l, 'tuev') !== false);
+            $is_rc_tuev     = (strpos($rc_name_l, 'tüv') !== false || strpos($rc_name_l, 'tuev') !== false);
+            if ($is_target_tuev || $is_rc_tuev) {
+                if ($is_target_tuev && $is_rc_tuev) {
+                    return true;
+                }
+                continue;
+            }
+
+            // 5. Konservativer Fallback für sonstige Zertifizierungen
             if (strpos($clean_l, $rc_name_l) !== false || strpos($rc_name_l, $clean_l) !== false) {
                 return true;
             }
             if (strpos($short_l, $rc_name_l) !== false || strpos($rc_name_l, $short_l) !== false) {
-                return true;
-            }
-
-            // Spezifische IPMA Level-Prüfungen
-            if (strpos($clean_l, 'level d') !== false && strpos($rc_name_l, 'level d') !== false) {
-                return true;
-            }
-            if (strpos($clean_l, 'level c') !== false && strpos($rc_name_l, 'level c') !== false) {
-                return true;
-            }
-            if (strpos($clean_l, 'level b') !== false && strpos($rc_name_l, 'level b') !== false) {
-                return true;
-            }
-
-            // Spezifische Scrum-Prüfungen
-            if (strpos($clean_l, 'psm i') !== false && strpos($clean_l, 'pspo') === false && strpos($rc_name_l, 'psm') !== false && strpos($rc_name_l, 'pspo') === false) {
-                return true;
-            }
-            if (strpos($clean_l, 'pspo i') !== false && strpos($clean_l, 'psm') === false && strpos($rc_name_l, 'pspo') !== false && strpos($rc_name_l, 'psm') === false) {
-                return true;
-            }
-            if (strpos($clean_l, 'psm') !== false && strpos($clean_l, 'pspo') !== false && strpos($rc_name_l, 'psm') !== false && strpos($rc_name_l, 'pspo') !== false) {
-                return true;
-            }
-
-            // Spezifische TÜV / SystemCERT Prüfungen
-            if (strpos($clean_l, 'systemcert') !== false && strpos($rc_name_l, 'systemcert') !== false) {
-                return true;
-            }
-            if ((strpos($clean_l, 'tüv') !== false || strpos($clean_l, 'tuev') !== false) && (strpos($rc_name_l, 'tüv') !== false || strpos($rc_name_l, 'tuev') !== false)) {
                 return true;
             }
         }

@@ -6679,6 +6679,20 @@ jQuery(document).ready(function ($) {
                 let isChecked = false;
                 for (let i = 0; i < data.selected_cert_names.length; i++) {
                     const selName = (data.selected_cert_names[i] || '').toLowerCase();
+                    if (val === selName) {
+                        isChecked = true;
+                        break;
+                    }
+                    const valHasPsm = val.indexOf('psm') !== -1;
+                    const valHasPspo = val.indexOf('pspo') !== -1;
+                    const selHasPsm = selName.indexOf('psm') !== -1;
+                    const selHasPspo = selName.indexOf('pspo') !== -1;
+                    if ((valHasPsm || valHasPspo) && (selHasPsm || selHasPspo)) {
+                        if (valHasPsm && valHasPspo && selHasPsm && selHasPspo) { isChecked = true; break; }
+                        if (valHasPsm && !valHasPspo && selHasPsm && !selHasPspo) { isChecked = true; break; }
+                        if (!valHasPsm && valHasPspo && !selHasPsm && selHasPspo) { isChecked = true; break; }
+                        continue;
+                    }
                     if (val.indexOf(selName) !== -1 || selName.indexOf(val) !== -1) {
                         isChecked = true;
                         break;
@@ -6754,6 +6768,42 @@ jQuery(document).ready(function ($) {
             $btn.html($btn.html().replace(/🏅\s*/g, '✓ '));
             const curTitle = $btn.attr('title') || '';
             $btn.attr('title', curTitle.replace('zum Angebot hinzufügen. Klicken zum Auswählen', 'ist für das Angebot ausgewählt. Klicken zum Abwählen'));
+
+            // Bei Auswahl: Gegenseitige Ausschlüsse auflösen (z.B. Scrum Kombi vs. PSM/PSPO Einzelfach, IPMA Level B vs C vs D)
+            const certNameLower = ($btn.attr('data-cert-name') || '').toLowerCase();
+            const isScrum = certNameLower.indexOf('scrum') !== -1 || certNameLower.indexOf('psm') !== -1 || certNameLower.indexOf('pspo') !== -1;
+            const isIpma = certNameLower.indexOf('ipma') !== -1 || certNameLower.indexOf('pma') !== -1;
+            const isKombi = isScrum && (certNameLower.indexOf('psm') !== -1 && certNameLower.indexOf('pspo') !== -1);
+
+            if (isScrum || isIpma) {
+                $container.find('.crm-cert-toggle-btn').not($btn).each(function () {
+                    const otherName = (jQuery(this).attr('data-cert-name') || '').toLowerCase();
+                    let shouldDeselect = false;
+                    if (isScrum) {
+                        const otherIsScrum = otherName.indexOf('scrum') !== -1 || otherName.indexOf('psm') !== -1 || otherName.indexOf('pspo') !== -1;
+                        if (otherIsScrum) {
+                            const otherIsKombi = (otherName.indexOf('psm') !== -1 && otherName.indexOf('pspo') !== -1);
+                            if (isKombi || otherIsKombi) {
+                                shouldDeselect = true;
+                            }
+                        }
+                    }
+                    if (isIpma) {
+                        const otherIsIpma = otherName.indexOf('ipma') !== -1 || otherName.indexOf('pma') !== -1;
+                        if (otherIsIpma) {
+                            shouldDeselect = true;
+                        }
+                    }
+                    if (shouldDeselect) {
+                        jQuery(this).attr('data-selected', '0');
+                        jQuery(this).attr('aria-pressed', 'false');
+                        jQuery(this).removeClass('crm-cert-selected');
+                        jQuery(this).html(jQuery(this).html().replace(/✓\s*/g, '🏅 '));
+                        const oTitle = jQuery(this).attr('title') || '';
+                        jQuery(this).attr('title', oTitle.replace('ist für das Angebot ausgewählt. Klicken zum Abwählen', 'zum Angebot hinzufügen. Klicken zum Auswählen'));
+                    }
+                });
+            }
         } else {
             $btn.removeClass('crm-cert-selected');
             $btn.html($btn.html().replace(/✓\s*/g, '🏅 '));

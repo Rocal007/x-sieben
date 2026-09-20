@@ -19,7 +19,7 @@
 
 // --- Core Setup & Helpers ---
 if (!defined('CRM_VERSION')) {
-    define('CRM_VERSION', '2.18.80');
+    define('CRM_VERSION', '2.18.81');
 }
 
 require_once __DIR__ . '/helpers/crm-cache.php';
@@ -1947,7 +1947,24 @@ function render_crm_admin_page()
                             $opt_clean = trim(html_entity_decode((string)$cert_opt, ENT_QUOTES, 'UTF-8'));
                             foreach ($current_selected_certs as $sel_c) {
                                 $sel_c_clean = trim(html_entity_decode((string)$sel_c, ENT_QUOTES, 'UTF-8'));
-                                if ($sel_c_clean === $opt_clean || stripos($sel_c_clean, $opt_clean) !== false || stripos($opt_clean, $sel_c_clean) !== false) {
+                                if ($sel_c_clean === $opt_clean) {
+                                    $is_cert_checked = true;
+                                    break;
+                                }
+                                $sel_l = mb_strtolower($sel_c_clean, 'UTF-8');
+                                $opt_l = mb_strtolower($opt_clean, 'UTF-8');
+                                $is_scrum_pair = (strpos($sel_l, 'psm') !== false || strpos($sel_l, 'pspo') !== false) && (strpos($opt_l, 'psm') !== false || strpos($opt_l, 'pspo') !== false);
+                                if ($is_scrum_pair) {
+                                    $sel_has_psm = strpos($sel_l, 'psm') !== false;
+                                    $sel_has_pspo = strpos($sel_l, 'pspo') !== false;
+                                    $opt_has_psm = strpos($opt_l, 'psm') !== false;
+                                    $opt_has_pspo = strpos($opt_l, 'pspo') !== false;
+                                    if ($sel_has_psm && $sel_has_pspo && $opt_has_psm && $opt_has_pspo) { $is_cert_checked = true; break; }
+                                    if ($sel_has_psm && !$sel_has_pspo && $opt_has_psm && !$opt_has_pspo) { $is_cert_checked = true; break; }
+                                    if (!$sel_has_psm && $sel_has_pspo && !$opt_has_psm && $opt_has_pspo) { $is_cert_checked = true; break; }
+                                    continue;
+                                }
+                                if (stripos($sel_c_clean, $opt_clean) !== false || stripos($opt_clean, $sel_c_clean) !== false) {
                                     $is_cert_checked = true;
                                     break;
                                 }
