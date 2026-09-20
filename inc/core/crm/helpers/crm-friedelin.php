@@ -1114,15 +1114,12 @@ function crm_friedelin_process_entry(int $entry_id, bool $manual_trigger = false
         }
     }
 
-    // 3. AGB 2025 PDF
-    if ($want_agb) {
-        $agb_url = function_exists('crm_get_setting') ? crm_get_setting('legal_agb_url') : '';
-        if (empty($agb_url)) {
-            $agb_url = 'https://x-sieben.at/wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf';
-        }
-        $generated_pdfs[] = 'AGB 2025 (' . basename($agb_url) . ')';
-        $pdf_urls[] = $agb_url;
+    // 3. AGB 2025 (wird nicht als Dateianhang mitgeschickt, sondern verbleibt als reiner Online-Link in der E-Mail)
+    $agb_url = function_exists('crm_get_setting') ? crm_get_setting('legal_agb_url') : '';
+    if (empty($agb_url)) {
+        $agb_url = 'https://x-sieben.at/wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf';
     }
+    // AGB_X_SIEBEN_2025.pdf wird als Online-Link in der E-Mail eingebunden, nicht in $pdf_urls angehängt.
 
     // Primary PDF for single-file handlers
     $primary_pdf_url = !empty($pdf_urls) ? $pdf_urls[0] : '';

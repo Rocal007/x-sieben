@@ -499,16 +499,36 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser = true, $cu
                         : ['top' => floatval($sub['spacing_top'] ?? 0), 'bottom' => floatval($sub['spacing_bottom'] ?? 0)];
                     $sub_sp_top    = $sub_effective['top'];
                     $sub_sp_bottom = $sub_effective['bottom'];
-                    if ($sec_key === 'deckblatt' && $sub_key !== 'titel') {
-                        $has_explicit_sub_top = isset($sub['spacing_top']) && floatval($sub['spacing_top']) > 0;
-                        $has_explicit_sub_bot = isset($sub['spacing_bottom']) && floatval($sub['spacing_bottom']) > 0;
+
+                    if ($sec_key === 'deckblatt') {
+                        if ($sub_key === 'titel') {
+                            // Sicherstellen, dass der Dokumententitel auf Seite 1 immer einen sauberen vertikalen Abstand zur Anrede hat (mind. 32 pt, Standard 36 pt)
+                            $has_explicit_sub_bot = isset($sub['spacing_bottom']) && $sub['spacing_bottom'] !== '' && floatval($sub['spacing_bottom']) > 0;
+                            if (!$has_explicit_sub_bot) {
+                                $sub_sp_bottom = max(32.0, floatval($global_spacing['title_spacing_bottom'] ?? 36.0));
+                            }
+                        } else {
+                            $has_explicit_sub_top = isset($sub['spacing_top']) && floatval($sub['spacing_top']) > 0;
+                            $has_explicit_sub_bot = isset($sub['spacing_bottom']) && floatval($sub['spacing_bottom']) > 0;
+                            if (!$has_explicit_sub_top) {
+                                $sub_sp_top = min(8.0, $sub_sp_top);
+                            }
+                            if (!$has_explicit_sub_bot) {
+                                $sub_sp_bottom = min(8.0, $sub_sp_bottom);
+                            }
+                        }
+                    } elseif (empty($sub['is_custom'])) {
+                        // Auf Folgeseiten: Standard-Unterabschnitte kompakt halten, falls keine expliziten Werte gesetzt wurden
+                        $has_explicit_sub_top = isset($sub['spacing_top']) && $sub['spacing_top'] !== '' && floatval($sub['spacing_top']) > 0;
+                        $has_explicit_sub_bot = isset($sub['spacing_bottom']) && $sub['spacing_bottom'] !== '' && floatval($sub['spacing_bottom']) > 0;
                         if (!$has_explicit_sub_top) {
-                            $sub_sp_top = min(8.0, $sub_sp_top);
+                            $sub_sp_top = min(4.0, $sub_sp_top);
                         }
                         if (!$has_explicit_sub_bot) {
-                            $sub_sp_bottom = min(8.0, $sub_sp_bottom);
+                            $sub_sp_bottom = min(4.0, $sub_sp_bottom);
                         }
                     }
+
                     $sub_prefix = ($sub_sp_top > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_top) : '';
                     $sub_suffix = ($sub_sp_bottom > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_bottom) : '';
                     $sub_html   = '';
@@ -585,7 +605,7 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser = true, $cu
             if (count($parts) > 1) {
                 foreach ($parts as $idx => $part) {
                     $clean_part = preg_replace('/<style\b[^>]*>.*?<\/style>/si', '', $part);
-                    if (empty(trim(strip_tags($clean_part, '<img>')))) {
+                    if (empty(trim(strip_tags($clean_part, '<img>'))) && strpos($part, 'crm-pdf-spacer') === false) {
                         continue;
                     }
                     if ($idx % 2 === 1) {

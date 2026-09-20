@@ -269,6 +269,8 @@ class CrmSeniorDevTestSuite
         $this->testSuite23_CourseCertificationsInAllViews();
         $this->testSuite24_TbAndDiplomSimulationAndPreview();
         $this->testSuite25_TestEmailDeliveryAndTransparency();
+        $this->testSuite26_AgbOnlineLinkPolicy();
+        $this->testSuite27_PdfSpacingAndPageBreakIntegrity();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -606,7 +608,7 @@ class CrmSeniorDevTestSuite
         $this->assertEqual("Standard-Abstand oben ist 0 pt (Byte-Identität)", 0, (int)$defaults['spacing_top']);
         $this->assertEqual("Standard-Abstand unten ist 0 pt (Byte-Identität)", 0, (int)$defaults['spacing_bottom']);
         $this->assertEqual("Master-Dokumententitel Abstand oben ist 13 pt", 13.0, (float)$defaults['title_spacing_top']);
-        $this->assertEqual("Master-Dokumententitel Abstand unten ist 11 pt", 11.0, (float)$defaults['title_spacing_bottom']);
+        $this->assert("Master-Dokumententitel Abstand unten ist >= 11 pt (Standard 36 pt)", (float)$defaults['title_spacing_bottom'] >= 11.0);
 
         // B. Spacing Persistence & Sanitization
         crm_save_pdf_elements_spacing([
@@ -2123,6 +2125,68 @@ class CrmSeniorDevTestSuite
         $this->assert("crm-settings.js nutzt flexibles postUrl für Test-Vorschau", strpos($settingsJs, "const postUrl = (typeof ajaxurl !== 'undefined' && ajaxurl)") !== false);
         $this->assert("crm-settings.js setzt 30s Timeout für E-Mail-Preview-Test", strpos($settingsJs, "timeout: 30000") !== false);
         $this->assert("crm-settings.js extrahiert Fehlermeldung transparent", strpos($settingsJs, "(typeof res.data === 'object' && res.data.message) ? res.data.message : (typeof res.data === 'string' ? res.data : (i18n.testMailError") !== false);
+    }
+
+    /**
+     * [SUITE 26] AGB als reiner Online-Link in E-Mail & Ausschluss von Dateianhängen (v2.18.75)
+     */
+    public function testSuite26_AgbOnlineLinkPolicy(): void
+    {
+        echo "\n\033[1;33m[SUITE 26] AGB als reiner Online-Link in E-Mail & Ausschluss von Dateianhängen (v2.18.75)\033[0m\n";
+
+        // 1. Versionierung
+        $this->assert("CRM_VERSION ist >= 2.18.75", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.18.75', '>='));
+
+        // 2. crm-email-sections.php verlinkt AGB ausschließlich ganz unten über Baustein {agb_claim}
+        $emailSections = file_get_contents(dirname(__DIR__) . '/helpers/crm-email-sections.php');
+        $this->assert("crm-email-sections.php bindet Baustein {agb_claim} ganz unten ein", strpos($emailSections, "'{agb_claim}'") !== false);
+        $this->assert("crm-email-sections.php enthält keinen redundanten AGB-Mittelblock mehr", strpos($emailSections, 'sind als rechtliche Grundlage für Sie ebenfalls beigefügt') === false);
+
+        // 3. crm-admin.js schließt AGB strikt aus crmWizardGetActivePdfUrls aus
+        $adminJs = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
+        $this->assert("crm-admin.js beschränkt docKeys in crmWizardGetActivePdfUrls auf offer_1, offer_2, kb", strpos($adminJs, "const docKeys = ['offer_1', 'offer_2', 'kb'];") !== false);
+        $this->assert("crm-admin.js deklariert AGB im Wizard als Online-Link", strpos($adminJs, "Wird als Online-Link in der E-Mail verlinkt (kein Dateianhang)") !== false);
+
+        // 4. output-controler.php filtert AGB-Pfade aus wp_mail Attachments heraus
+        $outputCtrl = file_get_contents(dirname(__DIR__) . '/controler/output-controler.php');
+        $this->assert("output-controler.php überspringt AGB in der Anhang-Schleife", strpos($outputCtrl, "stripos(\$raw_url, 'AGB_X_SIEBEN') !== false") !== false);
+
+        // 5. crm-status.php filtert AGB aus Mailer Attachments heraus
+        $statusPhp = file_get_contents(dirname(__DIR__) . '/helpers/crm-status.php');
+        $this->assert("crm-status.php filtert AGB aus attachments", strpos($statusPhp, "stripos(\$att, 'agb') === false") !== false);
+
+        // 6. Live-Generierung E-Mail-Vorschau enthält AGB Online-Link ganz unten
+        if (function_exists('crm_build_standard_offer_email')) {
+            $mail = crm_build_standard_offer_email(1075, 22122, ['want_agb' => true]);
+            $this->assert("Generierte Angebots-Mail enthält AGB Online-Link", strpos($mail['body'], 'AGB') !== false);
+            $this->assert("Generierte Angebots-Mail enthält href auf AGB", strpos($mail['body'], 'AGB_X_SIEBEN_2025.pdf') !== false);
+        }
+    }
+
+    /**
+     * [SUITE 27] PDF-Seitenumbruch- & Abstands-Integrität (v2.18.76)
+     */
+    public function testSuite27_PdfSpacingAndPageBreakIntegrity(): void
+    {
+        echo "\n\033[1;33m[SUITE 27] PDF-Seitenumbruch- & Abstands-Integrität (v2.18.76)\033[0m\n";
+
+        // 1. Versionierung
+        $this->assert("CRM_VERSION ist >= 2.18.76", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.18.76', '>='));
+
+        // 2. Default-Abstand title_spacing_bottom in crm-pdf-sections.php ist 36 pt
+        $spacing = crm_get_pdf_elements_spacing();
+        $this->assert("crm_get_pdf_elements_spacing liefert title_spacing_bottom >= 36", floatval($spacing['title_spacing_bottom']) >= 36.0);
+
+        // 3. offer.php sichert Deckblatt Titel-Abstand mit mindestens 32 pt ab
+        $offerPhp = file_get_contents(dirname(__DIR__) . '/pdf/offer.php');
+        $this->assert("offer.php sichert Deckblatt Titel-Abstand mit mindestens 32 pt ab", strpos($offerPhp, "max(32.0, floatval(\$global_spacing['title_spacing_bottom'] ?? 36.0))") !== false);
+
+        // 4. offer.php drosselt Standard-Unterabschnitte auf Folgeseiten gegen unerwünschte Leerseiten
+        $this->assert("offer.php drosselt Standard-Unterabschnitte auf Folgeseiten", strpos($offerPhp, "\$sub_sp_bottom = min(4.0, \$sub_sp_bottom);") !== false);
+
+        // 5. tab-pdf.php enthält Hinweis auf HTML / Text Umschaltung
+        $tabPdf = file_get_contents(dirname(__DIR__) . '/views/settings/tab-pdf.php');
+        $this->assert("tab-pdf.php enthält Hinweis auf HTML / Text Umschaltung", strpos($tabPdf, 'Text / HTML') !== false);
     }
 }
 

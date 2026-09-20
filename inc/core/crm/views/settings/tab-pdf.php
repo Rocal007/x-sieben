@@ -175,13 +175,18 @@ if (!defined('ABSPATH')) exit;
                             </div>
                         </div>
 
+                        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-left:4px solid #3b82f6; border-radius:6px; padding:10px 14px; margin-bottom:14px; font-size:12px; color:#1e40af; line-height:1.5;">
+                            <strong>💡 <?php esc_html_e('Wichtiger Hinweis für manuelle Text- & Abstands-Anpassungen:', 'custom-crm'); ?></strong><br>
+                            <?php esc_html_e('Wenn Sie in Abschnitten eigene Abstands-Tags (wie <br> oder <div style="...">) eintragen, schalten Sie im Editor bitte immer auf den Reiter „Text / HTML“ um. Der visuelle Editor filtert leere Abstands-Elemente sonst automatisch heraus!', 'custom-crm'); ?>
+                        </div>
+
                         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:16px;">
                             <!-- DOKUMENTENTITEL MASTER-ABSTÄNDE -->
                             <div style="margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid #e2e8f0;">
                                 <h4 style="margin:0 0 10px 0; font-size:13px; color:#0f172a; display:flex; align-items:center; gap:6px;">
                                     <span class="dashicons dashicons-heading" style="color:#0891b2;"></span>
                                     <?php esc_html_e('Master Dokumententitel (Großer Haupttitel & Banner)', 'custom-crm'); ?>
-                                    <span style="background:#ecfeff; color:#0e7490; border:1px solid #cffafe; font-size:10.5px; padding:1px 6px; border-radius:4px; font-weight:600;">Standard: 13 pt oben / 11 pt unten</span>
+                                    <span style="background:#ecfeff; color:#0e7490; border:1px solid #cffafe; font-size:10.5px; padding:1px 6px; border-radius:4px; font-weight:600;">Standard: 13 pt oben / 36 pt unten</span>
                                 </h4>
                                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
                                     <div>
@@ -199,9 +204,9 @@ if (!defined('ABSPATH')) exit;
                                             <span class="dashicons dashicons-arrow-down-alt" style="font-size:14px; width:14px; height:14px; vertical-align:middle; color:#0891b2;"></span>
                                             <?php esc_html_e('Dokumententitel Abstand unten (pt):', 'custom-crm'); ?>
                                         </label>
-                                        <input type="number" step="1" min="0" max="300" name="crm_pdf_elements_spacing[title_spacing_bottom]" value="<?php echo esc_attr($elements_spacing['title_spacing_bottom'] ?? 11); ?>" class="regular-text" style="width:100%; height:32px; font-size:12px;" placeholder="11">
+                                        <input type="number" step="1" min="0" max="300" name="crm_pdf_elements_spacing[title_spacing_bottom]" value="<?php echo esc_attr($elements_spacing['title_spacing_bottom'] ?? 36); ?>" class="regular-text" style="width:100%; height:32px; font-size:12px;" placeholder="36">
                                         <small style="color:#64748b; font-size:11px; display:block; margin-top:3px;">
-                                            <?php esc_html_e('Master-Standard: 11 pt. Vertikaler Abstand unterhalb des Haupttitel-Banners.', 'custom-crm'); ?>
+                                            <?php esc_html_e('Master-Standard: 36 pt. Vertikaler Abstand unterhalb des Haupttitel-Banners (verhindert Kleben an der Anrede).', 'custom-crm'); ?>
                                         </small>
                                     </div>
                                 </div>

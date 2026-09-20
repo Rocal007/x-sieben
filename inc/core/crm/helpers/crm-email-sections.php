@@ -52,7 +52,7 @@ function crm_get_email_sections_definitions($doc_type = null): array
                 'icon'           => 'dashicons-calendar-alt',
                 'color'          => '#0891b2',
                 'default'        => true,
-                'default_content'=> '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#f8fafc; border-left:4px solid #007C90; border-top:1px solid #e2e8f0; border-right:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; border-radius:4px; margin:18px 0; font-family:Arial,sans-serif; font-size:13px; color:#334155;"><tr><td style="padding:14px 18px;"><strong style="font-size:14px; color:#0f172a; display:block; margin-bottom:8px;">📅 Veranstaltungs-Eckdaten: {kurstitel}</strong><table role="presentation" border="0" cellpadding="3" cellspacing="0" width="100%" style="font-size:13px; color:#334155;"><tr><td width="130" style="color:#64748b; font-weight:bold;">Zeitraum:</td><td><strong>{startdatum} bis {enddatum}</strong></td></tr><tr><td style="color:#64748b; font-weight:bold;">Kurszeiten:</td><td>{uhrzeit}</td></tr><tr><td style="color:#64748b; font-weight:bold;">Umfang:</td><td>{le} Lehreinheiten (LE, 1 LE = 45 Min.)</td></tr><tr><td style="color:#64748b; font-weight:bold;">Schulungsort:</td><td>{location_wien} / Live-Online interaktiv</td></tr></table></td></tr></table>',
+                'default_content'=> '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#f8fafc; border-left:4px solid #007C90; border-top:1px solid #e2e8f0; border-right:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; border-radius:4px; margin:18px 0; font-family:Arial,sans-serif; font-size:13px; color:#334155;"><tr><td style="padding:14px 18px;"><strong style="font-size:14px; color:#0f172a; display:block; margin-bottom:8px;">📅 Veranstaltungs-Eckdaten: {kurstitel}</strong><table role="presentation" border="0" cellpadding="3" cellspacing="0" width="100%" style="font-size:13px; color:#334155;"><tr><td width="130" style="color:#64748b; font-weight:bold;">Zeitraum:</td><td><strong>Vom {startdatum} bis einschließlich {enddatum}</strong> (Zeiten jeweils von 09:00 bis 17:00 Uhr)</td></tr><tr><td style="color:#64748b; font-weight:bold;">Kurszeiten:</td><td>{uhrzeit}</td></tr><tr><td style="color:#64748b; font-weight:bold;">Umfang:</td><td>{le} Lehreinheiten (LE, 1 LE = 45 Min.)</td></tr><tr><td style="color:#64748b; font-weight:bold;">Schulungsort:</td><td>{location_wien} / Live-Online interaktiv</td></tr></table></td></tr></table>',
             ],
             'module' => [
                 'title'          => __('Modul- & Nutzenübersicht', 'custom-crm'),
@@ -1952,9 +1952,26 @@ function crm_build_standard_offer_email(int $entry_id, int $course_id, array $op
         $vortragende_html = 'X SIEBEN TrainerInnen-Team';
     }
 
-    // Zeitraum & Termine
-    $start_datum = ($course_model && !empty($course_model->start_datum)) ? $course_model->start_datum : 'Termin nach Vereinbarung';
-    $ende_datum  = ($course_model && !empty($course_model->ende_datum))  ? $course_model->ende_datum  : 'Termin nach Vereinbarung';
+    // Zeitraum & Termine (Revisionssicher aus Model, Snapshot oder Post-Meta)
+    $start_datum = ($course_model && (!empty($course_model->start_datum) || !empty($course_model->startdatum))) 
+        ? ($course_model->start_datum ?: $course_model->startdatum) 
+        : '';
+    $ende_datum  = ($course_model && (!empty($course_model->end_datum) || !empty($course_model->ende_datum) || !empty($course_model->enddatum))) 
+        ? ($course_model->end_datum ?: ($course_model->ende_datum ?: $course_model->enddatum)) 
+        : '';
+
+    if (empty($start_datum) && $course_id) {
+        $meta_start = get_post_meta($course_id, 'start_datum', true);
+        if ($meta_start) {
+            $start_datum = date('d.m.Y', strtotime($meta_start));
+        }
+    }
+    if (empty($ende_datum) && $course_id) {
+        $meta_end = get_post_meta($course_id, 'end_datum', true);
+        if ($meta_end) {
+            $ende_datum = date('d.m.Y', strtotime($meta_end));
+        }
+    }
 
     // Kursspezifische Prüfung (DaF/DaZ, AMS Aktion, etc.)
     $is_ams_aktion = (stripos($course_title, 'AMS Aktion') !== false || stripos($course_link, 'ams-aktion') !== false || $course_id == 65629);
@@ -1991,11 +2008,13 @@ function crm_build_standard_offer_email(int $entry_id, int $course_id, array $op
 
     $body_html .= '<p>Anbei Ihre Eckdaten zur Schulung:</p>';
 
-    // 2. Eckdaten-Box
+    // 2. Eckdaten-Box (Standard-Modul aus E-Mail Settings)
     $body_html .= '<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #007C90; border-radius: 4px; padding: 12px 16px; margin: 16px 0; font-size: 13.5px; line-height: 1.6;">';
     $body_html .= '<strong>Vortragende:</strong><br>' . $vortragende_html . '<br><br>';
-    if ($start_datum !== 'Termin nach Vereinbarung' && $ende_datum !== 'Termin nach Vereinbarung') {
+    if (!empty($start_datum) && !empty($ende_datum) && $start_datum !== 'Termin nach Vereinbarung' && $ende_datum !== 'Termin nach Vereinbarung') {
         $body_html .= '<strong>Zeitraum:</strong><br>Vom ' . esc_html($start_datum) . ' bis einschließlich ' . esc_html($ende_datum) . ' (Zeiten jeweils von 09:00 bis 17:00 Uhr).<br><br>';
+    } elseif (!empty($start_datum) && $start_datum !== 'Termin nach Vereinbarung') {
+        $body_html .= '<strong>Zeitraum:</strong><br>Ab ' . esc_html($start_datum) . ' (Zeiten jeweils von 09:00 bis 17:00 Uhr).<br><br>';
     } else {
         $body_html .= '<strong>Zeitraum:</strong><br>Flexible Kurstermine (Zeiten jeweils von 09:00 bis 17:00 Uhr bzw. lt. Stundenplan).<br><br>';
     }
@@ -2031,12 +2050,7 @@ function crm_build_standard_offer_email(int $entry_id, int $course_id, array $op
         $body_html .= '</p>';
     }
 
-    // AGB-Hinweis
-    if ($want_agb) {
-        $body_html .= '<p style="font-size: 12.5px; color: #64748b; margin: 8px 0 16px 0;">';
-        $body_html .= '⚖️ <strong>AGB:</strong> Unsere aktuellen Allgemeinen Geschäftsbedingungen (AGB 2025) sind als rechtliche Grundlage für Sie ebenfalls beigefügt.';
-        $body_html .= '</p>';
-    }
+
 
     // 5. Kursspezifische Zusatzbausteine (DaF/DaZ AMS Aktion)
     if ($is_ams_aktion) {
@@ -2075,11 +2089,18 @@ function crm_build_standard_offer_email(int $entry_id, int $course_id, array $op
         $body_html .= $footer_baustein;
     }
 
-    // 9. AGB & Datenschutz-Klausel (Baustein {agb_claim})
-    $agb_baustein = ($course_model && method_exists($course_model, 'parse_string_with_data'))
-        ? $course_model->parse_string_with_data('{agb_claim}')
-        : '';
-    if (!empty($agb_baustein)) {
+    // 9. AGB & Datenschutz-Klausel (Baustein {agb_claim} ganz unten aus E-Mail-Settings)
+    if ($want_agb) {
+        $agb_baustein = ($course_model && method_exists($course_model, 'parse_string_with_data'))
+            ? $course_model->parse_string_with_data('{agb_claim}')
+            : '';
+        if (empty(trim(strip_tags($agb_baustein)))) {
+            $agb_url = function_exists('crm_get_setting') ? crm_get_setting('legal_agb_url') : '';
+            if (empty($agb_url)) {
+                $agb_url = 'https://x-sieben.at/wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf';
+            }
+            $agb_baustein = '<div style="padding-top: 10px; font-size: 11px; color: #64748b; line-height: 1.4;"><hr style="border: none; border-top: 1px solid #e2e8f0; margin: 15px 0;" />Mit Ihrer Anmeldung bestätigen Sie die Allgemeinen Geschäftsbedingungen (AGB) sowie die darin enthaltene Widerrufsbelehrung von X SIEBEN Wirtschaftstraining GmbH gelesen und akzeptiert zu haben. Die AGB finden Sie auf unserer Homepage unter <a href="' . esc_url($agb_url) . '" target="_blank" style="color: #007C90; text-decoration: underline;">AGB</a>. Auf Ersuchen senden wir Ihnen die AGB auch gerne per E-Mail zu. Unsere Datenschutzerklärung finden Sie unter: <a href="https://x-sieben.at/datenschutzerklaerung/" target="_blank" style="color: #007C90; text-decoration: underline;">www.x-sieben.at/datenschutzerklaerung/</a></div>';
+        }
         $body_html .= $agb_baustein;
     }
 

@@ -1949,7 +1949,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 const u = urls[i];
                 const lower = u.toLowerCase();
                 if (type === 'offer_1') {
-                    if (lower.includes('basis') || lower.includes('angebot_1') || (lower.includes('angebot') && !lower.includes('angebot_2') && !lower.includes('zert'))) {
+                    if (lower.includes('basis') || lower.includes('angebot_1') || (lower.includes('angebot') && !lower.includes('angebot_2') && !lower.includes('zert')) || (!lower.includes('angebot_2') && !lower.includes('zert') && !lower.includes('kurszeiten') && !lower.includes('agb') && !lower.includes('diplom') && !lower.includes('teilnahme') && (lower.includes('a_') || lower.includes('.pdf')))) {
                         return u;
                     }
                 } else if (type === 'offer_2') {
@@ -1976,7 +1976,8 @@ document.addEventListener("DOMContentLoaded", function () {
             if (!data) return [];
             const sel = data.selected_docs || {};
             const result = [];
-            const docKeys = ['offer_1', 'offer_2', 'kb', 'agb'];
+            // AGB wird niemals als Dateianhang mitgeschickt, sondern immer als Online-Link in der E-Mail verlinkt
+            const docKeys = ['offer_1', 'offer_2', 'kb'];
             docKeys.forEach(k => {
                 if (sel[k]) {
                     const url = crmWizardFindDocUrl(k, data);
@@ -2652,8 +2653,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     };
                 }
                 const sel = currentWizardData.selected_docs;
-                const docKeys = ['offer_1', 'offer_2', 'kb', 'agb'];
-                const activeCount = docKeys.filter(k => Boolean(sel[k])).length;
+                const activeAttCount = ['offer_1', 'offer_2', 'kb'].filter(k => Boolean(sel[k])).length;
 
                 const docConfigs = [
                     {
@@ -2690,27 +2690,27 @@ document.addEventListener("DOMContentLoaded", function () {
                     },
                     {
                         key: 'agb',
-                        icon: 'dashicons-paperclip',
+                        icon: 'dashicons-admin-links',
                         iconColor: '#64748b',
                         title: 'Allgemeine Geschäftsbedingungen (AGB 2025)',
-                        subtitle: 'Rechtliche Grundlage für Buchungen und Förderungen',
-                        badgeText: 'Beilage',
-                        badgeStyle: 'background:#f8fafc; color:#64748b; border:1px solid #e2e8f0;',
-                        pdfUrl: crmWizardFindDocUrl('agb', currentWizardData) || currentWizardData.agb_url || 'https://x-sieben.at/wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf'
+                        subtitle: 'Wird als Online-Link in der E-Mail verlinkt (kein Dateianhang)',
+                        badgeText: 'Online-Link',
+                        badgeStyle: 'background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;',
+                        pdfUrl: currentWizardData.agb_url || 'https://x-sieben.at/wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf'
                     }
                 ];
 
                 let docsListHtml = `
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px; font-size:12.5px;">
                         <span style="color:#475569;">
-                            📄 <strong id="crm-wizard-selected-count-badge" style="color:#6d28d9;">${activeCount} von 4 Dokumenten</strong> zum Mitsenden ausgewählt
+                            📄 <strong id="crm-wizard-selected-count-badge" style="color:#6d28d9;">${activeAttCount} von 3 PDF-Anhängen</strong> zum Mitsenden ausgewählt (AGB als Online-Link)
                         </span>
                         <div style="display:flex; gap:6px;">
                             <button type="button" class="button button-small crm-wizard-quick-select-btn" data-action="all" style="font-size:11.5px; height:26px; line-height:24px; padding:0 8px;">
                                 ✓ Alle auswählen
                             </button>
                             <button type="button" class="button button-small crm-wizard-quick-select-btn" data-action="basis" style="font-size:11.5px; height:26px; line-height:24px; padding:0 8px;">
-                                Nur Basis & AGB
+                                Nur Basis & AGB-Link
                             </button>
                         </div>
                     </div>
@@ -2719,7 +2719,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 docConfigs.forEach(doc => {
                     const isSelected = Boolean(sel[doc.key]);
                     const previewBtnHtml = doc.pdfUrl 
-                        ? `<a href="${doc.pdfUrl}" target="_blank" class="crm-wizard-doc-preview-link" title="PDF in neuem Tab ansehen" style="margin-left:6px;"><span class="dashicons dashicons-visibility" style="font-size:13px; line-height:13px; width:13px; height:13px;"></span> Vorschau</a>`
+                        ? `<a href="${doc.pdfUrl}" target="_blank" class="crm-wizard-doc-preview-link" title="Dokument / Link in neuem Tab ansehen" style="margin-left:6px;"><span class="dashicons dashicons-visibility" style="font-size:13px; line-height:13px; width:13px; height:13px;"></span> Vorschau</a>`
                         : '';
 
                     docsListHtml += `
@@ -2736,8 +2736,8 @@ document.addEventListener("DOMContentLoaded", function () {
                                     <div style="font-size:11.5px; color:#64748b; margin-top:2px;">${doc.subtitle}</div>
                                 </div>
                             </div>
-                            <div class="crm-wizard-doc-status" style="font-size:11.5px; font-weight:700; flex-shrink:0; margin-left:12px; color:${isSelected ? '#6d28d9' : '#94a3b8'};">
-                                ${isSelected ? '✓ Wird mitgesendet' : '✕ Nicht mitgesendet'}
+                            <div class="crm-wizard-doc-status" style="font-size:11.5px; font-weight:700; flex-shrink:0; margin-left:12px; color:${isSelected ? (doc.key === 'agb' ? '#0284c7' : '#6d28d9') : '#94a3b8'};">
+                                ${doc.key === 'agb' ? (isSelected ? '✓ In E-Mail verlinkt' : '✕ Nicht verlinkt') : (isSelected ? '✓ Wird mitgesendet' : '✕ Nicht mitgesendet')}
                             </div>
                         </div>
                     `;
@@ -3088,15 +3088,19 @@ document.addEventListener("DOMContentLoaded", function () {
 
                     const statusEl = docCard.querySelector('.crm-wizard-doc-status');
                     if (statusEl) {
-                        statusEl.textContent = nextState ? '✓ Wird mitgesendet' : '✕ Nicht mitgesendet';
-                        statusEl.style.color = nextState ? '#6d28d9' : '#94a3b8';
+                        if (docKey === 'agb') {
+                            statusEl.textContent = nextState ? '✓ In E-Mail verlinkt' : '✕ Nicht verlinkt';
+                            statusEl.style.color = nextState ? '#0284c7' : '#94a3b8';
+                        } else {
+                            statusEl.textContent = nextState ? '✓ Wird mitgesendet' : '✕ Nicht mitgesendet';
+                            statusEl.style.color = nextState ? '#6d28d9' : '#94a3b8';
+                        }
                     }
 
-                    const docKeys = ['offer_1', 'offer_2', 'kb', 'agb'];
-                    const activeCount = docKeys.filter(k => Boolean(currentWizardData.selected_docs[k])).length;
+                    const activeAttCount = ['offer_1', 'offer_2', 'kb'].filter(k => Boolean(currentWizardData.selected_docs[k])).length;
                     const countBadge = document.getElementById('crm-wizard-selected-count-badge');
                     if (countBadge) {
-                        countBadge.textContent = `${activeCount} von 4 Dokumenten`;
+                        countBadge.textContent = `${activeAttCount} von 3 PDF-Anhängen`;
                     }
                     return;
                 }

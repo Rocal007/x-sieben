@@ -1044,6 +1044,10 @@ add_action('wp_ajax_x_sieben_send_mail', function () {
     foreach ($pdf_urls_raw as $raw_url) {
       $raw_url = trim($raw_url);
       if (empty($raw_url)) continue;
+      // AGB werden laut Vorgabe niemals als Dateianhang mitgeschickt (nur als Online-Link in der E-Mail)
+      if (stripos($raw_url, 'AGB_X_SIEBEN') !== false || stripos(basename(parse_url($raw_url, PHP_URL_PATH)), 'agb') !== false) {
+        continue;
+      }
       $clean_url = esc_url_raw($raw_url);
       $attachments_path = '';
 

@@ -188,7 +188,7 @@ function crm_prepare_email_html_for_sending($body) {
 
         // Clean dev hosts & www
         $href = preg_replace('#^https?://(www\.)?x-sieben\.(test|local|dev)/#i', $canonical_host . '/', $href);
-        $href = preg_replace('#^https?://localhost(:[0-9]+)?/#i', $canonical_host . '/', $href);
+        $href = preg_replace('#^https?://(xsieben\.)?localhost(:[0-9]+)?/#i', $canonical_host . '/', $href);
         $href = preg_replace('#^https?://www\.x-sieben\.at/#i', $canonical_host . '/', $href);
         $href = preg_replace('#^http://x-sieben\.at/#i', 'https://x-sieben.at/', $href);
 

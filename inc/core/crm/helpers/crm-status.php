@@ -1251,6 +1251,34 @@ add_action('wp_ajax_crm_get_wizard_data', function () {
         }
     }
 
+    // Fallback: Bereits generierte PDFs im Upload-Ordner einlesen, falls draft pdf_urls noch leer sind
+    if (empty($draft['pdf_urls']) && function_exists('crm_get_pdf_storage_dir')) {
+        $pdf_dir = crm_get_pdf_storage_dir();
+        $baseurl = function_exists('crm_get_pdf_storage_url') ? crm_get_pdf_storage_url() : '';
+        $found_pdfs = [];
+        $offer_files = glob($pdf_dir . 'A_' . $entry_id . '-*.pdf');
+        if (!empty($offer_files)) {
+            foreach ($offer_files as $f) {
+                $found_pdfs[] = $baseurl . rawurlencode(basename($f));
+            }
+        }
+        $kb_files = glob($pdf_dir . 'Kurszeitenbestaetigung_*' . $entry_id . '*.pdf');
+        if (!empty($kb_files)) {
+            foreach ($kb_files as $f) {
+                $found_pdfs[] = $baseurl . rawurlencode(basename($f));
+            }
+        }
+        if (!empty($found_pdfs)) {
+            if (!is_array($draft)) {
+                $draft = [];
+            }
+            $draft['pdf_urls'] = $found_pdfs;
+            $draft['primary_pdf_url'] = $found_pdfs[0];
+            $draft['all_pdf_param'] = implode(',', $found_pdfs);
+            $is_prepared = true;
+        }
+    }
+
     if ($draft && !empty($draft['body']) && function_exists('crm_strip_internal_ai_notices')) {
         $draft['body'] = crm_strip_internal_ai_notices($draft['body']);
     }
@@ -2526,6 +2554,10 @@ function crm_create_document_snapshot(array $args)
     $archived_fileurls  = [];
 
     $attachments = (array) ($args['attachments'] ?? []);
+    // AGB werden niemals als Dateianhang mitgeschickt (immer als Online-Link in der Mail)
+    $attachments = array_filter($attachments, function($att) {
+        return (stripos($att, 'agb') === false);
+    });
     if (!empty($attachments)) {
         $upload_dir  = wp_upload_dir();
         $archive_dir = $upload_dir['basedir'] . '/crm_archive/' . date('Y/m');

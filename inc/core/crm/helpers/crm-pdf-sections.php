@@ -124,7 +124,7 @@ function crm_get_pdf_elements_spacing(): array
         'spacing_top'          => 0,  // Standard-Elemente in pt (0 = Standard-Layout / kein Zusatzabstand)
         'spacing_bottom'       => 0,  // Standard-Elemente in pt (0 = Standard-Layout / kein Zusatzabstand)
         'title_spacing_top'    => 13, // Master Dokumententitel Abstand oben in pt (Standard: 13)
-        'title_spacing_bottom' => 11, // Master Dokumententitel Abstand unten in pt (Standard: 11)
+        'title_spacing_bottom' => 36, // Master Dokumententitel Abstand unten in pt (Standard: 36, verhindert Kleben an Anrede)
     ];
 
     $saved = get_option('crm_pdf_elements_spacing', []);
@@ -146,7 +146,7 @@ function crm_save_pdf_elements_spacing(array $data): bool
         'spacing_top'          => isset($data['spacing_top']) && is_numeric($data['spacing_top']) ? max(0, floatval($data['spacing_top'])) : 0,
         'spacing_bottom'       => isset($data['spacing_bottom']) && is_numeric($data['spacing_bottom']) ? max(0, floatval($data['spacing_bottom'])) : 0,
         'title_spacing_top'    => isset($data['title_spacing_top']) && is_numeric($data['title_spacing_top']) ? max(0, floatval($data['title_spacing_top'])) : 13,
-        'title_spacing_bottom' => isset($data['title_spacing_bottom']) && is_numeric($data['title_spacing_bottom']) ? max(0, floatval($data['title_spacing_bottom'])) : 11,
+        'title_spacing_bottom' => isset($data['title_spacing_bottom']) && is_numeric($data['title_spacing_bottom']) ? max(0, floatval($data['title_spacing_bottom'])) : 36,
     ];
     return update_option('crm_pdf_elements_spacing', $sanitized);
 }

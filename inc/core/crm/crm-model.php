@@ -188,6 +188,9 @@ class CRM_Model
         } else {
             $this->end_datum = $this->format_date_meta('end_datum');
         }
+        $this->ende_datum = $this->end_datum;
+        $this->enddatum = $this->end_datum;
+        $this->startdatum = $this->start_datum;
         $raw_kosten = get_post_meta($post_id, 'kosten', true);
         $netto_kurs_float = CRM_Pdf_Presenter::parse_price_float($raw_kosten);
         $this->preis_netto = number_format($netto_kurs_float, 2, ',', '');
