@@ -273,6 +273,7 @@ class CrmSeniorDevTestSuite
         $this->testSuite27_PdfSpacingAndPageBreakIntegrity();
         $this->testSuite28_TinyMceCrmHtmlPreservation();
         $this->testSuite29_BusinessCaseHistorySplitView();
+        $this->testSuite30_CertificationDisambiguationAndExclusivity();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -2313,6 +2314,95 @@ class CrmSeniorDevTestSuite
             $this->assert("Timeline enthält Test-Mail Badge", strpos($timelineHtml, 'crm-status-test_mail_gesendet') !== false);
             $this->assert("Timeline enthält Aktueller Stand Pill", strpos($timelineHtml, 'crm-bcase-pill-latest') !== false);
         }
+    }
+
+    /**
+     * [SUITE 30] Zertifizierungs-Integrität & Strikte Entkopplung (v2.18.81)
+     */
+    public function testSuite30_CertificationDisambiguationAndExclusivity(): void
+    {
+        echo "\n\033[1;33m[SUITE 30] Zertifizierungs-Integrität & Strikte Entkopplung (v2.18.81)\033[0m\n";
+
+        // 1. Versionierung
+        $this->assert("CRM_VERSION ist >= 2.18.81", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.18.81', '>='));
+
+        // 2. Strikte Abgrenzung Scrum PSM I vs. Kombi
+        $mockPsmSelected = [['name' => 'Scrum PSM I', 'price' => '176,91', 'percentage' => '20%']];
+        $certsWithPsm = crm_get_course_available_certifications(40914, $mockPsmSelected);
+        $psmActive = false;
+        $kombiActive = false;
+        $pspoActive = false;
+        foreach ($certsWithPsm as $c) {
+            if ($c['short_name'] === 'Scrum PSM I') $psmActive = !empty($c['is_selected']);
+            if ($c['short_name'] === 'Scrum PSM I + PSPO I') $kombiActive = !empty($c['is_selected']);
+            if ($c['short_name'] === 'Scrum PSPO I') $pspoActive = !empty($c['is_selected']);
+        }
+        $this->assert("Scrum PSM I Auswahl aktiviert ausschließlich PSM I Badge", $psmActive && !$kombiActive && !$pspoActive);
+
+        // 3. Strikte Abgrenzung Scrum PSPO I vs. Kombi
+        $mockPspoSelected = [['name' => 'Scrum PSPO I', 'price' => '176,91', 'percentage' => '20%']];
+        $certsWithPspo = crm_get_course_available_certifications(40914, $mockPspoSelected);
+        $psmActive2 = false;
+        $kombiActive2 = false;
+        $pspoActive2 = false;
+        foreach ($certsWithPspo as $c) {
+            if ($c['short_name'] === 'Scrum PSM I') $psmActive2 = !empty($c['is_selected']);
+            if ($c['short_name'] === 'Scrum PSM I + PSPO I') $kombiActive2 = !empty($c['is_selected']);
+            if ($c['short_name'] === 'Scrum PSPO I') $pspoActive2 = !empty($c['is_selected']);
+        }
+        $this->assert("Scrum PSPO I Auswahl aktiviert ausschließlich PSPO I Badge", !$psmActive2 && !$kombiActive2 && $pspoActive2);
+
+        // 4. Strikte Abgrenzung Scrum Kombi (PSM + PSPO)
+        $mockKombiSelected = [['name' => 'Scrum PSM I + PSPO I', 'price' => '353,82', 'percentage' => '20%']];
+        $certsWithKombi = crm_get_course_available_certifications(40914, $mockKombiSelected);
+        $psmActiveK = false;
+        $kombiActiveK = false;
+        $pspoActiveK = false;
+        foreach ($certsWithKombi as $c) {
+            if ($c['short_name'] === 'Scrum PSM I') $psmActiveK = !empty($c['is_selected']);
+            if ($c['short_name'] === 'Scrum PSM I + PSPO I') $kombiActiveK = !empty($c['is_selected']);
+            if ($c['short_name'] === 'Scrum PSPO I') $pspoActiveK = !empty($c['is_selected']);
+        }
+        $this->assert("Scrum Kombi Auswahl aktiviert ausschließlich Kombi Badge", $kombiActiveK && !$psmActiveK && !$pspoActiveK);
+
+        // 5. Strikte Abgrenzung IPMA Level D vs. Level C vs. Level B
+        $mockIpmaD = [['name' => 'IPMA Level D', 'price' => '484,00', 'percentage' => '10%']];
+        $certsWithIpmaD = crm_get_course_available_certifications(40914, $mockIpmaD);
+        $levelDActive = false;
+        $levelCActive = false;
+        $levelBActive = false;
+        foreach ($certsWithIpmaD as $c) {
+            if ($c['short_name'] === 'IPMA Level D') $levelDActive = !empty($c['is_selected']);
+            if ($c['short_name'] === 'IPMA Level C') $levelCActive = !empty($c['is_selected']);
+            if (strpos($c['short_name'], 'Level B') !== false) $levelBActive = !empty($c['is_selected']);
+        }
+        $this->assert("IPMA Level D Auswahl aktiviert ausschließlich Level D Badge", $levelDActive && !$levelCActive && !$levelBActive);
+
+        // 6. Vollständiges Abwählen (reines Basis-Angebot, 0 Badges aktiv)
+        $certsDeselected = crm_get_course_available_certifications(40914, []);
+        $anyActive = false;
+        foreach ($certsDeselected as $c) {
+            if (!empty($c['is_selected'])) {
+                $anyActive = true;
+                break;
+            }
+        }
+        $this->assert("Leere Zertifizierungsauswahl markiert alle Badges als abgewählt (0 aktiv)", !$anyActive);
+
+        // 7. Echter Eintrag 1069 (Gyongyi Szabo) hat genau 1 aktive Zertifizierung
+        $res1069 = crm_get_course_available_certifications(32495, 1069);
+        $selCount1069 = 0;
+        foreach ($res1069 as $c) {
+            if (!empty($c['is_selected'])) {
+                $selCount1069++;
+            }
+        }
+        $this->assertEqual("Eintrag 1069 hat genau 1 aktive Zertifizierung (kein Übersprechen)", 1, $selCount1069);
+
+        // 8. JS-Integrität: gegenseitiger Ausschluss in crm-admin.js
+        $jsContent = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
+        $this->assert("crm-admin.js enthält Ausschlusslogik für Scrum Kombi vs Einzelfach", strpos($jsContent, 'otherIsKombi') !== false);
+        $this->assert("crm-admin.js enthält Ausschlusslogik für IPMA Level", strpos($jsContent, 'otherIsIpma') !== false);
     }
 }
 
