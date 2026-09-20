@@ -1816,10 +1816,44 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
         });
 
-        // --- CRM Status History Timeline Modal ---
+        // --- CRM Status History Timeline Modal & Split View Handler ---
         document.addEventListener('click', function (e) {
+            // Split View inline business case content toggle
+            const toggleBcaseBtn = e.target.closest('.crm-bcase-toggle-content');
+            if (toggleBcaseBtn) {
+                e.preventDefault();
+                const targetId = toggleBcaseBtn.dataset.target;
+                if (targetId) {
+                    const drawer = document.getElementById(targetId);
+                    if (drawer) {
+                        const isHidden = (drawer.style.display === 'none' || getComputedStyle(drawer).display === 'none');
+                        drawer.style.display = isHidden ? 'block' : 'none';
+                        const labelEl = toggleBcaseBtn.querySelector('.crm-bcase-toggle-label');
+                        if (labelEl) {
+                            labelEl.textContent = isHidden ? 'E-Mail-Inhalt verbergen' : 'E-Mail-Inhalt lesen';
+                        }
+                    }
+                }
+                return;
+            }
+
             const histBtn = e.target.closest('.crm-history-btn');
             if (!histBtn) return;
+
+            // In Split View: If user clicks "Verlauf" in topbar or spickzettel, scroll directly to the embedded section!
+            const splitDetail = histBtn.closest('.crm-split-detail');
+            if (splitDetail && !histBtn.closest('.crm-split-history-header')) {
+                const targetHistory = splitDetail.querySelector('.crm-split-history-section');
+                if (targetHistory) {
+                    e.preventDefault();
+                    targetHistory.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    targetHistory.classList.remove('crm-highlight');
+                    void targetHistory.offsetWidth;
+                    targetHistory.classList.add('crm-highlight');
+                    setTimeout(() => targetHistory.classList.remove('crm-highlight'), 1800);
+                    return;
+                }
+            }
 
             const entryId = histBtn.dataset.entryId;
             const modalBackdrop = document.getElementById('crm-history-modal-backdrop');
@@ -3990,6 +4024,18 @@ jQuery(document).ready(function ($) {
                                 badge.textContent = currentCount;
                                 snapBtn.title = 'Dokument- & Daten-Archiv (' + currentCount + ' Snapshots)';
                             }
+                        }
+                    }
+
+                    // Real-time update for Split View if currently active
+                    if (snapEntryId && window.crmJsCache && window.crmJsCache.cache) {
+                        window.crmJsCache.cache.delete('split_dossier_' + snapEntryId);
+                    }
+                    const activeSplitItem = document.querySelector('#crm-view-split .crm-split-item.is-active');
+                    if (activeSplitItem && String(activeSplitItem.dataset.entryId) === String(snapEntryId)) {
+                        const splitPanel = document.getElementById('crm-split-dossier-panel');
+                        if (splitPanel && typeof window.crmLoadSplitDossier === 'function') {
+                            window.crmLoadSplitDossier(activeSplitItem);
                         }
                     }
                 } else {

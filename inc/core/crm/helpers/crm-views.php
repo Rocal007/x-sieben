@@ -729,6 +729,9 @@ function crm_render_split_dossier($entry_id, $course_id = 0, $item = null) {
     if (!function_exists('crm_render_screen2_spickzettel')) {
         require_once dirname(__DIR__) . '/controler/output-controler.php';
     }
+    if (!function_exists('crm_render_business_case_timeline')) {
+        require_once __DIR__ . '/crm-status.php';
+    }
 
     // Resolve data
     if (!empty($item) && is_array($item)) {
@@ -862,6 +865,11 @@ function crm_render_split_dossier($entry_id, $course_id = 0, $item = null) {
         <!-- 3. 3-Punkte-Spickzettel (Birkenbihl 3-Sekunden-Orientierung) -->
         <div class="crm-split-spickzettel-wrap">
             <?php echo $spickzettel_html; ?>
+        </div>
+
+        <!-- 4. Verlauf des Geschäftsvorfalls (Startet mit Test-E-Mail, immer nur das letzte) -->
+        <div class="crm-split-history-wrap" id="crm-split-history-wrap-<?php echo esc_attr($entry_id); ?>">
+            <?php echo function_exists('crm_render_business_case_timeline') ? crm_render_business_case_timeline($entry_id, $course_id) : ''; ?>
         </div>
     </div>
     <?php

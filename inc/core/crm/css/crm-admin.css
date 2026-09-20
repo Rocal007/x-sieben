@@ -4565,6 +4565,78 @@ tr.crm-quick-edit-row td.colspanchange {
     border-color: #94a3b8;
 }
 
+/* 5.1 Split View: Verlauf des Geschäftsvorfalls (Timeline) */
+.crm-split-history-wrap {
+    margin-top: 18px;
+    scroll-margin-top: 20px;
+}
+
+.crm-split-history-section {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    transition: box-shadow 0.2s ease;
+}
+
+.crm-split-history-section.crm-highlight {
+    box-shadow: 0 0 0 3px #0284c7 !important;
+}
+
+.crm-split-history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 18px;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.crm-bcase-timeline {
+    position: relative;
+}
+
+.crm-bcase-item {
+    transition: all 0.2s ease;
+}
+
+.crm-bcase-item:hover {
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+}
+
+.crm-bcase-item.is-latest {
+    background: #fbfdff;
+}
+
+.crm-bcase-pill-latest {
+    animation: crmPulseGlow 2.5s infinite;
+}
+
+@keyframes crmPulseGlow {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.1);
+    }
+}
+
+.crm-bcase-preview-drawer {
+    animation: crmSlideDown 0.2s ease-out;
+}
+
+@keyframes crmSlideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* 6. Responsive adjustments */
 @media (max-width: 1200px) {
     .crm-card-body {

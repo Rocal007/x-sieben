@@ -272,6 +272,7 @@ class CrmSeniorDevTestSuite
         $this->testSuite26_AgbOnlineLinkPolicy();
         $this->testSuite27_PdfSpacingAndPageBreakIntegrity();
         $this->testSuite28_TinyMceCrmHtmlPreservation();
+        $this->testSuite29_BusinessCaseHistorySplitView();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -2241,6 +2242,77 @@ class CrmSeniorDevTestSuite
         $fieldEditorPhp = file_get_contents(dirname(__DIR__) . '/views/settings/components/field-editor.php');
         $this->assert("field-editor.php übergibt extended_valid_elements an wp_editor", strpos($fieldEditorPhp, "'extended_valid_elements'") !== false);
         $this->assert("field-editor.php deaktiviert verify_html im wp_editor Array", strpos($fieldEditorPhp, "'verify_html'             => false") !== false);
+    }
+
+    public function testSuite29_BusinessCaseHistorySplitView(): void
+    {
+        echo "\n\033[1;33m[SUITE 29] Geschäftsvorfall-Verlauf im Split View (v2.18.80)\033[0m\n";
+
+        // 1. Versionierung
+        $this->assert("CRM_VERSION ist >= 2.18.80", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.18.80', '>='));
+
+        // 2. Helper & Funktionen existieren
+        require_once dirname(__DIR__) . '/helpers/crm-status.php';
+        require_once dirname(__DIR__) . '/helpers/crm-views.php';
+        $this->assert("crm_get_business_case_history existiert", function_exists('crm_get_business_case_history'));
+        $this->assert("crm_render_business_case_timeline existiert", function_exists('crm_render_business_case_timeline'));
+
+        // 3. crm-views.php integriert Verlauf in crm_render_split_dossier
+        $viewsPhp = file_get_contents(dirname(__DIR__) . '/helpers/crm-views.php');
+        $this->assert("crm-views.php bindet crm-split-history-wrap ein", strpos($viewsPhp, 'crm-split-history-wrap') !== false);
+        $this->assert("crm-views.php ruft crm_render_business_case_timeline auf", strpos($viewsPhp, 'crm_render_business_case_timeline') !== false);
+
+        // 4. crm-admin.css definiert Split View History Klassen
+        $adminCss = file_get_contents(dirname(__DIR__) . '/css/crm-admin.css');
+        $this->assert("crm-admin.css definiert .crm-split-history-wrap", strpos($adminCss, '.crm-split-history-wrap') !== false);
+        $this->assert("crm-admin.css definiert .crm-split-history-section", strpos($adminCss, '.crm-split-history-section') !== false);
+        $this->assert("crm-admin.css definiert .crm-bcase-timeline", strpos($adminCss, '.crm-bcase-timeline') !== false);
+        $this->assert("crm-admin.css definiert .crm-bcase-item", strpos($adminCss, '.crm-bcase-item') !== false);
+        $this->assert("crm-admin.css definiert .crm-bcase-pill-latest", strpos($adminCss, '.crm-bcase-pill-latest') !== false);
+
+        // 5. crm-admin.js Event-Delegation
+        $adminJs = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
+        $this->assert("crm-admin.js bindet .crm-bcase-toggle-content ein", strpos($adminJs, '.crm-bcase-toggle-content') !== false);
+        $this->assert("crm-admin.js enthält .crm-split-history-section Scroll-Handler", strpos($adminJs, '.crm-split-history-section') !== false);
+        $this->assert("crm-admin.js invalidiert split_dossier_ Cache bei Mailversand", strpos($adminJs, "window.crmJsCache.cache.delete('split_dossier_' + snapEntryId)") !== false);
+
+        // 6. Funktionstest: Leere Entry-ID liefert has_started = false
+        $emptyRes = crm_get_business_case_history(0);
+        $this->assertEqual("Leere Entry-ID liefert has_started = false", false, $emptyRes['has_started']);
+        $this->assert("Leere Entry-ID liefert leere entries Liste", empty($emptyRes['entries']));
+
+        // 7. Funktionstest: Empty-State Rendering
+        $emptyHtml = crm_render_business_case_timeline(999901);
+        $this->assert("Empty State rendert .crm-bcase-empty-state", strpos($emptyHtml, 'crm-bcase-empty-state') !== false);
+        $this->assert("Empty State erwähnt Test-E-Mail", strpos($emptyHtml, 'Noch keine Test-E-Mail versendet') !== false);
+        $this->assert("Empty State enthält Schnell-Button", strpos($emptyHtml, 'crm-direct-editor-btn') !== false);
+
+        // 8. Funktionstest: Echter Eintrag mit Test-Mails (z. B. 1076 oder 1074)
+        $realRes = crm_get_business_case_history(1076);
+        if (!empty($realRes['has_started'])) {
+            $this->assertEqual("Eintrag 1076 hat has_test_mail = true", true, $realRes['has_test_mail']);
+            $this->assert("Eintrag 1076 entries ist nicht leer", !empty($realRes['entries']));
+            $first = $realRes['entries'][0];
+            $this->assertEqual("Erster Eintrag ist test_mail_gesendet", 'test_mail_gesendet', $first['status_key']);
+            $last = end($realRes['entries']);
+            $this->assertEqual("Letzter Eintrag hat is_latest = true", true, $last['is_latest']);
+
+            // Sicherstellen, dass keine technischen PDF-Logs vorkommen
+            $hasPdfLog = false;
+            foreach ($realRes['entries'] as $e) {
+                if (strpos($e['status_key'], 'pdf_') === 0) {
+                    $hasPdfLog = true;
+                    break;
+                }
+            }
+            $this->assertEqual("Keine internen pdf_* Logs im Geschäftsvorfall", false, $hasPdfLog);
+
+            // Timeline Rendering für 1076
+            $timelineHtml = crm_render_business_case_timeline(1076);
+            $this->assert("Timeline rendert .crm-bcase-timeline", strpos($timelineHtml, 'crm-bcase-timeline') !== false);
+            $this->assert("Timeline enthält Test-Mail Badge", strpos($timelineHtml, 'crm-status-test_mail_gesendet') !== false);
+            $this->assert("Timeline enthält Aktueller Stand Pill", strpos($timelineHtml, 'crm-bcase-pill-latest') !== false);
+        }
     }
 }
 
