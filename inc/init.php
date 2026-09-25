@@ -81,6 +81,8 @@ require_components([
   '/inc/core/crm/controler/output-controler.php',
   '/inc/core/crm/pdf/teilnamebestaetigung.php',
   '/inc/core/crm/pdf/kurszeitenbestaetigung.php',
+  '/inc/core/crm/pdf/anmeldebestaetigung.php',
+  '/inc/core/crm/pdf/antrittsbestaetigung.php',
   '/inc/core/crm/pdf/angebot_kurszeiten.php',
   '/inc/core/crm/pdf/offer.php',
   '/inc/core/crm/pdf/invoice.php',

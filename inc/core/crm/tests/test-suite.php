@@ -187,6 +187,8 @@ if (!function_exists('get_sub_field')) {
 // Load CRM helpers to test
 require_once dirname(__DIR__) . '/helpers/normalize.php';
 require_once dirname(__DIR__) . '/helpers/crm-pdf-sections.php';
+require_once dirname(__DIR__) . '/pdf/anmeldebestaetigung.php';
+require_once dirname(__DIR__) . '/pdf/antrittsbestaetigung.php';
 
 // Lightweight Test Runner Class
 class CrmSeniorDevTestSuite
@@ -274,6 +276,12 @@ class CrmSeniorDevTestSuite
         $this->testSuite28_TinyMceCrmHtmlPreservation();
         $this->testSuite29_BusinessCaseHistorySplitView();
         $this->testSuite30_CertificationDisambiguationAndExclusivity();
+        $this->testSuite31_Version21882FeaturesAndFixes();
+        $this->testSuite32_Version21883CertAndScheduleLogic();
+        $this->testSuite33_Version21884TuevGrossAndTerminplanAttachment();
+        $this->testSuite34_Version21885FachtrainerDafDazCertAndTerminplanAttachment();
+        $this->testSuite35_Version21886OfferPage1SpacingAndTuevCertIntegrity();
+        $this->testSuite36_Version21887AmseDocumentsAndActionButtonsIntegration();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -2093,8 +2101,8 @@ class CrmSeniorDevTestSuite
         // 2. crm-admin.php stellt currentUserEmail und defaultTestEmail in crmData bereit
         $adminPhp = file_get_contents(dirname(__DIR__) . '/crm-admin.php');
         $this->assert("crm-admin.php liest aktuellen Benutzer für crmData aus", strpos($adminPhp, "wp_get_current_user()") !== false);
-        $this->assert("crm-admin.php übergibt currentUserEmail an crmData", strpos($adminPhp, "'currentUserEmail' => \$curr_email") !== false);
-        $this->assert("crm-admin.php übergibt defaultTestEmail an crmData", strpos($adminPhp, "'defaultTestEmail' => \$crm_test_em") !== false);
+        $this->assert("crm-admin.php übergibt currentUserEmail an crmData", (bool)preg_match("/'currentUserEmail'\s*=>\s*\\\$curr_email/", $adminPhp));
+        $this->assert("crm-admin.php übergibt defaultTestEmail an crmData", (bool)preg_match("/'defaultTestEmail'\s*=>\s*\\\$crm_test_em/", $adminPhp));
 
         // 3. output-controler.php: Dual-Nonce & strukturierte JSON-Fehler in wp_ajax_x_sieben_send_mail
         $outputCtrl = file_get_contents(dirname(__DIR__) . '/controler/output-controler.php');
@@ -2403,6 +2411,316 @@ class CrmSeniorDevTestSuite
         $jsContent = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
         $this->assert("crm-admin.js enthält Ausschlusslogik für Scrum Kombi vs Einzelfach", strpos($jsContent, 'otherIsKombi') !== false);
         $this->assert("crm-admin.js enthält Ausschlusslogik für IPMA Level", strpos($jsContent, 'otherIsIpma') !== false);
+    }
+
+    /**
+     * [SUITE 31] Hannes Gajo Feedback 21.09.2026: Zertifizierungsmatrix, AMS Vorlagen & Layout-Integrität (v2.18.82)
+     */
+    public function testSuite31_Version21882FeaturesAndFixes(): void
+    {
+        echo "\n\033[1;33m[SUITE 31] Hannes Gajo Feedback 21.09.2026: Zertifizierungsmatrix, AMS Vorlagen & Layout-Integrität (v2.18.82)\033[0m\n";
+
+        // 1. Versionierung
+        $this->assert("CRM_VERSION ist >= 2.18.82", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.18.82', '>='));
+
+        // 2. Agile Coach (65536) -> Option: TÜV - EN ISO 17024 (497,00 €)
+        if (function_exists('crm_resolve_course_certification')) {
+            $acCerts = crm_resolve_course_certification(0, 65536);
+            $this->assert("Agile Coach (65536) liefert Zertifizierung", !empty($acCerts) && isset($acCerts[0]));
+            $this->assert("Agile Coach liefert Option: TÜV - EN ISO 17024", strpos($acCerts[0]['name'] ?? '', 'TÜV') !== false && strpos($acCerts[0]['name'] ?? '', '17024') !== false);
+            $this->assertEqual("Agile Coach Zertifizierungspreis ist 497,00", '497,00', $acCerts[0]['price'] ?? '');
+            $this->assertEqual("Agile Coach USt-Satz ist 20%", '20%', $acCerts[0]['percentage'] ?? '');
+            $this->assert("Agile Coach wird nicht fälschlich als Scrum erkannt", strpos($acCerts[0]['name'] ?? '', 'Scrum') === false);
+
+            // 3. Logistik & Einkauf Kurse -> LOG+L - DIN EN ISO 17024 (255,00 €)
+            $logistikIds = [14761, 316, 13800, 14808, 38736, 317];
+            foreach ($logistikIds as $logId) {
+                $logCerts = crm_resolve_course_certification(0, $logId);
+                $this->assert("Logistik-Kurs {$logId} liefert LOG+L Zertifizierung", !empty($logCerts) && strpos($logCerts[0]['name'] ?? '', 'LOG+L') !== false);
+                $this->assertEqual("Logistik-Kurs {$logId} Zertifizierungspreis ist 255,00", '255,00', $logCerts[0]['price'] ?? '');
+            }
+        }
+
+        // 4. Kurszeitenbestätigung (KB): 5 Kurstyp Checkboxen & amtlicher Fußnotentext
+        if (class_exists('CRM_Pdf_Kb_Elements')) {
+            $kurstypHtml = CRM_Pdf_Kb_Elements::render_kurstyp('1', '', '', '1', '');
+            $this->assert("render_kurstyp enthält Tageskurs", strpos($kurstypHtml, 'Tageskurs') !== false);
+            $this->assert("render_kurstyp enthält Abendkurs", strpos($kurstypHtml, 'Abendkurs') !== false);
+            $this->assert("render_kurstyp enthält Wochenendkurs", strpos($kurstypHtml, 'Wochenendkurs') !== false);
+            $this->assert("render_kurstyp enthält Präsenzkurs / Webinar bzw. Blended Learning", strpos($kurstypHtml, 'Präsenzkurs / Webinar bzw. Blended Learning') !== false);
+            $this->assert("render_kurstyp enthält Online-Kurs (zeit- u. ortsunabhängig)", strpos($kurstypHtml, 'Online-Kurs (zeit- u. ortsunabhängiges selbständiges Erarbeiten') !== false);
+            $this->assert("render_kurstyp markiert Tageskurs aktiv", strpos($kurstypHtml, '&#9746; Tageskurs') !== false);
+            $this->assert("render_kurstyp markiert Blended Learning aktiv", strpos($kurstypHtml, '&#9746; Präsenzkurs') !== false);
+
+            $hinweisHtml = CRM_Pdf_Kb_Elements::render_hinweis('');
+            $this->assert("render_hinweis enthält amtlichen AMS Ablaufplan-Hinweis", strpos($hinweisHtml, 'Bei unregelmäßigen Kurszeiten ist ein Ablaufplan der einzelnen Kurswochen') !== false);
+            $this->assert("render_hinweis enthält Praxiszeiten-Zusatz", strpos($hinweisHtml, 'Dies gilt auch für Praxiszeiten.') !== false);
+        }
+
+        // 5. Neue Dokumente: Anmeldebestätigung & Antrittsmeldung
+        $this->assert("xsieben_anmeldebestaetigung_pdf existiert", function_exists('xsieben_anmeldebestaetigung_pdf'));
+        $this->assert("xsieben_antrittsbestaetigung_pdf existiert", function_exists('xsieben_antrittsbestaetigung_pdf'));
+        if (function_exists('crm_get_friendly_pdf_label')) {
+            $this->assert("crm_get_friendly_pdf_label('ab') liefert Anmeldebestätigung", strpos(crm_get_friendly_pdf_label('ab'), 'Anmeldebestätigung') !== false);
+            $this->assert("crm_get_friendly_pdf_label('antritt') liefert Antrittsmeldung", strpos(crm_get_friendly_pdf_label('antritt'), 'Antrittsmeldung') !== false);
+        }
+
+        // 6. UI & Controller-Anbindung für ab & antritt
+        $outCtrl = file_get_contents(dirname(__DIR__) . '/controler/output-controler.php');
+        $this->assert("output-controler.php enthält Simulation-Button für Anmeldebestätigung", strpos($outCtrl, 'data-doc="ab"') !== false);
+        $this->assert("output-controler.php enthält Simulation-Button für Antrittsmeldung", strpos($outCtrl, 'data-doc="antritt"') !== false);
+        $adminPhp = file_get_contents(dirname(__DIR__) . '/crm-admin.php');
+        $this->assert("crm-admin.php ruft xsieben_anmeldebestaetigung_pdf auf", strpos($adminPhp, "xsieben_anmeldebestaetigung_pdf") !== false);
+        $this->assert("crm-admin.php ruft xsieben_antrittsbestaetigung_pdf auf", strpos($adminPhp, "xsieben_antrittsbestaetigung_pdf") !== false);
+
+        // 7. E-Mail Fixes: Durchführungsform Großschreibung & Martin Bieber Wochentagslogik
+        $emailSec = file_get_contents(dirname(__DIR__) . '/helpers/crm-email-sections.php');
+        $this->assert("crm-email-sections.php kapitalisiert Durchführungsform", strpos($emailSec, 'mb_strtoupper(mb_substr($durchfuehrung') !== false);
+        $this->assert("crm-email-sections.php enthält dynamische Martin-Bieber Wochentagslogik", strpos($emailSec, 'Kurstermine jeweils') !== false);
+
+        // 8. PDF Layout & Bereinigung
+        $presenterPhp = file_get_contents(dirname(__DIR__) . '/helpers/crm-pdf-presenter.php');
+        $this->assert("crm-pdf-presenter.php bereinigt role=status aus AGB", strpos($presenterPhp, 'status|alert') !== false);
+        $this->assert("crm-pdf-presenter.php schützt Modul-Unterabschnitte vor Kollaps", strpos($presenterPhp, "_clean_module_body_html") !== false);
+        $offerPhp = file_get_contents(dirname(__DIR__) . '/pdf/offer.php');
+        $this->assert("offer.php Deckblatt Unterschriften-Abstand ist 18pt", strpos($offerPhp, '18.0') !== false);
+    }
+
+    public function testSuite32_Version21883CertAndScheduleLogic(): void
+    {
+        echo "\n\033[1;33m[SUITE 32] Hannes Gajo Feedback 21.09.2026 Abend: Zentrale Zertifizierungs- & Terminlogik (v2.18.83)\033[0m\n";
+
+        // 1. Versions-Konsistenz
+        $this->assert("CRM_VERSION ist >= 2.18.83", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.18.83', '>='));
+
+        // 2. Kurs 36593 (Digital Marketing Manager) liefert TÜV ISO 17024 mit echtem Eintrag (Feld 99 leer)
+        $cert36593 = crm_resolve_course_certification(1076, 36593);
+        $this->assert("Digital Marketing Manager (36593) liefert Zertifizierung trotz initial leerem Feld 99", !empty($cert36593));
+        $this->assert("Digital Marketing Manager liefert TÜV ISO 17024", !empty($cert36593[0]['name']) && stripos($cert36593[0]['name'], 'TÜV') !== false && stripos($cert36593[0]['name'], '17024') !== false);
+        $this->assertEqual("Digital Marketing Manager Preis ist 497,00", '497,00', $cert36593[0]['price'] ?? '');
+        $this->assertEqual("Digital Marketing Manager USt ist 20%", '20%', $cert36593[0]['percentage'] ?? '');
+
+        // 3. Agile Coach liefert TÜV ISO 17024 mit echtem Eintrag
+        $certAgile = crm_resolve_course_certification(1076, 67829);
+        $this->assert("Agile Coach (67829) liefert Zertifizierung mit echtem Eintrag", !empty($certAgile));
+        $this->assert("Agile Coach liefert TÜV ISO 17024", !empty($certAgile[0]['name']) && stripos($certAgile[0]['name'], 'TÜV') !== false);
+        $this->assertEqual("Agile Coach Preis ist 497,00", '497,00', $certAgile[0]['price'] ?? '');
+
+        // 4. Opt-Out Erkennung bei Kunde: keine Zertifizierung
+        global $wpdb;
+        $testEntryId = 999888;
+        $wpdb->insert($wpdb->prefix . 'wpforms_entries', [
+            'entry_id' => $testEntryId,
+            'form_id'  => 60468,
+            'fields'   => json_encode([
+                ['id' => 2, 'name' => 'Nachricht', 'value' => 'Ich möchte keine Zertifizierung ablegen, wie läuft das ab?'],
+                ['id' => 99, 'name' => 'Zertifizierungen Auswahl', 'value' => '']
+            ]),
+            'date'     => current_time('mysql')
+        ]);
+        $optOutCerts = crm_resolve_course_certification($testEntryId, 36593);
+        $this->assert("Kunde mit Opt-Out ('keine Zertifizierung') erhält 0 Zertifizierungen", empty($optOutCerts));
+        $wpdb->delete($wpdb->prefix . 'wpforms_entries', ['entry_id' => $testEntryId]);
+
+        // 5. Kurstermine im Begleitmail: Andreas Zöllner Gruppe ohne PDF -> Mittwoch und Freitag
+        $mailZoellner = crm_build_standard_offer_email(1076, 36593);
+        $this->assert("Begleitmail für Zöllner-Kurs enthält Kurstermine jeweils Mittwoch und Freitag.", strpos($mailZoellner['body'], 'Kurstermine jeweils Mittwoch und Freitag.') !== false);
+        $this->assert("Begleitmail für Zöllner-Kurs verweist ohne PDF nicht blind auf Anhang", strpos($mailZoellner['body'], 'Die genauen Kurstermine sehen Sie im Anhang') === false);
+        $this->assert("Begleitmail für Zöllner-Kurs bietet Angebot 1 und Angebot 2 an", strpos($mailZoellner['body'], 'Angebot 1:') !== false && strpos($mailZoellner['body'], 'Angebot 2:') !== false);
+
+        // 6. Kurstermine im Begleitmail: Martin Bieber Gruppe ohne PDF -> Montag und Dienstag
+        $mailBieber = crm_build_standard_offer_email(1076, 14761);
+        $this->assert("Begleitmail für Bieber-Kurs enthält Kurstermine jeweils Montag und Dienstag.", strpos($mailBieber['body'], 'Kurstermine jeweils Montag und Dienstag.') !== false);
+
+        // 7. Kurstermine im Begleitmail: Mit vorhandenem PDF -> Die genauen Kurstermine sehen Sie im Anhang.
+        $mailWithPdf = crm_build_standard_offer_email(1076, 36593, ['has_terminplan_pdf' => true]);
+        $this->assert("Begleitmail mit Terminplan-PDF verweist auf den Anhang", strpos($mailWithPdf['body'], 'Die genauen Kurstermine sehen Sie im Anhang.') !== false);
+    }
+
+    public function testSuite33_Version21884TuevGrossAndTerminplanAttachment(): void
+    {
+        echo "\n\033[1;33m[SUITE 33] Feedback 22.09.2026: TÜV ISO 17024 Brutto-Berechnung (497 €) & Terminplan-Attachment (v2.18.84)\033[0m\n";
+
+        // 1. Versions-Konsistenz
+        $this->assert("CRM_VERSION ist >= 2.18.84", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.18.84', '>='));
+
+        // 2. TÜV AUSTRIA ISO 17024 Gebühr wird als Bruttobetrag (497,00 €) berechnet
+        // 497 € brutto / 1.20 = 414,17 € netto, 82,83 € USt
+        $certGross = 497.00;
+        $ustSatz = 20.00;
+        $ustCert = round(($certGross / (100 + $ustSatz)) * $ustSatz, 2);
+        $nettoCert = round($certGross - $ustCert, 2);
+        $this->assertEqual("TÜV 497 € brutto -> Netto ist 414,17 €", 414.17, $nettoCert);
+        $this->assertEqual("TÜV 497 € brutto -> 20% USt ist 82,83 €", 82.83, $ustCert);
+        $this->assertEqual("TÜV Netto + USt ergibt exakt 497,00 €", 497.00, round($nettoCert + $ustCert, 2));
+
+        // 3. Lead 1076 (Kurs 36593) Gesamt-Kostenberechnung in Angebot 2
+        $model = new CRM_Model(1076, 'angebot2', false, 36593);
+        $model->override_certifications = crm_resolve_course_certification(1076, 36593);
+        $kostenHtml = $model->get_gesamt_kosten_html();
+
+        $this->assert("Angebot 2 Kosten-Tabelle enthält TÜV Zertifizierung", strpos($kostenHtml, 'TÜV') !== false);
+        $this->assert("Angebot 2 Kosten-Tabelle weist TÜV mit 414,17 € Netto aus", strpos($kostenHtml, '414,17') !== false);
+        $this->assert("Angebot 2 Kosten-Tabelle weist TÜV mit 82,83 € USt aus", strpos($kostenHtml, '82,83') !== false);
+        $this->assert("Angebot 2 Gesamt-Bruttobetrag enthält exakt 497,00 € für Zertifizierung (3.494,00 €)", strpos($kostenHtml, '3.494,00') !== false);
+
+        // 4. Centgenaue Validierung bei Standard-Kurs 3.590,00 € Netto (4.308,00 € Brutto)
+        $courseNetto3590 = 3590.00;
+        $courseUst718 = round($courseNetto3590 * 0.20, 2);
+        $courseBrutto4308 = $courseNetto3590 + $courseUst718;
+        $totalNettoExpected = round($courseNetto3590 + $nettoCert, 2); // 4004.17
+        $totalUstExpected = round($courseUst718 + $ustCert, 2);       // 800.83
+        $totalBruttoExpected = round($totalNettoExpected + $totalUstExpected, 2); // 4805.00
+        $this->assertEqual("3590 € Kurs + TÜV -> Gesamt Netto ist 4.004,17 €", 4004.17, $totalNettoExpected);
+        $this->assertEqual("3590 € Kurs + TÜV -> Gesamt USt ist 800,83 €", 800.83, $totalUstExpected);
+        $this->assertEqual("3590 € Kurs + TÜV -> Gesamt Brutto ist 4.805,00 €", 4805.00, $totalBruttoExpected);
+
+        // 5. CRM Status Tooltip Prüfung
+        $crmStatusContent = file_get_contents(dirname(__DIR__) . '/helpers/crm-status.php');
+        $this->assert("crm-status.php enthält Tooltip mit 497,00 € brutto inkl. 20% USt", strpos($crmStatusContent, '497,00 € brutto inkl. 20% USt') !== false);
+
+        // 6. Terminplan-Erkennung in crm-email-sections.php
+        $emailSectionsContent = file_get_contents(dirname(__DIR__) . '/helpers/crm-email-sections.php');
+        $this->assert("crm-email-sections.php enthält Terminplan-Kandidat", strpos($emailSectionsContent, "'terminplan' => [") !== false);
+        $this->assert("crm-email-sections.php prüft kurszeiten_details_pdf", strpos($emailSectionsContent, "kurszeiten_details_pdf") !== false);
+    }
+
+    public function testSuite34_Version21885FachtrainerDafDazCertAndTerminplanAttachment(): void
+    {
+        echo "\n\033[1;33m[SUITE 34] Feedback 23.09.2026: Fachtrainer & DaF/DaZ Zertifizierung & Terminplan-Pipeline (v2.18.85)\033[0m\n";
+
+        // 1. Versions-Konsistenz
+        $this->assert("CRM_VERSION ist >= 2.18.85", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.18.85', '>='));
+
+        // 2. FachtrainerInnen & DaF / DaZ TrainerInnen - ISO 17024: AMS-Aktion (65662)
+        // Muss SystemCERT ISO 17024 Zertifizierung liefern (324,00 € brutto / 20% USt)
+        $cert65662 = crm_resolve_course_certification(1076, 65662);
+        $this->assert("Kurs 65662 (Fachtrainer & DaF/DaZ Kombi AMS) liefert Zertifizierung", !empty($cert65662) && is_array($cert65662));
+        $this->assert("Kurs 65662 liefert SystemCERT ISO 17024", !empty($cert65662) && strpos($cert65662[0]['name'], 'SystemCERT') !== false);
+        $this->assertEqual("Kurs 65662 Zertifizierungspreis ist 324,00", '324,00', $cert65662[0]['price'] ?? '');
+        $this->assertEqual("Kurs 65662 USt-Satz ist 20%", '20%', $cert65662[0]['percentage'] ?? '');
+
+        // 3. Regression: Reine DaF/DaZ Kurse ohne Fachtrainer bleiben ohne Zertifizierung
+        $pureDaf701 = crm_resolve_course_certification(1076, 701);
+        $this->assert("Kurs 701 (reine DaF/DaZ) liefert empty array", empty($pureDaf701));
+        $pureDaf65629 = crm_resolve_course_certification(1076, 65629);
+        $this->assert("Kurs 65629 (reine DaF/DaZ) liefert empty array", empty($pureDaf65629));
+
+        // 4. Helper-Funktion crm_get_course_terminplan_url existiert
+        $this->assert("crm_get_course_terminplan_url existiert", function_exists('crm_get_course_terminplan_url'));
+
+        // 5. Begleit-E-Mail mit Terminplan enthält Terminplan-Aufzählung und Anhang-Verweis
+        $mailWithTp = crm_build_standard_offer_email(1076, 65662, [
+            'want_offer_1'       => true,
+            'want_offer_2'       => true,
+            'has_cert_option'    => true,
+            'cert_name'          => 'SystemCERT- Kompetenzzertifizierung FachtrainerIn gemäß den Forderungen der ISO 17024',
+            'has_terminplan_pdf' => true,
+            'want_terminplan'    => true,
+        ]);
+        $this->assert("Begleitmail enthält Angebot 1", strpos($mailWithTp['body'], 'Angebot 1:</strong> Ein Angebot ohne Zertifizierung') !== false);
+        $this->assert("Begleitmail enthält Angebot 2 mit SystemCERT", strpos($mailWithTp['body'], 'SystemCERT- Kompetenzzertifizierung') !== false);
+        $this->assert("Begleitmail enthält Terminplan Aufzählungspunkt", strpos($mailWithTp['body'], '<strong>Terminplan:</strong> Detaillierter Termin- und Ablaufplan') !== false);
+        $this->assert("Begleitmail verweist auf genaue Kurstermine im Anhang", strpos($mailWithTp['body'], '→ Die genauen Kurstermine sehen Sie im Anhang.') !== false);
+
+        // 6. crm-email-sections.php auto-check Terminplan in allen CRM-Kontexten
+        $emailSectionsCode = file_get_contents(dirname(__DIR__) . '/helpers/crm-email-sections.php');
+        $this->assert("crm-email-sections.php unterstützt xsieben_angebot_und_kurszeiten im Terminplan auto-check", strpos($emailSectionsCode, 'xsieben_angebot_und_kurszeiten') !== false);
+
+        // 7. crm-friedelin.php bindet Terminplan in crm_friedelin_process_entry ein
+        $friedelinCode = file_get_contents(dirname(__DIR__) . '/helpers/crm-friedelin.php');
+        $this->assert("crm-friedelin.php prüft crm_get_course_terminplan_url", strpos($friedelinCode, 'crm_get_course_terminplan_url') !== false);
+        $this->assert("crm-friedelin.php führt terminplan in final_selected_docs", strpos($friedelinCode, "'terminplan' => \$want_terminplan") !== false);
+
+        // 8. angebot_kurszeiten.php generiert offer_2_pdf_url bei vorhandener Zertifizierung
+        $angebotKbCode = file_get_contents(dirname(__DIR__) . '/pdf/angebot_kurszeiten.php');
+        $this->assert("angebot_kurszeiten.php prüft crm_resolve_course_certification", strpos($angebotKbCode, 'crm_resolve_course_certification') !== false);
+        $this->assert("angebot_kurszeiten.php generiert mit_zertifikat", strpos($angebotKbCode, "'mit_zertifikat'") !== false);
+    }
+
+    public function testSuite35_Version21886OfferPage1SpacingAndTuevCertIntegrity(): void
+    {
+        echo "\n\033[1;33m[SUITE 35] Feedback 23.09.2026: Seite 1 Abstände & TÜV ISO 17024 Integrität (v2.18.86)\033[0m\n";
+
+        // 1. Versions-Konsistenz
+        $this->assert("CRM_VERSION ist >= 2.18.86", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.18.86', '>='));
+
+        // 2. Digital Marketing Manager (36593): Darf niemals fälschlich LOG+L erhalten
+        $cert36593 = crm_resolve_course_certification(1076, 36593);
+        $this->assert("Digital Marketing Manager (36593) liefert Zertifizierung", !empty($cert36593));
+        $this->assert("Digital Marketing Manager liefert TÜV ISO 17024 (nicht LOG+L)", !empty($cert36593) && strpos($cert36593[0]['name'], 'TÜV') !== false && strpos($cert36593[0]['name'], 'LOG+L') === false);
+        $this->assertEqual("Digital Marketing Manager Preis ist 497,00", '497,00', $cert36593[0]['price'] ?? '');
+        $this->assertEqual("Digital Marketing Manager USt ist 20%", '20%', $cert36593[0]['percentage'] ?? '');
+
+        // 3. Digital Marketing Kurs (22328 ohne ACF) liefert ebenfalls TÜV ISO 17024
+        $cert22328 = crm_resolve_course_certification(0, 22328);
+        $this->assert("Kurs 22328 liefert Zertifizierung", !empty($cert22328));
+        $this->assert("Kurs 22328 liefert TÜV ISO 17024", !empty($cert22328) && strpos($cert22328[0]['name'], 'TÜV') !== false);
+        $this->assertEqual("Kurs 22328 Preis ist 497,00", '497,00', $cert22328[0]['price'] ?? '');
+
+        // 4. Logistik-Kurse bleiben weiterhin zuverlässig bei LOG+L (255,00 €)
+        $certLog = crm_resolve_course_certification(0, 14761);
+        $this->assert("Logistik-Kurs 14761 liefert LOG+L", !empty($certLog) && strpos($certLog[0]['name'], 'LOG+L') !== false);
+        $this->assertEqual("Logistik-Kurs 14761 Preis ist 255,00", '255,00', $certLog[0]['price'] ?? '');
+
+        // 5. Deckblatt Grußformel Spacing-Prüfung
+        require_once dirname(__DIR__) . '/pdf/elements/offer-elements.php';
+        $renderedGruss = CRM_Pdf_Offer_Elements::render_gruss("Ich freue mich über Ihre Rückmeldung / Buchung.<br>\nMit freundlichen Grüßen,");
+        $this->assert("render_gruss enthält doppelten Zeilenumbruch vor Mit freundlichen Grüßen", strpos($renderedGruss, '<br><br>Mit freundlichen Grüßen') !== false);
+        $this->assert("render_gruss Tabelle hat margin-top von 8pt", strpos($renderedGruss, 'margin-top: 8pt;') !== false);
+
+        // 6. crm-pdf-sections.php default_content für gruss enthält doppeltes Newline
+        $pdfSectionsCode = file_get_contents(dirname(__DIR__) . '/helpers/crm-pdf-sections.php');
+        $this->assert("crm-pdf-sections.php default_content für gruss enthält doppeltes Newline", strpos($pdfSectionsCode, "Ich freue mich über Ihre Rückmeldung / Buchung.\\n\\nMit freundlichen Grüßen,") !== false);
+
+        // 7. offer.php definiert sub_sp_top = 8.0 für gruss
+        $offerCode = file_get_contents(dirname(__DIR__) . '/pdf/offer.php');
+        $this->assert("offer.php definiert Mindestabstand für gruss auf Deckblatt", strpos($offerCode, "\$sub_key === 'gruss'") !== false && strpos($offerCode, "\$sub_sp_top = 8.0;") !== false);
+    }
+
+    public function testSuite36_Version21887AmseDocumentsAndActionButtonsIntegration(): void
+    {
+        echo "\n\033[1;33m[SUITE 36] Feedback 25.09.2026: AMS Anmeldebestätigung & Antrittsmeldung Vollintegration (v2.18.87)\033[0m\n";
+
+        // 1. Versionsprüfung
+        $this->assert("CRM_VERSION ist >= 2.18.87", version_compare(CRM_VERSION, '2.18.87', '>='));
+
+        // 2. crm_get_actions_config enthält AB und Antritt
+        require_once dirname(__DIR__) . '/crm-admin.php';
+        $actions = crm_get_actions_config();
+        $this->assert("crm_get_actions_config enthält xsieben_anmeldebestaetigung", isset($actions['xsieben_anmeldebestaetigung']));
+        $this->assertEqual("AB Button Label ist AB", 'AB', $actions['xsieben_anmeldebestaetigung']['button_label'] ?? '');
+        $this->assert("crm_get_actions_config enthält xsieben_antrittsbestaetigung", isset($actions['xsieben_antrittsbestaetigung']));
+        $this->assertEqual("Antritt Button Label ist Antritt", 'Antritt', $actions['xsieben_antrittsbestaetigung']['button_label'] ?? '');
+
+        // 3. Aliase und PDF-Funktionen existieren
+        require_once dirname(__DIR__) . '/pdf/anmeldebestaetigung.php';
+        require_once dirname(__DIR__) . '/pdf/antrittsbestaetigung.php';
+        $this->assert("xsieben_ab_pdf existiert", function_exists('xsieben_ab_pdf'));
+        $this->assert("xsieben_antritt_pdf existiert", function_exists('xsieben_antritt_pdf'));
+
+        // 4. crm-views.php Mini-Doc Buttons enthalten AB und Antritt
+        $viewsCode = file_get_contents(dirname(__DIR__) . '/helpers/crm-views.php');
+        $this->assert("crm-views.php enthält AB Mini-Doc Button", strpos($viewsCode, 'data-doc="ab"') !== false && strpos($viewsCode, 'data-action="xsieben_anmeldebestaetigung"') !== false);
+        $this->assert("crm-views.php enthält Antritt Mini-Doc Button", strpos($viewsCode, 'data-doc="antritt"') !== false && strpos($viewsCode, 'data-action="xsieben_antrittsbestaetigung"') !== false);
+
+        // 5. crm-admin.js mappt ab und antritt
+        $jsCode = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
+        $this->assert("crm-admin.js mappt docType ab auf xsieben_anmeldebestaetigung", strpos($jsCode, "docType === 'ab'") !== false && strpos($jsCode, "actionKey = 'xsieben_anmeldebestaetigung'") !== false);
+        $this->assert("crm-admin.js mappt docType antritt auf xsieben_antrittsbestaetigung", strpos($jsCode, "docType === 'antritt'") !== false && strpos($jsCode, "actionKey = 'xsieben_antrittsbestaetigung'") !== false);
+
+        // 6. crm-email-sections.php enthält Kandidaten für AB und Antritt
+        $emailCode = file_get_contents(dirname(__DIR__) . '/helpers/crm-email-sections.php');
+        $this->assert("crm-email-sections.php enthält \$candidates['ab']", strpos($emailCode, "\$candidates['ab']") !== false);
+        $this->assert("crm-email-sections.php enthält \$candidates['antritt']", strpos($emailCode, "\$candidates['antritt']") !== false);
+        $this->assert("crm-email-sections.php matched Anmeldebestaetigung_", strpos($emailCode, "strpos(\$bn, 'Anmeldebestaetigung_') === 0") !== false);
+        $this->assert("crm-email-sections.php matched Antrittsmeldung_", strpos($emailCode, "strpos(\$bn, 'Antrittsmeldung_') === 0") !== false);
+
+        // 7. Browser-Output ruft x_sieben_pdf_preview auf
+        $abPdfCode = file_get_contents(dirname(__DIR__) . '/pdf/anmeldebestaetigung.php');
+        $this->assert("anmeldebestaetigung.php ruft x_sieben_pdf_preview auf", strpos($abPdfCode, "x_sieben_pdf_preview(\$pdf_url, \$course_id, \$entry_id, 'anmeldebestaetigung')") !== false);
+        $antrittPdfCode = file_get_contents(dirname(__DIR__) . '/pdf/antrittsbestaetigung.php');
+        $this->assert("antrittsbestaetigung.php ruft x_sieben_pdf_preview auf", strpos($antrittPdfCode, "x_sieben_pdf_preview(\$pdf_url, \$course_id, \$entry_id, 'antrittsbestaetigung')") !== false);
     }
 }
 

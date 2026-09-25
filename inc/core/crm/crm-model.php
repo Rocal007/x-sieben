@@ -6,7 +6,7 @@ require_once __DIR__ . '/helpers/crm-pdf-presenter.php';
 class CRM_Model
 {
     public $post_id, $title, $titel_short, $permalink, $start_datum, $end_datum, $preis_netto, $preis_brutto, $title_preis, $kurstyp, $abschluss;
-    public $angebot_beschreibung, $anzahl_le, $le_single, $kursart, $kursart_t = '', $kursart_a = '', $kursart_we = '';
+    public $angebot_beschreibung, $anzahl_le, $le_single, $kursart, $kursart_t = '', $kursart_a = '', $kursart_we = '', $kursart_praesenz = '', $kursart_online = '';
     public $voraussetzungen = [], $kurszeiten = [], $module_html = '', $module_gliederung_html = '', $zeiteinteilung_html = '', $selbststudium = [], $termine_pdf, $zertifizierungen = [], $zertifizierungen_images = [];
     public $address_components = [], $nummer, $kurszeiten_datum, $pdfAuthor;
     public $ams_img, $web_icon, $mail_icon, $fax_icon, $phone_icon;
@@ -231,7 +231,20 @@ class CRM_Model
         $this->ps = $this->get_ps_html();
 
         $this->anzahl_le = get_post_meta($post_id, 'lehreinheiten_gesamt', true);
-        $this->termine_pdf = get_field('kurszeiten_details_pdf', $post_id);
+        $tp_raw = function_exists('get_field') ? get_field('kurszeiten_details_pdf', $post_id) : '';
+        if (empty($tp_raw)) {
+            $tp_raw = get_post_meta($post_id, 'kurszeiten_details_pdf', true);
+        }
+        if (is_numeric($tp_raw)) {
+            $tp_url = wp_get_attachment_url((int)$tp_raw) ?: '';
+        } elseif (is_string($tp_raw) && filter_var($tp_raw, FILTER_VALIDATE_URL)) {
+            $tp_url = $tp_raw;
+        } elseif (is_string($tp_raw) && !empty($tp_raw)) {
+            $tp_url = content_url($tp_raw);
+        } else {
+            $tp_url = '';
+        }
+        $this->termine_pdf = $tp_url;
         $this->zielgruppe = sanitize_text_field(get_field('teilnehmeruberblick', $post_id));
         $anzahl_le_val = absint($this->anzahl_le);
         $preis_brutto_val = CRM_Pdf_Presenter::parse_price_float($this->preis_brutto);
@@ -245,7 +258,7 @@ class CRM_Model
         $this->kursgebuehr_html = $this->get_kursgebuehr_html();
         $this->texte_fur_diplom_links = get_field('texte_fur_diplom_links', $post_id) ?: get_post_meta($post_id, 'diplom_text_links', true) ?: '';
         $this->texte_fur_diplom_rechts = get_field('texte_fur_diplom_rechts', $post_id) ?: get_post_meta($post_id, 'diplom_text_rechts', true) ?: '';
-        $this->termine_link = get_field('kurszeiten_details_pdf', $post_id) ?? '';
+        $this->termine_link = $tp_url;
 
         // Kursart & Durchführungsmodus
         $this->set_kursart(get_post_meta($post_id, 'tages_abend_wochenende_', true));
@@ -919,6 +932,27 @@ class CRM_Model
                 $this->$prop = "<strong>X</strong>";
             }
         }
+
+        // Standard: Tageskurs falls nichts gesetzt
+        if (empty($this->kursart_t) && empty($this->kursart_a) && empty($this->kursart_we)) {
+            $this->kursart_t = "<strong>X</strong>";
+        }
+
+        // Präsenz / Webinar / Blended Learning vs. reiner Online-Kurs
+        $post_id = $this->post_id ?? 0;
+        $raw_praesenz = $post_id ? get_post_meta($post_id, 'pasenzkurs__webinar_bzw_blendedleaning_prasenz-_u_live-online-kurs', true) : '';
+        $raw_online   = $post_id ? get_post_meta($post_id, 'online-kurs_zeit-_u_ortsunabhangiges_selbstandiges_erarbeiten_von_inhalten_Kopie', true) : '';
+
+        $is_praesenz = (!empty($raw_praesenz) && ($raw_praesenz === 'x' || (is_array($raw_praesenz) && in_array('x', $raw_praesenz))));
+        $is_online   = (!empty($raw_online) && ($raw_online === 'x' || (is_array($raw_online) && in_array('x', $raw_online))));
+
+        // Bei festen Kursterminen standardmäßig Präsenzkurs / Webinar bzw. Blended Learning
+        if (!$is_praesenz && !$is_online) {
+            $is_praesenz = true;
+        }
+
+        $this->kursart_praesenz = $is_praesenz ? "<strong>X</strong>" : "";
+        $this->kursart_online   = $is_online ? "<strong>X</strong>" : "";
     }
 
     /**

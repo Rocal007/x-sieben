@@ -19,7 +19,7 @@
 
 // --- Core Setup & Helpers ---
 if (!defined('CRM_VERSION')) {
-    define('CRM_VERSION', '2.18.81');
+    define('CRM_VERSION', '2.18.87');
 }
 
 require_once __DIR__ . '/helpers/crm-cache.php';
@@ -41,8 +41,10 @@ function crm_get_actions_config()
     return [
         'xsieben_teilnahmebestaetigung'  => ['function' => 'xsieben_teilnahmebestaetigung_pdf', 'label' => __('Attendance Confirmation', 'custom-crm'), 'button_label' => __('TB', 'custom-crm')],
         'xsieben_kurszeitenbestaetigung' => ['function' => 'xsieben_kurszeitenbestaetigung_pdf', 'label' => __('Course Times Confirmation', 'custom-crm'), 'button_label' => __('KB', 'custom-crm')],
+        'xsieben_anmeldebestaetigung'    => ['function' => 'xsieben_anmeldebestaetigung_pdf', 'label' => __('Anmeldebestätigung', 'custom-crm'), 'button_label' => __('AB', 'custom-crm')],
+        'xsieben_antrittsbestaetigung'   => ['function' => 'xsieben_antrittsbestaetigung_pdf', 'label' => __('Antrittsmeldung', 'custom-crm'), 'button_label' => __('Antritt', 'custom-crm')],
         'xsieben_offer'                  => ['function' => 'xsieben_offer_pdf', 'label' => __('Angebot', 'custom-crm'), 'button_label' => __('Angebot', 'custom-crm')],
-        'xsieben_angebot_und_kurszeiten'      => ['function' => 'xsieben_angebot_kurszeiten_pdf', 'label' => __('Angebot und Kurszeiten', 'custom-crm'), 'button_label' => __('Angebot & KB', 'custom-crm')],
+        'xsieben_angebot_und_kurszeiten' => ['function' => 'xsieben_angebot_kurszeiten_pdf', 'label' => __('Angebot und Kurszeiten', 'custom-crm'), 'button_label' => __('Angebot & KB', 'custom-crm')],
         'xsieben_invoice'                => ['function' => 'xsieben_invoice_pdf', 'label' => __('Honorarnote', 'custom-crm'), 'button_label' => __('HN', 'custom-crm')],
         // 'xsieben_mailer'                 => ['function' => 'xsieben_mailer', 'label' => __('Email', 'custom-crm'), 'button_label' => __('E-mail', 'custom-crm')],
         'xsieben_diplom'                 => ['function' => 'xsieben_diplom_pdf', 'label' => __('Diplom', 'custom-crm'), 'button_label' => __('Diplom', 'custom-crm')],
@@ -166,13 +168,14 @@ add_action('admin_enqueue_scripts', function ($hook) {
         $crm_test_em = get_option('crm_test_email') ?: ($curr_email ?: 'gajo@x-sieben.at');
 
         wp_localize_script('custom-crm-admin', 'crmData', [
-            'ajaxUrl'          => admin_url('admin-ajax.php'),
-            'nonce'            => wp_create_nonce('crm_ajax_nonce'),
-            'autoJsCacheClean' => function_exists('crm_is_js_cache_clean_enabled') ? crm_is_js_cache_clean_enabled() : true,
-            'cacheVersion'     => function_exists('crm_get_js_cache_version') ? crm_get_js_cache_version() : '1',
-            'assetVersion'     => $asset_ver,
-            'currentUserEmail' => $curr_email,
-            'defaultTestEmail' => $crm_test_em,
+            'ajaxUrl'            => admin_url('admin-ajax.php'),
+            'nonce'              => wp_create_nonce('crm_ajax_nonce'),
+            'autoJsCacheClean'   => function_exists('crm_is_js_cache_clean_enabled') ? crm_is_js_cache_clean_enabled() : true,
+            'cacheVersion'       => function_exists('crm_get_js_cache_version') ? crm_get_js_cache_version() : '1',
+            'assetVersion'       => $asset_ver,
+            'currentUserEmail'   => $curr_email,
+            'defaultTestEmail'   => $crm_test_em,
+            'maxParallelWorkers' => 2,
         ]);
         wp_localize_script('custom-crm-admin', 'xSiebenAjax', [
             'ajax_url' => admin_url('admin-ajax.php'),
@@ -556,7 +559,7 @@ add_action('wp_ajax_crm_entry_action', function () {
         if ($action_key === 'xsieben_diplom') {
             $diplom_success = isset($_POST['diplom_success']) ? sanitize_text_field(wp_unslash($_POST['diplom_success'])) : null;
             call_user_func($function, $entry_id, $course_id, true, $diplom_success);
-        } elseif ($action_key === 'xsieben_offer' || $action_key === 'xsieben_kurszeitenbestaetigung' || $action_key === 'xsieben_teilnahmebestaetigung' || $action_key === 'xsieben_angebot_und_kurszeiten') {
+        } elseif ($action_key === 'xsieben_offer' || $action_key === 'xsieben_kurszeitenbestaetigung' || $action_key === 'xsieben_teilnahmebestaetigung' || $action_key === 'xsieben_angebot_und_kurszeiten' || $action_key === 'xsieben_anmeldebestaetigung' || $action_key === 'xsieben_antrittsbestaetigung') {
             $custom_sections = isset($_POST['custom_sections']) && is_array($_POST['custom_sections']) ? array_map('sanitize_key', $_POST['custom_sections']) : null;
             call_user_func($function, $entry_id, $course_id, true, $custom_sections);
         } elseif ($paramCount >= 3) {
@@ -867,6 +870,12 @@ add_action('wp_ajax_crm_simulate_pdf', function () {
         } elseif ($doc_type === 'invoice') {
             require_once __DIR__ . '/pdf/invoice.php';
             $pdf_url = xsieben_invoice_pdf($entry_id, $course_id, false);
+        } elseif ($doc_type === 'anmeldebestaetigung' || $doc_type === 'ab') {
+            require_once __DIR__ . '/pdf/anmeldebestaetigung.php';
+            $pdf_url = xsieben_anmeldebestaetigung_pdf($entry_id, $course_id, false);
+        } elseif ($doc_type === 'antrittsbestaetigung' || $doc_type === 'antritt') {
+            require_once __DIR__ . '/pdf/antrittsbestaetigung.php';
+            $pdf_url = xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, false);
         }
     } catch (\Throwable $e) {
         wp_send_json_error(['message' => 'PDF-Fehler: ' . $e->getMessage()]);
@@ -950,6 +959,12 @@ add_action('wp_ajax_crm_save_pdf_section_order', function () {
                 } elseif ($doc_type === 'invoice') {
                     require_once __DIR__ . '/pdf/invoice.php';
                     $pdf_url = xsieben_invoice_pdf($entry_id, $course_id, false);
+                } elseif ($doc_type === 'anmeldebestaetigung' || $doc_type === 'ab') {
+                    require_once __DIR__ . '/pdf/anmeldebestaetigung.php';
+                    $pdf_url = xsieben_anmeldebestaetigung_pdf($entry_id, $course_id, false);
+                } elseif ($doc_type === 'antrittsbestaetigung' || $doc_type === 'antritt') {
+                    require_once __DIR__ . '/pdf/antrittsbestaetigung.php';
+                    $pdf_url = xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, false);
                 }
             } catch (\Throwable $e) {
                 error_log('CRM PDF Section Reorder Error: ' . $e->getMessage());
@@ -1023,6 +1038,12 @@ add_action('wp_ajax_crm_reset_pdf_section_order', function () {
             } elseif ($doc_type === 'invoice') {
                 require_once __DIR__ . '/pdf/invoice.php';
                 $pdf_url = xsieben_invoice_pdf($entry_id, $course_id, false);
+            } elseif ($doc_type === 'anmeldebestaetigung' || $doc_type === 'ab') {
+                require_once __DIR__ . '/pdf/anmeldebestaetigung.php';
+                $pdf_url = xsieben_anmeldebestaetigung_pdf($entry_id, $course_id, false);
+            } elseif ($doc_type === 'antrittsbestaetigung' || $doc_type === 'antritt') {
+                require_once __DIR__ . '/pdf/antrittsbestaetigung.php';
+                $pdf_url = xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, false);
             }
         } catch (\Throwable $e) {
             error_log('CRM PDF Reset Section Reorder Error: ' . $e->getMessage());
@@ -1807,10 +1828,11 @@ function render_crm_admin_page()
                             'IPMA / pma - Level B Zertifizierung (Online) - € 1.958,00 (10%)',
                             'SystemCERT- Kompetenzzertifizierung FachtrainerIn gemäß den Forderungen der ISO 17024 - € 324,00 (20%)',
                             'TÜV - ISO/IEC 17024 Kompetenz-Zertifizierung - € 497,00 (20%)',
+                            'Option: TÜV - EN ISO 17024 Kompetenz-Zertifizierung - Online - € 497,00 (20%)',
                             'Scrum.org Zertifizierung - PSM I (USD 200,-) - € 171,50 (0%)',
                             'Scrum.org Zertifizierung - PSPO I (USD 200,-) - € 171,50 (0%)',
                             'Scrum.org Zertifizierung - PSPO I (USD 200,-) + PSM I (USD 200,-) - € 343,00 (0%)',
-                            'LOG+L - Kompetenzzertifizierung nach DIN EN ISO 17024 - € 306,00 (20%)',
+                            'LOG+L - Kompetenzzertifizierung nach DIN EN ISO 17024 - € 255,00 (20%)',
                             'Anrechnung von Modul Gender + Diversity + € 400,00 (20%)',
                         ];
 

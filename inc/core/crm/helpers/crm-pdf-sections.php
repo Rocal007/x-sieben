@@ -322,7 +322,7 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
                         'title'           => __('Grußformel', 'custom-crm'),
                         'desc'            => __('Freundliche Grußformel.', 'custom-crm'),
                         'default'         => true,
-                        'default_content' => "Ich freue mich über Ihre Rückmeldung / Buchung.\nMit freundlichen Grüßen,",
+                        'default_content' => "Ich freue mich über Ihre Rückmeldung / Buchung.\n\nMit freundlichen Grüßen,",
                     ],
                     'signatur' => [
                         'title'           => __('X-SIEBEN Signatur', 'custom-crm'),
@@ -1110,6 +1110,64 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
     $definitions['angebot_2']['abschluss']['title'] = __('Ihr persönlicher Abschluss & Zertifizierung', 'custom-crm');
     $definitions['angebot_2']['kosten']['title']    = __('Ihre Investition & Kosten (inkl. Zertifizierung)', 'custom-crm');
     $definitions['angebot_2']['kosten']['desc']     = __('Kursgebühr inkl. optionale Zertifizierungen, Gesamtkosten, Angebotsgültigkeit und Bankverbindung.', 'custom-crm');
+
+    // Anmeldebestätigung (AB)
+    $definitions['ab'] = [
+        'anschreiben' => [
+            'title'       => __('Anmeldebestätigung Anschreiben', 'custom-crm'),
+            'desc'        => __('Adressfenster, Referenzleiste, Kurstitel, Beginn, Veranstaltungsort und Signatur.', 'custom-crm'),
+            'badge'       => __('Seite 1', 'custom-crm'),
+            'icon'        => 'dashicons-media-document',
+            'color'       => '#2563eb',
+            'default'     => true,
+            'subsections' => [
+                'bestaetigung' => [
+                    'title'           => __('Bestätigung & Eckdaten', 'custom-crm'),
+                    'desc'            => __('Offizielles Bestätigungsschreiben mit Kurstitel, Termin und Ort.', 'custom-crm'),
+                    'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+            ],
+        ],
+        'agb_hinweis' => [
+            'title'       => __('Rechtliche Hinweise & AGB', 'custom-crm'),
+            'desc'        => __('AGB- und Widerrufsbelehrungs-Hinweis sowie Datenschutzerklärung.', 'custom-crm'),
+            'badge'       => __('Seite 2', 'custom-crm'),
+            'icon'        => 'dashicons-shield',
+            'color'       => '#2563eb',
+            'default'     => true,
+            'subsections' => [
+                'hinweistext' => [
+                    'title'           => __('Rechtlicher Hinweis', 'custom-crm'),
+                    'desc'            => __('Hinweis auf AGB, Widerrufsbelehrung und Datenschutz.', 'custom-crm'),
+                    'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+            ],
+        ],
+    ];
+    $definitions['anmeldebestaetigung'] = $definitions['ab'];
+
+    // Antrittsmeldung (AMS)
+    $definitions['antritt'] = [
+        'antrittsmeldung' => [
+            'title'       => __('Antrittsmeldung für das AMS', 'custom-crm'),
+            'desc'        => __('Offizielle Bestätigung des Kursantritts an das Arbeitsmarktservice.', 'custom-crm'),
+            'badge'       => __('Seite 1', 'custom-crm'),
+            'icon'        => 'dashicons-clipboard',
+            'color'       => '#0891b2',
+            'default'     => true,
+            'subsections' => [
+                'antritt_daten' => [
+                    'title'           => __('Antrittsdaten & Kursangaben', 'custom-crm'),
+                    'desc'            => __('Teilnehmer, SV-Nummer, Antrittsdatum, Schulungsort und Stampiglie.', 'custom-crm'),
+                    'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+            ],
+        ],
+    ];
+    $definitions['antrittsbestaetigung'] = $definitions['antritt'];
 
     if ($doc_type !== null) {
         $key = strtolower(trim($doc_type));
@@ -2224,17 +2282,19 @@ function crm_get_subsection_default_html(string $doc_type, string $sec_key, stri
             $vorname         = $course->vorname ?: '';
             $nachname        = $course->nachname ?: '';
             $svr             = $course->svr ?: '';
-            $kursart_t       = (string)($course->kursart_t ?? '');
-            $kursart_a       = (string)($course->kursart_a ?? '');
-            $kursart_we      = (string)($course->kursart_we ?? '');
-            $kurszeiten      = is_array($course->kurszeiten) ? $course->kurszeiten : [];
-            $selbststudium   = is_array($course->selbststudium) ? $course->selbststudium : [];
+            $kursart_t        = (string)($course->kursart_t ?? '');
+            $kursart_a        = (string)($course->kursart_a ?? '');
+            $kursart_we       = (string)($course->kursart_we ?? '');
+            $kursart_praesenz = (string)($course->kursart_praesenz ?? '');
+            $kursart_online   = (string)($course->kursart_online ?? '');
+            $kurszeiten       = is_array($course->kurszeiten) ? $course->kurszeiten : [];
+            $selbststudium    = is_array($course->selbststudium) ? $course->selbststudium : [];
 
             $gens = [
                 'titel'      => ['haupttitel' => CRM_Pdf_Kb_Elements::render_titel($kb_title)],
                 'institut'   => CRM_Pdf_Kb_Elements::get_institut_subs($kb_institut, $kb_ort, $display_title, $startdatum, $enddatum),
                 'teilnehmer' => CRM_Pdf_Kb_Elements::get_teilnehmer_subs($vorname, $nachname, $svr),
-                'kurstyp'    => ['kurstyp_box' => CRM_Pdf_Kb_Elements::render_kurstyp($kursart_t, $kursart_a, $kursart_we)],
+                'kurstyp'    => ['kurstyp_box' => CRM_Pdf_Kb_Elements::render_kurstyp($kursart_t, $kursart_a, $kursart_we, $kursart_praesenz, $kursart_online)],
                 'kurszeiten' => ['kurszeiten_box' => CRM_Pdf_Kb_Elements::render_kurszeiten($kurszeiten, $selbststudium)],
                 'hinweis'    => ['hinweis_box' => CRM_Pdf_Kb_Elements::render_hinweis($kb_hinweis)],
                 'signatur'   => ['signatur_box' => CRM_Pdf_Kb_Elements::render_signatur($stempel_file, $kb_sig_institut, $kb_sig_kunde)],

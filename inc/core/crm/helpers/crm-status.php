@@ -809,6 +809,8 @@ function crm_get_actions_for_status($status_key, $is_foerderung = false)
         'xsieben_angebot_und_kurszeiten',
         'xsieben_offer',
         'xsieben_kurszeitenbestaetigung',
+        'xsieben_anmeldebestaetigung',
+        'xsieben_antrittsbestaetigung',
         'xsieben_teilnahmebestaetigung',
         'xsieben_diplom',
     ];
@@ -1748,10 +1750,11 @@ function crm_render_customer_edit_form($entry_id, $course_id = 0) {
         'IPMA / pma - Level B Zertifizierung (Online) - € 1.958,00 (10%)',
         'SystemCERT- Kompetenzzertifizierung FachtrainerIn gemäß den Forderungen der ISO 17024 - € 324,00 (20%)',
         'TÜV - ISO/IEC 17024 Kompetenz-Zertifizierung - € 497,00 (20%)',
+        'Option: TÜV - EN ISO 17024 Kompetenz-Zertifizierung - Online - € 497,00 (20%)',
         'Scrum.org Zertifizierung - PSM I (USD 200,-) - € 171,50 (0%)',
         'Scrum.org Zertifizierung - PSPO I (USD 200,-) - € 171,50 (0%)',
         'Scrum.org Zertifizierung - PSPO I (USD 200,-) + PSM I (USD 200,-) - € 343,00 (0%)',
-        'LOG+L - Kompetenzzertifizierung nach DIN EN ISO 17024 - € 306,00 (20%)',
+        'LOG+L - Kompetenzzertifizierung nach DIN EN ISO 17024 - € 255,00 (20%)',
         'Anrechnung von Modul Gender + Diversity + € 400,00 (20%)',
     ];
     $current_certs_raw = $m_certs['val'];
@@ -2799,6 +2802,12 @@ function crm_get_friendly_pdf_label(string $url_or_name, int $idx = 0): string
     if (stripos($basename, 'Teilnahmebestaetigung') !== false) {
         return '🎓 Teilnahmebestätigung (PDF)';
     }
+    if (stripos($basename, 'Anmeldebestaetigung') !== false || $basename === 'ab') {
+        return '📝 Anmeldebestätigung (PDF)';
+    }
+    if (stripos($basename, 'Antrittsmeldung') !== false || stripos($basename, 'Antrittsbestaetigung') !== false || $basename === 'antritt') {
+        return '📋 Antrittsmeldung (PDF)';
+    }
     if (stripos($basename, 'Diplom') !== false) {
         return '🏆 Diplom & Zertifikat (PDF)';
     }
@@ -3066,6 +3075,10 @@ function crm_render_snapshots_html($entry_id)
         'xsieben_angebot_kurszeiten'     => 'Angebot & Kurszeitenbestätigung',
         'xsieben_angebot_und_kurszeiten' => 'Angebot & Kurszeitenbestätigung',
         'anmeldung'                      => 'Anmeldebestätigung',
+        'ab'                             => 'Anmeldebestätigung',
+        'xsieben_anmeldebestaetigung'    => 'Anmeldebestätigung',
+        'antritt'                        => 'Antrittsmeldung',
+        'xsieben_antrittsbestaetigung'   => 'Antrittsmeldung',
         'tb'                             => 'Teilnahmebestätigung',
         'xsieben_teilnahmebestaetigung'  => 'Teilnahmebestätigung',
         'diplom'                         => 'Diplom & Zertifikat',
@@ -3608,7 +3621,17 @@ function crm_get_course_available_certifications(int $course_id, $entry_id = 0):
                 continue;
             }
 
-            // 4. Spezifische TÜV / SystemCERT Prüfungen (strikt getrennt)
+            // 4.1 Spezifische LOG+L Prüfungen
+            $is_target_logl = (strpos($clean_l, 'log+l') !== false || strpos($short_l, 'log+l') !== false);
+            $is_rc_logl     = (strpos($rc_name_l, 'log+l') !== false);
+            if ($is_target_logl || $is_rc_logl) {
+                if ($is_target_logl && $is_rc_logl) {
+                    return true;
+                }
+                continue;
+            }
+
+            // 4.2 Spezifische TÜV / SystemCERT Prüfungen (strikt getrennt)
             $is_target_sys = (strpos($clean_l, 'systemcert') !== false || strpos($short_l, 'systemcert') !== false);
             $is_rc_sys     = (strpos($rc_name_l, 'systemcert') !== false);
             if ($is_target_sys || $is_rc_sys) {
@@ -3618,8 +3641,8 @@ function crm_get_course_available_certifications(int $course_id, $entry_id = 0):
                 continue;
             }
 
-            $is_target_tuev = (strpos($clean_l, 'tüv') !== false || strpos($clean_l, 'tuev') !== false || strpos($short_l, 'tüv') !== false || strpos($short_l, 'tuev') !== false);
-            $is_rc_tuev     = (strpos($rc_name_l, 'tüv') !== false || strpos($rc_name_l, 'tuev') !== false);
+            $is_target_tuev = ((strpos($clean_l, 'tüv') !== false || strpos($clean_l, 'tuev') !== false || strpos($short_l, 'tüv') !== false || strpos($short_l, 'tuev') !== false) && strpos($clean_l, 'log+l') === false);
+            $is_rc_tuev     = ((strpos($rc_name_l, 'tüv') !== false || strpos($rc_name_l, 'tuev') !== false) && strpos($rc_name_l, 'log+l') === false);
             if ($is_target_tuev || $is_rc_tuev) {
                 if ($is_target_tuev && $is_rc_tuev) {
                     return true;
@@ -3684,7 +3707,15 @@ function crm_get_course_available_certifications(int $course_id, $entry_id = 0):
                     } elseif (strpos($name_l, 'psm i') !== false) {
                         $short_name = 'Scrum PSM I';
                     }
-                } elseif (strpos($name_l, 'tüv') !== false || strpos($name_l, 'tuev') !== false || (strpos($name_l, '17024') !== false && strpos($name_l, 'systemcert') === false)) {
+                } elseif (strpos($name_l, 'log+l') !== false || strpos($name_l, 'logistik') !== false || in_array($course_id, [14761, 316, 13800, 14808, 38736, 317], true)) {
+                    $provider = 'LOG+L';
+                    $badge_class = 'crm-cert-logl';
+                    $short_name = 'LOG+L ISO 17024';
+                    $clean_name = 'LOG+L - Kompetenzzertifizierung nach DIN EN ISO 17024';
+                    $price_num = 255.00;
+                    $price_formatted = '255,00 €';
+                    $raw_preis = '255,00';
+                } elseif ((strpos($name_l, 'tüv') !== false || strpos($name_l, 'tuev') !== false || (strpos($name_l, '17024') !== false && strpos($name_l, 'systemcert') === false)) && strpos($name_l, 'log+l') === false) {
                     $provider = 'TÜV AUSTRIA';
                     $badge_class = 'crm-cert-tuev';
                     $short_name = 'TÜV ISO 17024';
@@ -3707,7 +3738,7 @@ function crm_get_course_available_certifications(int $course_id, $entry_id = 0):
                     'provider'        => $provider,
                     'badge_class'     => $badge_class,
                     'is_selected'     => $is_selected,
-                    'tooltip'         => $tooltip ?: ($clean_name . ($price_formatted ? ' (zzgl. ' . $price_formatted . ')' : '')),
+                    'tooltip'         => $tooltip ?: ($clean_name . ($price_formatted ? ($price_num == 497.00 || stripos($clean_name, 'tüv') !== false ? ' (' . $price_formatted . ' brutto inkl. ' . (!empty($raw_ust) ? $raw_ust . '%' : '20%') . ' USt)' : ' (' . $price_formatted . ')') : '')),
                     'source'          => 'acf'
                 ];
             }
@@ -3750,6 +3781,21 @@ function crm_get_course_available_certifications(int $course_id, $entry_id = 0):
                     'tooltip'         => $meta_zert,
                     'source'          => 'meta'
                 ];
+            } elseif ((strpos($meta_l, 'log+l') !== false || in_array($course_id, [14761, 316, 13800, 14808, 38736, 317], true)) && strpos($course_title_lower, 'marketing') === false) {
+                $certs[] = [
+                    'raw_name'        => $meta_zert,
+                    'name'            => 'LOG+L - Kompetenzzertifizierung nach DIN EN ISO 17024',
+                    'short_name'      => 'LOG+L ISO 17024',
+                    'price_raw'       => '255',
+                    'price_num'       => 255.00,
+                    'price_formatted' => '255,00 €',
+                    'ust'             => '20%',
+                    'provider'        => 'LOG+L',
+                    'badge_class'     => 'crm-cert-logl',
+                    'is_selected'     => $is_cert_in_resolved('LOG+L - Kompetenzzertifizierung nach DIN EN ISO 17024', 'LOG+L ISO 17024', $meta_zert),
+                    'tooltip'         => 'LOG+L - Kompetenzzertifizierung nach DIN EN ISO 17024 (255,00 € zzgl. 20% USt)',
+                    'source'          => 'meta'
+                ];
             } elseif (strpos($meta_l, 'iso 17024') !== false || strpos($meta_l, 'tüv') !== false) {
                 $certs[] = [
                     'raw_name'        => $meta_zert,
@@ -3762,7 +3808,7 @@ function crm_get_course_available_certifications(int $course_id, $entry_id = 0):
                     'provider'        => 'TÜV AUSTRIA',
                     'badge_class'     => 'crm-cert-tuev',
                     'is_selected'     => $is_cert_in_resolved($meta_zert, 'TÜV ISO 17024', $meta_zert),
-                    'tooltip'         => $meta_zert,
+                    'tooltip'         => 'TÜV AUSTRIA - ISO/IEC 17024 Zertifizierung (497,00 € brutto inkl. 20% USt)',
                     'source'          => 'meta'
                 ];
             } elseif (strpos($meta_l, 'systemcert') !== false || (strpos($course_title_lower, 'fachtrainer') !== false && strpos($course_title_lower, 'ams') !== false)) {
@@ -3781,6 +3827,32 @@ function crm_get_course_available_certifications(int $course_id, $entry_id = 0):
                     'source'          => 'meta'
                 ];
             }
+        }
+    }
+
+    // 3. Fallback: Heuristische Erkennung falls weder ACF noch 'zertifikat'-Meta vorhanden
+    if (empty($certs)) {
+        $is_digital_marketing = (
+            $course_id == 36593 ||
+            $course_id == 22328 ||
+            strpos($course_title_lower, 'digital marketing') !== false ||
+            strpos($course_title_lower, 'digital-marketing') !== false
+        );
+        if ($is_digital_marketing) {
+            $certs[] = [
+                'raw_name'        => 'TÜV - ISO/IEC 17024 Kompetenz-Zertifizierung',
+                'name'            => 'TÜV AUSTRIA - ISO/IEC 17024 Zertifizierung',
+                'short_name'      => 'TÜV ISO 17024',
+                'price_raw'       => '497',
+                'price_num'       => 497.00,
+                'price_formatted' => '497,00 €',
+                'ust'             => '20%',
+                'provider'        => 'TÜV AUSTRIA',
+                'badge_class'     => 'crm-cert-tuev',
+                'is_selected'     => $is_cert_in_resolved('TÜV AUSTRIA - ISO/IEC 17024 Zertifizierung', 'TÜV ISO 17024', 'TÜV - ISO/IEC 17024'),
+                'tooltip'         => 'TÜV AUSTRIA - ISO/IEC 17024 Zertifizierung (497,00 € brutto inkl. 20% USt)',
+                'source'          => 'fallback'
+            ];
         }
     }
 

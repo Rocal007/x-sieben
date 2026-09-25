@@ -123,6 +123,103 @@
     };
 })(window);
 
+// =============================================================================
+// NEXUS 2-WORKER CONCURRENCY POOL (Live Server Protection)
+// Garantiert maximal 2 gleichzeitige AJAX-Worker für Stapelverarbeitungen
+// (z. B. Bulk-PDF-Generierung, Massen-Status-Updates), um den Timme-Hosting
+// Live-Server (PHP-FPM) vor Überlastung zu schützen.
+// =============================================================================
+(function (window) {
+    window.crmWorkerQueue = {
+        maxWorkers: (typeof crmData !== 'undefined' && crmData.maxParallelWorkers) ? parseInt(crmData.maxParallelWorkers, 10) : 2,
+        activeWorkers: 0,
+
+        /**
+         * Führt eine Liste von Task-Funktionen mit maximal `maxWorkers` (2) gleichzeitig aus.
+         * @param {Array<Function>} taskFunctions - Array von Funktionen, die ein Promise zurückgeben.
+         * @param {Function} onProgress - Callback (completed, total, activeWorkers, currentResult)
+         * @return {Promise<Array>}
+         */
+        runAll: function (taskFunctions, onProgress) {
+            const total = taskFunctions.length;
+            let completed = 0;
+            const results = new Array(total);
+            const self = this;
+            const limit = Math.max(1, self.maxWorkers || 2);
+
+            return new Promise(function (resolve) {
+                if (total === 0) {
+                    resolve([]);
+                    return;
+                }
+
+                let currentIndex = 0;
+
+                function startNextWorker() {
+                    while (self.activeWorkers < limit && currentIndex < total) {
+                        const index = currentIndex++;
+                        self.activeWorkers++;
+                        const taskFn = taskFunctions[index];
+
+                        Promise.resolve()
+                            .then(function () { return taskFn(); })
+                            .then(function (result) {
+                                results[index] = { success: true, data: result };
+                            })
+                            .catch(function (err) {
+                                results[index] = { success: false, error: err };
+                            })
+                            .finally(function () {
+                                self.activeWorkers--;
+                                completed++;
+                                if (typeof onProgress === 'function') {
+                                    try {
+                                        onProgress(completed, total, self.activeWorkers, results[index]);
+                                    } catch (cbErr) {
+                                        console.warn('[CRM Worker Queue] Progress callback error:', cbErr);
+                                    }
+                                }
+                                if (completed === total) {
+                                    resolve(results);
+                                } else {
+                                    startNextWorker();
+                                }
+                            });
+                    }
+                }
+
+                startNextWorker();
+            });
+        },
+
+        /**
+         * Schwebender Fortschrittsbanner im CRM-Admin
+         */
+        showProgressBanner: function (title, current, total) {
+            let banner = document.getElementById('crm-worker-progress-banner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'crm-worker-progress-banner';
+                banner.style.cssText = 'position:fixed; bottom:24px; right:24px; z-index:999999; background:#0f172a; color:#fff; padding:12px 18px; border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.3); font-size:13px; font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif; display:flex; align-items:center; gap:12px; transition:all 0.3s ease; border-left:4px solid #3b82f6;';
+                document.body.appendChild(banner);
+            }
+            const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+            banner.innerHTML = '<span class="dashicons dashicons-update spin" style="color:#3b82f6;"></span> <div><strong>' + crmEscapeHtml(title) + '</strong><div style="font-size:11.5px; color:#94a3b8; margin-top:2px;">' + current + ' von ' + total + ' verarbeitet (' + pct + '%) • <strong>2 Worker aktiv</strong></div></div>';
+            if (current >= total) {
+                banner.style.borderLeftColor = '#10b981';
+                banner.innerHTML = '✅ <div><strong>' + crmEscapeHtml(title) + ' abgeschlossen!</strong><div style="font-size:11.5px; color:#94a3b8; margin-top:2px;">Alle ' + total + ' Dokumente erfolgreich generiert.</div></div>';
+                setTimeout(function () {
+                    if (banner && banner.parentNode) {
+                        banner.style.opacity = '0';
+                        setTimeout(function () { banner.remove(); }, 400);
+                    }
+                }, 3500);
+            }
+        }
+    };
+})(window);
+
+
 // Universal HTML escaper available across all closures
 function crmEscapeHtml(str) {
     if (str === null || str === undefined) return '';
@@ -1101,6 +1198,8 @@ document.addEventListener("DOMContentLoaded", function () {
             const docType = button.dataset.doc;
             if (docType) {
                 if (docType === 'kb') actionKey = 'xsieben_kurszeitenbestaetigung';
+                else if (docType === 'ab') actionKey = 'xsieben_anmeldebestaetigung';
+                else if (docType === 'antritt') actionKey = 'xsieben_antrittsbestaetigung';
                 else if (docType === 'tb') actionKey = 'xsieben_teilnahmebestaetigung';
                 else if (docType === 'diplom') actionKey = 'xsieben_diplom';
                 else actionKey = 'xsieben_offer';
@@ -4167,6 +4266,8 @@ jQuery(document).ready(function ($) {
                     let label = doc.title;
                     if (doc.docType === 'agb') label = 'AGB 2025 herunterladen';
                     else if (doc.docType === 'kb') label = 'Kurszeiten (KB) herunterladen';
+                    else if (doc.docType === 'ab') label = 'Anmeldebestätigung herunterladen';
+                    else if (doc.docType === 'antritt') label = 'Antrittsmeldung herunterladen';
                     else if (doc.docType === 'angebot') label = 'Angebot herunterladen';
                     else if (doc.docType === 'tb') label = 'Teilnahmebestätigung herunterladen';
                     else if (doc.docType === 'diplom') label = 'Diplom herunterladen';

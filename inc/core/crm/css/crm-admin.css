@@ -4819,6 +4819,17 @@ tr.crm-quick-edit-row td.colspanchange {
     color: #92400e;
 }
 
+.crm-cert-logl {
+    background-color: #fff7ed;
+    color: #c2410c;
+    border: 1px solid #ffedd5;
+}
+.crm-cert-logl:hover {
+    background-color: #ffedd5;
+    border-color: #fed7aa;
+    color: #9a3412;
+}
+
 .crm-cert-default {
     background-color: #f8fafc;
     color: #475569;

@@ -46,7 +46,7 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser = true, $cu
     // Deckblatt: Texte aufbereiten
     $angebot_default_intro = 'Danke für Ihr Interesse und willkommen bei der beliebten X SIEBEN Veranstaltung ' . $course->title . ' mit lernförderndem Kleingruppen-Unterricht.<br><br>Diese Veranstaltung fokussiert auf ' . $course->zielgruppe;
     $angebot_intro         = $course->get_crm_field_with_default('Angebot - Einleitung', $angebot_default_intro);
-    $angebot_gruss         = $course->get_crm_field_with_default('Angebot - Grußformel', "Ich freue mich über Ihre Rückmeldung / Buchung.<br>\nMit freundlichen Grüßen,");
+    $angebot_gruss         = $course->get_crm_field_with_default('Angebot - Grußformel', "Ich freue mich über Ihre Rückmeldung / Buchung.<br><br>\nMit freundlichen Grüßen,");
 
     // Clean up wpautop / HTML paragraph wrappers for clean, uniform spacing inside table cell
     $clean_pdf_text = function ($html) {
@@ -506,6 +506,26 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser = true, $cu
                             $has_explicit_sub_bot = isset($sub['spacing_bottom']) && $sub['spacing_bottom'] !== '' && floatval($sub['spacing_bottom']) > 0;
                             if (!$has_explicit_sub_bot) {
                                 $sub_sp_bottom = max(32.0, floatval($global_spacing['title_spacing_bottom'] ?? 36.0));
+                            }
+                        } elseif ($sub_key === 'signatur') {
+                            // Sicherstellen, dass nach der Geschäftsführer-Signatur ein harmonischer Abstand vor dem PS: liegt (18 pt statt 8 pt)
+                            $has_explicit_sub_top = isset($sub['spacing_top']) && floatval($sub['spacing_top']) > 0;
+                            $has_explicit_sub_bot = isset($sub['spacing_bottom']) && floatval($sub['spacing_bottom']) > 0;
+                            if (!$has_explicit_sub_top) {
+                                $sub_sp_top = min(8.0, $sub_sp_top);
+                            }
+                            if (!$has_explicit_sub_bot) {
+                                $sub_sp_bottom = 18.0;
+                            }
+                        } elseif ($sub_key === 'gruss') {
+                            // Harmonischer Abstand zwischen Einleitungstext und Grußformel (mind. 8 pt)
+                            $has_explicit_sub_top = isset($sub['spacing_top']) && floatval($sub['spacing_top']) > 0;
+                            $has_explicit_sub_bot = isset($sub['spacing_bottom']) && floatval($sub['spacing_bottom']) > 0;
+                            if (!$has_explicit_sub_top) {
+                                $sub_sp_top = 8.0;
+                            }
+                            if (!$has_explicit_sub_bot) {
+                                $sub_sp_bottom = min(8.0, $sub_sp_bottom);
                             }
                         } else {
                             $has_explicit_sub_top = isset($sub['spacing_top']) && floatval($sub['spacing_top']) > 0;

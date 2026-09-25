@@ -1462,6 +1462,36 @@ function crm_render_email_type_attachments_info(string $doc_type): void
 }
 
 /**
+ * Ermittelt die URL zum Terminplan / Kurszeiten-Details PDF eines Kurses.
+ *
+ * @param int $course_id
+ * @return string Vollständige URL oder leerer String.
+ */
+function crm_get_course_terminplan_url(int $course_id): string
+{
+    if ($course_id <= 0) {
+        return '';
+    }
+    $tp_val = function_exists('get_field') ? get_field('kurszeiten_details_pdf', $course_id) : '';
+    if (empty($tp_val)) {
+        $tp_val = get_post_meta($course_id, 'kurszeiten_details_pdf', true);
+    }
+    if (empty($tp_val)) {
+        return '';
+    }
+    if (is_numeric($tp_val)) {
+        return wp_get_attachment_url((int)$tp_val) ?: '';
+    }
+    if (is_string($tp_val) && filter_var($tp_val, FILTER_VALIDATE_URL)) {
+        return $tp_val;
+    }
+    if (is_string($tp_val) && (strpos($tp_val, '/') !== false || substr($tp_val, -4) === '.pdf')) {
+        return content_url($tp_val);
+    }
+    return '';
+}
+
+/**
  * Rendert die interaktive PDF-Anhänge-Auswahlbox im Mailer (x_sieben_pdf_mailer).
  *
  * @param string $pdf_url Comma-separated or single PDF URL
@@ -1535,7 +1565,13 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
         return $best_file;
     };
 
-    $found_angebot = $find_server_pdf("A_{$entry_id}-");
+    $found_angebot   = $find_server_pdf("A_{$entry_id}-");
+    $found_angebot_1 = $find_server_pdf("A_{$entry_id}-", "Angebot_1_Basis");
+    $found_angebot_2 = $find_server_pdf("A_{$entry_id}-", "Angebot_2_inkl_Zertifizierung");
+    if (!$found_angebot_1 && !$found_angebot_2) {
+        $found_angebot_1 = $found_angebot;
+    }
+
     $found_kb      = $find_server_pdf("Kurszeitenbestaetigung_{$vorname}_{$nachname}_");
     if (!$found_kb) {
         $found_kb = $find_server_pdf("KB_{$entry_id}-");
@@ -1544,6 +1580,20 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
     if (!$found_tb) {
         $found_tb = $find_server_pdf("TB_{$entry_id}-");
     }
+    $found_ab      = $find_server_pdf("Anmeldebestaetigung_{$vorname}_{$nachname}_");
+    if (!$found_ab) {
+        $found_ab = $find_server_pdf("AB_{$entry_id}-");
+    }
+    if (!$found_ab) {
+        $found_ab = $find_server_pdf("Anmeldebestaetigung_");
+    }
+    $found_antritt = $find_server_pdf("Antrittsmeldung_{$vorname}_{$nachname}_");
+    if (!$found_antritt) {
+        $found_antritt = $find_server_pdf("Antritt_{$entry_id}-");
+    }
+    if (!$found_antritt) {
+        $found_antritt = $find_server_pdf("Antrittsmeldung_");
+    }
     $found_diplom  = false;
     if (!empty($vorname) && !empty($nachname)) {
         $found_diplom = $find_server_pdf("Diplom_", $vorname);
@@ -1551,6 +1601,18 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
     $found_invoice = $find_server_pdf("Honorarnote_{$entry_id}-");
     if (!$found_invoice) {
         $found_invoice = $find_server_pdf("HN_{$entry_id}-");
+    }
+
+    // 2.5 Terminplan / Kurszeiten-Details PDF aus Kurs ermitteln
+    $found_terminplan_url  = crm_get_course_terminplan_url($course_id);
+    $found_terminplan_name = '';
+    $found_terminplan_size = '';
+    if (!empty($found_terminplan_url)) {
+        $found_terminplan_name = basename(parse_url($found_terminplan_url, PHP_URL_PATH));
+        $local_tp_path = str_replace(home_url('/'), ABSPATH, $found_terminplan_url);
+        if (file_exists($local_tp_path)) {
+            $found_terminplan_size = size_format(filesize($local_tp_path), 1);
+        }
     }
 
     $get_cand_url = function($fname) use ($resolved_uris, $storage_uri) {
@@ -1564,86 +1626,166 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
         return file_exists($fpath) ? size_format(filesize($fpath), 1) : '';
     };
 
+    // Prüfen, ob eine Zertifizierung vorliegt (für getrennte Angebot 1 / 2 Darstellung)
+    $has_cert_cand = false;
+    if ($course_id && function_exists('crm_resolve_course_certification')) {
+        $res_certs_chk = crm_resolve_course_certification($entry_id, $course_id);
+        $has_cert_cand = !empty($res_certs_chk);
+    }
+    if (!empty($found_angebot_2)) {
+        $has_cert_cand = true;
+    }
+
     // 3. Strukturierte Dokumentkandidaten zusammenstellen
-    $candidates = [
-        'angebot' => [
+    $candidates = [];
+
+    if ($has_cert_cand) {
+        $candidates['angebot_1'] = [
+            'doc_type'     => 'angebot',
+            'title'        => __('Angebot 1: Basis (PDF)', 'custom-crm'),
+            'badge'        => '📄 Angebot 1',
+            'badge_class'  => 'crm-badge-blue',
+            'color'        => '#0284c7',
+            'icon'         => 'dashicons-media-document',
+            'url'          => $get_cand_url($found_angebot_1),
+            'filename'     => $found_angebot_1 ?: '',
+            'filesize'     => $get_cand_size($found_angebot_1),
+            'can_generate' => true,
+            'desc'         => __('Basis-Kursangebot ohne Zertifizierung.', 'custom-crm'),
+        ];
+        $candidates['angebot_2'] = [
+            'doc_type'     => 'angebot',
+            'title'        => __('Angebot 2: Inkl. Zertifizierung (PDF)', 'custom-crm'),
+            'badge'        => '📄 Angebot 2',
+            'badge_class'  => 'crm-badge-purple',
+            'color'        => '#7c3aed',
+            'icon'         => 'dashicons-awards',
+            'url'          => $get_cand_url($found_angebot_2),
+            'filename'     => $found_angebot_2 ?: '',
+            'filesize'     => $get_cand_size($found_angebot_2),
+            'can_generate' => true,
+            'desc'         => __('Kursangebot inklusive der optionalen Zertifizierung.', 'custom-crm'),
+        ];
+    } else {
+        $candidates['angebot'] = [
             'doc_type'     => 'angebot',
             'title'        => __('Kursangebot (PDF)', 'custom-crm'),
             'badge'        => '📄 Angebot',
             'badge_class'  => 'crm-badge-blue',
             'color'        => '#0284c7',
             'icon'         => 'dashicons-media-document',
-            'url'          => $get_cand_url($found_angebot),
-            'filename'     => $found_angebot ?: '',
-            'filesize'     => $get_cand_size($found_angebot),
+            'url'          => $get_cand_url($found_angebot_1 ?: $found_angebot),
+            'filename'     => ($found_angebot_1 ?: $found_angebot) ?: '',
+            'filesize'     => $get_cand_size($found_angebot_1 ?: $found_angebot),
             'can_generate' => true,
             'desc'         => __('Vollständiges Kursangebot samt Modulstruktur.', 'custom-crm'),
-        ],
-        'kb' => [
-            'doc_type'     => 'kb',
-            'title'        => __('Kurszeitenbestätigung (KB)', 'custom-crm'),
-            'badge'        => '📅 Kurszeiten',
-            'badge_class'  => 'crm-badge-teal',
-            'color'        => '#0f766e',
-            'icon'         => 'dashicons-calendar-alt',
-            'url'          => $get_cand_url($found_kb),
-            'filename'     => $found_kb ?: '',
-            'filesize'     => $get_cand_size($found_kb),
-            'can_generate' => true,
-            'desc'         => __('Termin- und Stundennachweis für Förderstellen.', 'custom-crm'),
-        ],
-        'agb' => [
-            'doc_type'     => 'agb',
-            'title'        => __('AGB & Teilnahmebedingungen 2025', 'custom-crm'),
-            'badge'        => '⚖️ AGB 2025',
-            'badge_class'  => 'crm-badge-slate',
-            'color'        => '#475569',
-            'icon'         => 'dashicons-media-text',
-            'url'          => 'https://x-sieben.at/wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf',
-            'filename'     => 'AGB_X_SIEBEN_2025.pdf',
-            'filesize'     => file_exists(ABSPATH . 'wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf') ? size_format(filesize(ABSPATH . 'wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf'), 1) : '428 KB',
-            'can_generate' => false,
-            'desc'         => __('Offizielles Dokument der X SIEBEN Wirtschaftstraining GmbH.', 'custom-crm'),
-        ],
-        'tb' => [
-            'doc_type'     => 'tb',
-            'title'        => __('Teilnahmebestätigung (TB)', 'custom-crm'),
-            'badge'        => '📜 TB',
-            'badge_class'  => 'crm-badge-green',
-            'color'        => '#047857',
-            'icon'         => 'dashicons-id-alt',
-            'url'          => $get_cand_url($found_tb),
-            'filename'     => $found_tb ?: '',
-            'filesize'     => $get_cand_size($found_tb),
-            'can_generate' => true,
-            'desc'         => __('Bestätigung über die absolvierten Lehreinheiten.', 'custom-crm'),
-        ],
-        'diplom' => [
-            'doc_type'     => 'diplom',
-            'title'        => __('Diplom (PDF)', 'custom-crm'),
-            'badge'        => '🎓 Diplom',
-            'badge_class'  => 'crm-badge-amber',
-            'color'        => '#b45309',
-            'icon'         => 'dashicons-awards',
-            'url'          => $get_cand_url($found_diplom),
-            'filename'     => $found_diplom ?: '',
-            'filesize'     => $get_cand_size($found_diplom),
-            'can_generate' => true,
-            'desc'         => __('Offizielles Abschlussdiplom.', 'custom-crm'),
-        ],
-        'invoice' => [
-            'doc_type'     => 'invoice',
-            'title'        => __('Honorarnote / Rechnung', 'custom-crm'),
-            'badge'        => '💶 Honorarnote',
-            'badge_class'  => 'crm-badge-pink',
-            'color'        => '#be185d',
-            'icon'         => 'dashicons-money-alt',
-            'url'          => $get_cand_url($found_invoice),
-            'filename'     => $found_invoice ?: '',
-            'filesize'     => $get_cand_size($found_invoice),
-            'can_generate' => true,
-            'desc'         => __('Honorarnote mit Zahlungsangaben.', 'custom-crm'),
-        ],
+        ];
+    }
+
+    $candidates['kb'] = [
+        'doc_type'     => 'kb',
+        'title'        => __('Kurszeitenbestätigung (KB)', 'custom-crm'),
+        'badge'        => '📅 Kurszeiten',
+        'badge_class'  => 'crm-badge-teal',
+        'color'        => '#0f766e',
+        'icon'         => 'dashicons-calendar-alt',
+        'url'          => $get_cand_url($found_kb),
+        'filename'     => $found_kb ?: '',
+        'filesize'     => $get_cand_size($found_kb),
+        'can_generate' => true,
+        'desc'         => __('Termin- und Stundennachweis für Förderstellen.', 'custom-crm'),
+    ];
+    // 'terminplan' => [
+    $candidates['terminplan'] = [
+        'doc_type'     => 'terminplan',
+        'title'        => __('Terminplan / Schulungstage (PDF)', 'custom-crm'),
+        'badge'        => '🗓️ Terminplan',
+        'badge_class'  => 'crm-badge-teal',
+        'color'        => '#0d9488',
+        'icon'         => 'dashicons-calendar',
+        'url'          => $found_terminplan_url,
+        'filename'     => $found_terminplan_name,
+        'filesize'     => $found_terminplan_size,
+        'can_generate' => false,
+        'desc'         => __('Detaillierter Terminplan des Lehrgangs aus WordPress.', 'custom-crm'),
+    ];
+    $candidates['agb'] = [
+        'doc_type'     => 'agb',
+        'title'        => __('AGB & Teilnahmebedingungen 2025', 'custom-crm'),
+        'badge'        => '⚖️ AGB 2025',
+        'badge_class'  => 'crm-badge-slate',
+        'color'        => '#475569',
+        'icon'         => 'dashicons-media-text',
+        'url'          => 'https://x-sieben.at/wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf',
+        'filename'     => 'AGB_X_SIEBEN_2025.pdf',
+        'filesize'     => file_exists(ABSPATH . 'wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf') ? size_format(filesize(ABSPATH . 'wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf'), 1) : '428 KB',
+        'can_generate' => false,
+        'desc'         => __('Offizielles Dokument der X SIEBEN Wirtschaftstraining GmbH.', 'custom-crm'),
+    ];
+    $candidates['tb'] = [
+        'doc_type'     => 'tb',
+        'title'        => __('Teilnahmebestätigung (TB)', 'custom-crm'),
+        'badge'        => '📜 TB',
+        'badge_class'  => 'crm-badge-green',
+        'color'        => '#047857',
+        'icon'         => 'dashicons-id-alt',
+        'url'          => $get_cand_url($found_tb),
+        'filename'     => $found_tb ?: '',
+        'filesize'     => $get_cand_size($found_tb),
+        'can_generate' => true,
+        'desc'         => __('Bestätigung über die absolvierten Lehreinheiten.', 'custom-crm'),
+    ];
+    $candidates['ab'] = [
+        'doc_type'     => 'ab',
+        'title'        => __('Anmeldebestätigung (AB)', 'custom-crm'),
+        'badge'        => '📝 AB',
+        'badge_class'  => 'crm-badge-blue',
+        'color'        => '#1d4ed8',
+        'icon'         => 'dashicons-clipboard',
+        'url'          => $get_cand_url($found_ab),
+        'filename'     => $found_ab ?: '',
+        'filesize'     => $get_cand_size($found_ab),
+        'can_generate' => true,
+        'desc'         => __('Offizielle Anmeldebestätigung für TeilnehmerInnen und Förderstellen.', 'custom-crm'),
+    ];
+    $candidates['antritt'] = [
+        'doc_type'     => 'antritt',
+        'title'        => __('Antrittsmeldung (AMS)', 'custom-crm'),
+        'badge'        => '📋 Antritt',
+        'badge_class'  => 'crm-badge-cyan',
+        'color'        => '#0891b2',
+        'icon'         => 'dashicons-yes-alt',
+        'url'          => $get_cand_url($found_antritt),
+        'filename'     => $found_antritt ?: '',
+        'filesize'     => $get_cand_size($found_antritt),
+        'can_generate' => true,
+        'desc'         => __('Bestätigung über den tatsächlichen Kursantritt für das AMS.', 'custom-crm'),
+    ];
+    $candidates['diplom'] = [
+        'doc_type'     => 'diplom',
+        'title'        => __('Diplom (PDF)', 'custom-crm'),
+        'badge'        => '🎓 Diplom',
+        'badge_class'  => 'crm-badge-amber',
+        'color'        => '#b45309',
+        'icon'         => 'dashicons-awards',
+        'url'          => $get_cand_url($found_diplom),
+        'filename'     => $found_diplom ?: '',
+        'filesize'     => $get_cand_size($found_diplom),
+        'can_generate' => true,
+        'desc'         => __('Offizielles Abschlussdiplom.', 'custom-crm'),
+    ];
+    $candidates['invoice'] = [
+        'doc_type'     => 'invoice',
+        'title'        => __('Honorarnote / Rechnung', 'custom-crm'),
+        'badge'        => '💶 Honorarnote',
+        'badge_class'  => 'crm-badge-pink',
+        'color'        => '#be185d',
+        'icon'         => 'dashicons-money-alt',
+        'url'          => $get_cand_url($found_invoice),
+        'filename'     => $found_invoice ?: '',
+        'filesize'     => $get_cand_size($found_invoice),
+        'can_generate' => true,
+        'desc'         => __('Honorarnote mit Zahlungsangaben.', 'custom-crm'),
     ];
 
     // Zuordnung: Welche Dokumente sind im aktuellen Mailer-Aufruf aktiv?
@@ -1670,9 +1812,13 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
                 if (in_array($act_url, $processed_urls, true)) continue;
                 $bn = basename(parse_url($act_url, PHP_URL_PATH));
                 $matches = false;
-                if ($k === 'angebot' && (strpos($bn, 'A_') === 0 || stristr($bn, 'angebot') !== false)) $matches = true;
+                if (($k === 'angebot' || $k === 'angebot_1') && (strpos($bn, 'A_') === 0 || stristr($bn, 'angebot') !== false) && strpos($bn, 'Angebot_2') === false) $matches = true;
+                if ($k === 'angebot_2' && (strpos($bn, 'Angebot_2') !== false || (strpos($bn, 'A_') === 0 && stristr($bn, 'zertifizierung') !== false))) $matches = true;
                 if ($k === 'kb' && (strpos($bn, 'Kurszeitenbestaetigung_') === 0 || strpos($bn, 'KB_') === 0)) $matches = true;
+                if ($k === 'terminplan' && (stripos($bn, 'terminplan') !== false || stripos($bn, 'schulungstage') !== false || stripos($bn, 'kurszeiten') !== false || (!empty($found_terminplan_name) && $bn === $found_terminplan_name))) $matches = true;
                 if ($k === 'tb' && (strpos($bn, 'Teilnahmebestaetigung_') === 0 || strpos($bn, 'TB_') === 0)) $matches = true;
+                if ($k === 'ab' && (strpos($bn, 'Anmeldebestaetigung_') === 0 || strpos($bn, 'AB_') === 0)) $matches = true;
+                if ($k === 'antritt' && (strpos($bn, 'Antrittsmeldung_') === 0 || strpos($bn, 'Antritt_') === 0)) $matches = true;
                 if ($k === 'diplom' && strpos($bn, 'Diplom_') === 0) $matches = true;
                 if ($k === 'invoice' && (strpos($bn, 'Honorarnote_') === 0 || strpos($bn, 'HN_') === 0)) $matches = true;
 
@@ -1687,6 +1833,17 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
         }
     }
     unset($cand);
+
+    // Falls ein Terminplan hinterlegt ist und wir uns im Angebots-/Kombi-Kontext befinden:
+    // Standardmäßig aktivieren, da das Begleitmail auf den Anhang verweist
+    if (!empty($candidates['terminplan']['url']) && empty($candidates['terminplan']['is_checked'])) {
+        if (in_array($context, ['angebot', 'kombi', 'default', '', 'xsieben_angebot', 'xsieben_angebot_und_kurszeiten', 'xsieben_offer', 'angebot_kb'], true)) {
+            $candidates['terminplan']['is_checked'] = true;
+            if (!in_array($candidates['terminplan']['url'], $active_urls, true)) {
+                $active_urls[] = $candidates['terminplan']['url'];
+            }
+        }
+    }
 
     // Alle übrigen URLs in $active_urls sind benutzerdefinierte / aus der Mediathek stammende Anhänge
     $custom_attachments = [];
@@ -1889,6 +2046,77 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
  * @param array $options
  * @return array ['subject' => string, 'body' => string, 'context' => string, 'is_ams_funding' => bool]
  */
+/**
+ * Ermittelt die hinterlegten Kurstage für einen Lehrgang (lehrgangs- und terminbezogen).
+ *
+ * @param int $course_id
+ * @param string $referent
+ * @param string $vortragende_html
+ * @return string|null Formatierter String der Wochentage (z.B. "Mittwoch und Freitag") oder null.
+ */
+function crm_get_course_schedule_days(int $course_id, string $referent = '', string $vortragende_html = ''): ?string
+{
+    if (!$course_id) {
+        return null;
+    }
+
+    $post_name  = '';
+    $post_title = '';
+    $course_post = get_post($course_id);
+    if ($course_post) {
+        $post_name  = (string)$course_post->post_name;
+        $post_title = mb_strtolower((string)$course_post->post_title, 'UTF-8');
+    }
+
+    // 1. Lehrgangsbezogene Zuordnung: Gruppe Andreas Zöllner (grundsätzlich Mittwoch und Freitag)
+    // Beinhaltet: Digital Marketing Manager (36593), SEO & Social Media (3757), Digital Masterclass (36747),
+    // Content Marketing & SEO (646), Digital Marketing mit KI (55735), Marketing & Vertrieb (577, 327), Onlinemarketing kompakt (554)
+    $zoellner_course_ids = [36593, 3757, 36747, 646, 55735, 577, 327, 554];
+    $is_zoellner_course = in_array($course_id, $zoellner_course_ids, true) ||
+        strpos($post_name, 'digitalisierung-diplomierter-digital-marketing-manager') !== false ||
+        strpos($post_name, 'seo-social-media') !== false ||
+        strpos($post_name, 'digital-masterclass') !== false ||
+        strpos($post_name, 'content-marketing-seo') !== false ||
+        strpos($post_name, 'digital-marketing-und-bahnbrechende-ki-tools') !== false ||
+        strpos($post_name, 'marketing-vertrieb') !== false ||
+        strpos($post_name, 'online-marketing-kompakt') !== false ||
+        strpos($post_title, 'digital marketing manager') !== false ||
+        strpos($post_title, 'seo, social media') !== false ||
+        strpos($post_title, 'digital-masterclass') !== false ||
+        strpos($post_title, 'content marketing & seo') !== false;
+
+    if ($is_zoellner_course) {
+        return 'Mittwoch und Freitag';
+    }
+
+    // 2. Lehrgangsbezogene Zuordnung: Gruppe Martin Bieber (grundsätzlich Montag und Dienstag)
+    // Beinhaltet: Logistik, SCM, Einkauf Kurse (14761, 316, 13800, 14808, 38736, 317, 65329)
+    $bieber_course_ids = [14761, 316, 13800, 14808, 38736, 317, 65329];
+    $is_bieber_course = in_array($course_id, $bieber_course_ids, true) ||
+        stripos($referent, 'Martin Bieber') !== false ||
+        stripos($vortragende_html, 'Martin Bieber') !== false;
+
+    if ($is_bieber_course) {
+        return 'Montag und Dienstag';
+    }
+
+    // 3. Fallback: Postmeta 'kurszeiten'
+    $raw_kurszeiten = get_post_meta($course_id, 'kurszeiten', true);
+    if (!empty($raw_kurszeiten) && is_array($raw_kurszeiten)) {
+        $days = array_filter(array_map('trim', $raw_kurszeiten));
+        if (!empty($days)) {
+            return (count($days) > 1) ? (implode(', ', array_slice($days, 0, -1)) . ' und ' . end($days)) : reset($days);
+        }
+    }
+
+    // 4. Fallback über Referentenname, falls künftig neue Kurse hinzukommen
+    if (stripos($referent, 'Andreas Zöllner') !== false || stripos($vortragende_html, 'Andreas Zöllner') !== false) {
+        return 'Mittwoch und Freitag';
+    }
+
+    return null;
+}
+
 function crm_build_standard_offer_email(int $entry_id, int $course_id, array $options = []): array
 {
     if (!class_exists('CRM_Model')) {
@@ -1978,13 +2206,18 @@ function crm_build_standard_offer_email(int $entry_id, int $course_id, array $op
     $is_daf_daz    = (stripos($course_title, 'DaF') !== false || stripos($course_title, 'DaZ') !== false || $course_id == 701 || $course_id == 65629);
 
     if ($is_daf_daz && !$is_ams_aktion) {
-        $durchfuehrung = 'via Live-Online-Event und in 1070 Wien (spezifische DaF/DaZ-Grammatikvermittlung mit Mag. Isabella Lichtenegger)';
+        $durchfuehrung = 'Als Live-Online-Event und in 1070 Wien (Modul mit Frau Mag. Lichtenegger)';
     } elseif ($is_ams_aktion) {
-        $durchfuehrung = 'als Live-Online-Event';
+        $durchfuehrung = 'Als Live-Online-Event';
     } elseif ($course_model && !empty($course_model->durchfuehrung)) {
         $durchfuehrung = $course_model->durchfuehrung;
     } else {
         $durchfuehrung = 'Live-Online-Event (Zoom)';
+    }
+
+    // Grammatikalische Großschreibung nach Feldbezeichnungen garantieren
+    if (!empty($durchfuehrung) && function_exists('mb_substr')) {
+        $durchfuehrung = mb_strtoupper(mb_substr($durchfuehrung, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($durchfuehrung, 1, null, 'UTF-8');
     }
 
     // E-Mail Body zusammenstellen
@@ -2021,7 +2254,43 @@ function crm_build_standard_offer_email(int $entry_id, int $course_id, array $op
     $body_html .= '<strong>Durchführungsform:</strong><br>' . esc_html($durchfuehrung);
     $body_html .= '</div>';
 
-    $body_html .= '<p><strong>→ Die genauen Kurstermine sehen Sie im Anhang.</strong></p>';
+    // Termin-Hinweiszeile (dynamisch nach Vorhandensein von Terminplan-PDF vs. festen Wochentagen)
+    $has_terminplan_pdf = false;
+    if (!empty($options['terminplan_url'])) {
+        $has_terminplan_pdf = true;
+    } elseif ($course_id && function_exists('crm_get_course_terminplan_url')) {
+        $tp_check = crm_get_course_terminplan_url($course_id);
+        if (!empty($tp_check)) {
+            $has_terminplan_pdf = true;
+        }
+    } elseif ($course_id) {
+        $pdf_meta = get_post_meta($course_id, 'kurszeiten_details_pdf', true);
+        if (function_exists('get_field')) {
+            $pdf_field = get_field('kurszeiten_details_pdf', $course_id);
+            if (!empty($pdf_field)) {
+                $has_terminplan_pdf = true;
+            }
+        }
+        if (!empty($pdf_meta)) {
+            $has_terminplan_pdf = true;
+        }
+    }
+    if (!empty($options['has_terminplan_pdf']) || !empty($options['termine_pdf'])) {
+        $has_terminplan_pdf = true;
+    }
+
+    $raw_referent = ($course_id) ? (string)get_post_meta($course_id, 'referent', true) : '';
+    $schedule_days = crm_get_course_schedule_days($course_id, $raw_referent, $vortragende_html);
+
+    if ($has_terminplan_pdf) {
+        $kurstage_hinweis = '→ Die genauen Kurstermine sehen Sie im Anhang.';
+    } elseif (!empty($schedule_days)) {
+        $kurstage_hinweis = '→ Kurstermine jeweils ' . $schedule_days . '.';
+    } else {
+        $kurstage_hinweis = '→ Die genauen Kurstermine sehen Sie im Anhang.';
+    }
+
+    $body_html .= '<p><strong>' . esc_html($kurstage_hinweis) . '</strong></p>';
 
     $selected_docs = isset($options['selected_docs']) && is_array($options['selected_docs']) ? $options['selected_docs'] : [];
     $want_offer_1 = isset($options['want_offer_1']) ? (bool)$options['want_offer_1'] : (isset($selected_docs['offer_1']) ? (bool)$selected_docs['offer_1'] : true);
@@ -2039,6 +2308,9 @@ function crm_build_standard_offer_email(int $entry_id, int $course_id, array $op
             $body_html .= '• <strong>Angebot:</strong> Ihr Kursangebot inklusive der Zertifizierung: <strong>' . esc_html($cert_name) . '</strong>';
         } else {
             $body_html .= '• Ein detailliertes und unverbindliches Angebot mit allen Veranstaltungsinformationen';
+        }
+        if ($has_terminplan_pdf && (!isset($options['want_terminplan']) || !empty($options['want_terminplan']))) {
+            $body_html .= '<br>• <strong>Terminplan:</strong> Detaillierter Termin- und Ablaufplan der einzelnen Schulungstage';
         }
         $body_html .= '</p>';
     }

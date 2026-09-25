@@ -44,6 +44,8 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
     $kursart_t        = $course->kursart_t;
     $kursart_a        = $course->kursart_a;
     $kursart_we       = $course->kursart_we;
+    $kursart_praesenz = $course->kursart_praesenz ?? '';
+    $kursart_online   = $course->kursart_online ?? '';
     $kurszeiten       = $course->kurszeiten;    // key-value array
     $selbststudium    = $course->selbststudium;  // key-value array
     $kurszeiten_datum = date('d.m.Y');
@@ -64,7 +66,7 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
     $kb_title        = $clean_text($course->get_crm_field_with_default('KB - Titel', 'Bestätigung Kurszeiten'));
     $kb_institut     = $clean_text($course->get_crm_field_with_default('KB - Kursinstitut Name', $default_kb_institut));
     $kb_ort          = $clean_text($course->get_crm_field_with_default('KB - Schulungsort', $default_kb_ort));
-    $kb_hinweis      = $clean_text($course->get_crm_field_with_default('KB - Hinweistext', 'Bei unregelmäßigen Kurszeiten ist ein Ablaufplan der einzelnen Kurswochen beizulegen.'));
+    $kb_hinweis      = $clean_text($course->get_crm_field_with_default('KB - Hinweistext', 'Bei unregelmäßigen Kurszeiten ist ein Ablaufplan der einzelnen Kurswochen, entsprechend obiger Vorgabe, beizulegen. Dies gilt auch für Praxiszeiten.'));
     $kb_sig_institut = $clean_inline_html($course->get_crm_field_with_default('KB - Signatur Institut', 'Wien, ' . $kurszeiten_datum . '<br>Unterschrift, Stampiglie Kursinstitut'));
     $kb_sig_kunde    = $clean_inline_html($course->get_crm_field_with_default('KB - Signatur Kunde', 'Ort, Datum, Unterschrift, Kunde/Kundin'));
 
@@ -75,7 +77,7 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
     $sec_titel          = CRM_Pdf_Kb_Elements::render_titel($kb_title);
     $kb_institut_subs   = CRM_Pdf_Kb_Elements::get_institut_subs($kb_institut, $kb_ort, $display_title, $startdatum, $enddatum);
     $kb_teilnehmer_subs = CRM_Pdf_Kb_Elements::get_teilnehmer_subs($vorname, $nachname, $svr);
-    $sec_kurstyp        = CRM_Pdf_Kb_Elements::render_kurstyp($kursart_t, $kursart_a, $kursart_we);
+    $sec_kurstyp        = CRM_Pdf_Kb_Elements::render_kurstyp($kursart_t, $kursart_a, $kursart_we, $kursart_praesenz, $kursart_online);
     $sec_kurszeiten     = CRM_Pdf_Kb_Elements::render_kurszeiten($kurszeiten, $selbststudium);
     $sec_hinweis        = CRM_Pdf_Kb_Elements::render_hinweis($kb_hinweis);
     $sec_signatur       = CRM_Pdf_Kb_Elements::render_signatur($stempel_file, $kb_sig_institut, $kb_sig_kunde);

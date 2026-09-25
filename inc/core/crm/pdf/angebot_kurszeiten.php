@@ -22,6 +22,13 @@ function xsieben_angebot_kurszeiten_pdf($entry_id, $course_id, $output_to_browse
     // 1. Generate Offer 1 (Basis) PDF
     $offer_pdf_url = xsieben_offer_pdf($entry_id, $course_id, false, $offer_sections, 'basis');
 
+    // 1b. Check if course has certification option: if so, also generate Offer 2 (inkl. Zertifizierung)
+    $resolved_cert = function_exists('crm_resolve_course_certification') ? crm_resolve_course_certification($entry_id, $course_id) : [];
+    $offer_2_url = '';
+    if (!empty($resolved_cert)) {
+        $offer_2_url = xsieben_offer_pdf($entry_id, $course_id, false, null, 'mit_zertifikat', $resolved_cert);
+    }
+
     // 2. Generate Course Times Confirmation PDF
     $kb_pdf_url = xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, false, $kb_sections);
 
@@ -29,8 +36,9 @@ function xsieben_angebot_kurszeiten_pdf($entry_id, $course_id, $output_to_browse
         x_sieben_pdf_preview($offer_pdf_url, $course_id, $entry_id, 'xsieben_angebot_und_kurszeiten', $kb_pdf_url);
     } else {
         return [
-            'offer_pdf_url' => $offer_pdf_url,
-            'kb_pdf_url'    => $kb_pdf_url,
+            'offer_pdf_url'   => $offer_pdf_url,
+            'offer_2_pdf_url' => $offer_2_url,
+            'kb_pdf_url'      => $kb_pdf_url,
         ];
     }
 }

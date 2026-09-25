@@ -591,7 +591,9 @@ class CRM_Pdf_Presenter
 
     public static function _format_content_modules(string $content): string
     {
-        $content = preg_replace('/<h[1-6][^>]*>\s*<\/h[1-6]>/iu', '', $content);
+        $content = str_replace(["\r\n", "\r"], "\n", $content);
+        // Leere Überschriften, die als optische Trenner verwendet wurden, in saubere Absatztrenner umwandeln
+        $content = preg_replace('/<h[1-6][^>]*>\s*<\/h[1-6]>/iu', "\n\n", $content);
         $content = preg_replace('/<p[^>]*>\s*<\/p>/iu', '', $content);
         $content = preg_replace('/<div[^>]*>\s*<\/div>/iu', '', $content);
         $content = preg_replace('/<div[^>]*>\s*<hr[^>]*>\s*<\/div>/iu', '<hr />', $content);
@@ -677,13 +679,25 @@ class CRM_Pdf_Presenter
 
     public static function _clean_module_body_html(string $body): string
     {
+        $body = str_replace(["\r\n", "\r"], "\n", $body);
         $body = preg_replace('/<hr[^>]*>/iu', '', $body);
+
+        // Bereinigung von versteckten Accessibility / Screen-Reader Tags
+        $body = preg_replace('/<div[^>]*style=[\'"][^\'"]*position:\s*absolute[^\'"]*[\'"][^>]*>.*?<\/div>/si', '', $body);
+        $body = preg_replace('/<div[^>]*role=[\'"](?:status|alert)[\'"][^>]*>.*?<\/div>/si', '', $body);
 
         $labels_regex = '/(?:<(?:p|div|h[4-6])[^>]*>\s*)?(?:<(?:strong|b|span)[^>]*>\s*)?\b(Zielgruppe|Ziele|Ziel|Inhalte|Inhalt|Methodik|Didaktik|Voraussetzungen)\b(?:\s*<\/(?:strong|b|span)>)*\s*[:–\-]\s*(?:<\/(?:p|div|h[4-6])>)?/iu';
         $body = preg_replace_callback($labels_regex, function ($m) {
             $lbl = ucfirst(strtolower($m[1]));
             if ($lbl === 'Inhalt') $lbl = 'Inhalte';
-            return "\n\n<p><strong class=\"modul-label\">" . $lbl . ":</strong></p>\n";
+            return "\n\n<p><strong class=\"modul-label\">" . $lbl . ":</strong></p>\n\n";
+        }, $body);
+
+        // Gliederung von Unterabschnitten (z. B. DaF/DaZ Modul 10: Peer-Group, Selbststudium, Wichtiger Hinweis)
+        $subsections_regex = '/(?:<(?:p|div|h[2-6])[^>]*>\s*)?(?:<(?:strong|b|span)[^>]*>\s*)?((?:Ad\s+)?Abschnitt\s+[IVX]+[^<>\n]+|Intensivausbildung\s+mit\s+hohem\s+Praxisanteil|Voraussetzungen\s+für\s+die\s+Teilnahme|Projektarbeit\s*&\s*Prüfungsvorbereitung[^<>\n]*|Bitte\s+vor\s+Ihrer\s+Anmeldung[^<>\n]*unbedingt\s+lesen!?)(?:\s*<\/(?:strong|b|span)>)*(?:\s*<\/(?:p|div|h[2-6])>)?/iu';
+        $body = preg_replace_callback($subsections_regex, function ($m) {
+            $title = trim(strip_tags($m[1]));
+            return "\n\n<p style=\"margin-top: 10pt; margin-bottom: 3pt;\"><strong class=\"modul-label\" style=\"font-size: 10pt; color: #007C90;\">" . esc_html($title) . "</strong></p>\n\n";
         }, $body);
 
         $body = preg_replace('/<li[^>]*>\s*<\/li>/iu', '', $body);
@@ -861,7 +875,23 @@ class CRM_Pdf_Presenter
     public static function render_anmeldung_agb(string $agb_custom = ''): string
     {
         if (!empty(trim(strip_tags($agb_custom)))) {
-            return $agb_custom;
+            // Bereinige unsichtbare Screen-Reader/Aria-DIVs und überflüssige Absätze
+            $clean_agb = preg_replace('/<div[^>]*style=[\'"][^\'"]*position:\s*absolute[^\'"]*[\'"][^>]*>.*?<\/div>/si', '', $agb_custom);
+            $clean_agb = preg_replace('/<div[^>]*role=[\'"](?:status|alert)[\'"][^>]*>.*?<\/div>/si', '', $clean_agb);
+            $clean_agb = preg_replace('/<p[^>]*>\s*(?:&nbsp;|\s)*<\/p>/si', '', $clean_agb);
+            $clean_agb = preg_replace('/(?:<br\s*\/?>\s*){2,}/iu', '<br>', $clean_agb);
+            $clean_agb = preg_replace('/<hr[^>]*>/iu', '', $clean_agb);
+            $clean_agb = trim($clean_agb);
+
+            if (!empty(trim(strip_tags($clean_agb)))) {
+                return '<table cellpadding="6" cellspacing="0" border="0" style="width: 100%; background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 3.5px solid #007C90; margin-top: 4pt; margin-bottom: 6pt;">
+                    <tr>
+                        <td style="font-size: 8.5pt; line-height: 12.5pt; color: #334155;">
+                            ' . $clean_agb . '
+                        </td>
+                    </tr>
+                </table>';
+            }
         }
         return '<table cellpadding="6" cellspacing="0" border="0" style="width: 100%; background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 3.5px solid #007C90; margin-top: 4pt; margin-bottom: 6pt;">
             <tr>

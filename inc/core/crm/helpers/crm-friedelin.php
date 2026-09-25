@@ -850,7 +850,7 @@ function crm_resolve_course_certification(int $entry_id, int $course_id): array
         foreach ($entry_fields as $f) {
             $fid = isset($f['id']) ? (int)$f['id'] : null;
             $fname = isset($f['name']) ? mb_strtolower(trim((string)$f['name']), 'UTF-8') : '';
-            if ($fid === 99 || strpos($fname, 'zertifizier') !== false) {
+            if ($fid === 99 || strpos($fname, 'zertifizierungen auswahl') !== false) {
                 $has_field_99 = true;
                 $field_99_raw = is_array($f['value'] ?? '') ? implode("\n", $f['value']) : (string)($f['value'] ?? '');
             }
@@ -865,21 +865,29 @@ function crm_resolve_course_certification(int $entry_id, int $course_id): array
     // 0. Ausschluss für reine DaF / DaZ Ausbildungen (weder 12 Tage noch AMS Aktion haben ISO 17024)
     $is_pure_daf_daz = (
         ($course_id == 701 || $course_id == 65629) ||
-        ((strpos($course_title_lower, 'daf') !== false || strpos($course_title_lower, 'daz') !== false) && strpos($course_title_lower, 'kombi') === false)
+        ((strpos($course_title_lower, 'daf') !== false || strpos($course_title_lower, 'daz') !== false) &&
+         strpos($course_title_lower, 'kombi') === false &&
+         strpos($course_title_lower, 'fachtrainer') === false)
     );
     if ($is_pure_daf_daz) {
         return [];
     }
 
-    // 1. PRIORITÄT: Feld 99 (Explizit gespeicherte Zertifizierungsauswahl mit Mehrfachauswahl)
-    if ($has_field_99) {
-        $trimmed_val = trim((string)$field_99_raw);
-        if ($trimmed_val === '') {
-            // Benutzer hat explizit alle Zertifizierungen abgewählt (reines Basis-Angebot, 0 Zertifizierungen)
-            return [];
-        }
+    // 0.1 Expliziter Kunden-Ausschluss (Opt-Out in Notizen / Nachricht)
+    // Wenn Interessent:innen ausdrücklich erklären, dass sie keine Zertifizierung wünschen (z.B. Fall Transformation Manager)
+    $has_opt_out = (
+        preg_match('/\b(?:keine?|ohne)\s+(?:externe?\s+|tüv[- ]?|iso[- ]?|ipma[- ]?|systemcert[- ]?)?zertifizier/iu', $wish_lower) ||
+        preg_match('/\b(?:kein|ohne)\s+zertifikat/iu', $wish_lower) ||
+        preg_match('/\b(?:keine?|ohne)\s+prüfung/iu', $wish_lower) ||
+        preg_match('/\bnur\s+(?:den\s+|das\s+)?(?:lehrgang|kurs|basisangebot)\b/iu', $wish_lower)
+    );
+    if ($has_opt_out) {
+        return [];
+    }
 
-        $lines = explode("\n", $trimmed_val);
+    // 1. PRIORITÄT: Feld 99 (Explizit gespeicherte Zertifizierungsauswahl mit Mehrfachauswahl)
+    if ($has_field_99 && !empty(trim((string)$field_99_raw))) {
+        $lines = explode("\n", trim((string)$field_99_raw));
         $resolved_from_field = [];
         foreach ($lines as $line) {
             $line = trim($line);
@@ -888,7 +896,7 @@ function crm_resolve_course_certification(int $entry_id, int $course_id): array
             }
 
             $parsed = crm_parse_certification_line($line, $course_id);
-            if ($parsed) {
+            if ($parsed && !empty($parsed['name']) && (!isset($parsed['price']) || $parsed['price'] !== '0,00' || !empty($parsed['price_raw']))) {
                 $resolved_from_field[] = $parsed;
             }
         }
@@ -896,12 +904,129 @@ function crm_resolve_course_certification(int $entry_id, int $course_id): array
         if (!empty($resolved_from_field)) {
             return $resolved_from_field;
         }
+    } elseif ($has_field_99 && trim((string)$field_99_raw) === '') {
+        // Prüfen, ob dies im CRM-Audit-Trail durch einen Administrator explizit manuell abgewählt wurde
+        $is_explicitly_deselected = false;
+        if ($entry_id && function_exists('crm_get_business_case_history')) {
+            $history = crm_get_business_case_history($entry_id);
+            if (!empty($history['entries'])) {
+                foreach ($history['entries'] as $he) {
+                    if (($he['action'] ?? '') === 'certs_updated' && (stripos($he['summary'] ?? '', 'abgewählt') !== false || stripos($he['summary'] ?? '', 'Keine Zertifizierungen') !== false)) {
+                        $is_explicitly_deselected = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if ($is_explicitly_deselected) {
+            return [];
+        }
+    }
+
+    // 1.5 Definierte Standard-Zertifizierungen für Kern-Lehrgänge (höchste Priorität vor Heuristiken)
+    // 1.5a Agile Coach (65536, 67829): Option TÜV - EN ISO 17024 Kompetenz-Zertifizierung - Online
+    $is_agile_coach = (
+        $course_id == 65536 ||
+        $course_id == 67829 ||
+        strpos($course_title_lower, 'agile coach') !== false ||
+        strpos($course_title_lower, 'agiler coach') !== false
+    );
+    if ($is_agile_coach) {
+        return [[
+            'name'       => 'Option: TÜV - EN ISO 17024 Kompetenz-Zertifizierung - Online',
+            'price'      => '497,00',
+            'percentage' => '20%'
+        ]];
+    }
+
+    // 1.5b Digital Marketing Manager (36593, 22328 oder Titel 'Digital Marketing'): Option TÜV - ISO/IEC 17024 Kompetenz-Zertifizierung
+    $is_digital_marketing = (
+        $course_id == 36593 ||
+        $course_id == 22328 ||
+        strpos($course_title_lower, 'digital marketing') !== false ||
+        strpos($course_title_lower, 'digital-marketing') !== false
+    );
+    if ($is_digital_marketing) {
+        return [[
+            'name'       => 'TÜV - ISO/IEC 17024 Kompetenz-Zertifizierung',
+            'price'      => '497,00',
+            'percentage' => '20%'
+        ]];
+    }
+
+    // 1.5c Logistik & Einkauf (Kurse 14761, 316, 13800, 14808, 38736, 317): Standardisierter LOG+L Preis (255,00 €)
+    $is_standard_logistik = in_array($course_id, [14761, 316, 13800, 14808, 38736, 317], true);
+    if ($is_standard_logistik) {
+        return [[
+            'name'       => 'LOG+L - Kompetenzzertifizierung nach DIN EN ISO 17024',
+            'price'      => '255,00',
+            'percentage' => '20%'
+        ]];
+    }
+
+    // 1.6 ACF repeater am Kurs (explizit am Kurs gepflegte Zertifizierungen für sonstige Lehrgänge)
+    $course_acf_certs = [];
+    if (function_exists('have_rows') && have_rows('zertifizierungen', $course_id)) {
+        while (have_rows('zertifizierungen', $course_id)) {
+            the_row();
+            $z_name  = trim((string)get_sub_field('name-zert'));
+            $z_preis = get_sub_field('preis');
+            $z_ust   = get_sub_field('Ust_satz');
+            if ($z_name && $z_preis) {
+                $clean_name = preg_replace('/^(optional:\s*|zusatzoption:\s*)/iu', '', $z_name);
+                $clean_name = rtrim($clean_name, '.');
+                $price_num  = is_numeric($z_preis) ? floatval($z_preis) : floatval(str_replace(',', '.', str_replace('.', '', (string)$z_preis)));
+                $price_formatted = $price_num > 0 ? number_format($price_num, 2, ',', '.') : (string)$z_preis;
+                $course_acf_certs[] = [
+                    'name'       => $clean_name,
+                    'price'      => $price_formatted,
+                    'percentage' => !empty($z_ust) ? (string)$z_ust . '%' : '20%'
+                ];
+            }
+        }
+    } elseif ($course_id) {
+        $rep_count = (int)get_post_meta($course_id, 'zertifizierungen', true);
+        for ($idx = 0; $idx < max(1, $rep_count); $idx++) {
+            $z_name  = trim((string)get_post_meta($course_id, "zertifizierungen_{$idx}_name-zert", true));
+            $z_preis = get_post_meta($course_id, "zertifizierungen_{$idx}_preis", true);
+            $z_ust   = get_post_meta($course_id, "zertifizierungen_{$idx}_Ust_satz", true);
+            if ($z_name && $z_preis) {
+                $clean_name = preg_replace('/^(optional:\s*|zusatzoption:\s*)/iu', '', $z_name);
+                $clean_name = rtrim($clean_name, '.');
+                $price_num  = is_numeric($z_preis) ? floatval($z_preis) : floatval(str_replace(',', '.', str_replace('.', '', (string)$z_preis)));
+                $price_formatted = $price_num > 0 ? number_format($price_num, 2, ',', '.') : (string)$z_preis;
+                $course_acf_certs[] = [
+                    'name'       => $clean_name,
+                    'price'      => $price_formatted,
+                    'percentage' => !empty($z_ust) ? (string)$z_ust . '%' : '20%'
+                ];
+            }
+        }
+    }
+    if (!empty($course_acf_certs)) {
+        return [$course_acf_certs[0]];
     }
 
     $meta_zert = mb_strtolower((string)get_post_meta($course_id, 'zertifikat', true), 'UTF-8');
 
-    // 2. FALLBACK (heuristische Erkennung nur bei neuen Einträgen ohne gespeichertes Feld 99)
-    // 2.1 Check Project Management / IPMA
+    // 2. FALLBACK (heuristische Erkennung für Kurse ohne Standard-Definition und ohne ACF)
+    // 2.2 Logistik & Einkauf sonstige Kurse (Titel enthält log+l / logistik / einkauf): LOG+L
+    // Wichtig: Niemals auf generisches Feld 49 (enthält ©LOG+L als Checkbox-Text) matchen!
+    $is_logistik_einkauf = (
+        strpos($course_title_lower, 'log+l') !== false ||
+        strpos($course_title_lower, 'logistik') !== false ||
+        strpos($course_title_lower, 'einkauf') !== false ||
+        strpos($meta_zert, 'log+l') !== false
+    );
+    if ($is_logistik_einkauf && !$is_digital_marketing) {
+        return [[
+            'name'       => 'LOG+L - Kompetenzzertifizierung nach DIN EN ISO 17024',
+            'price'      => '255,00',
+            'percentage' => '20%'
+        ]];
+    }
+
+    // 2.3 Check Project Management / IPMA
     $is_pm = (
         strpos($course_title_lower, 'projektmanagement') !== false ||
         strpos($course_title_lower, 'project management') !== false ||
@@ -934,16 +1059,16 @@ function crm_resolve_course_certification(int $entry_id, int $course_id): array
         ]];
     }
 
-    // 2. Check Scrum.org (PSM / PSPO)
-    if (
+    // 2.4 Check Scrum.org (PSM / PSPO) - nur wenn Kurs oder Wunsch dezidiert Scrum betrifft
+    $is_scrum = (
         strpos($wish_lower, 'scrum') !== false ||
         strpos($wish_lower, 'psm') !== false ||
         strpos($wish_lower, 'pspo') !== false ||
         strpos($course_title_lower, 'scrum') !== false ||
-        strpos($meta_zert, 'scrum') !== false ||
-        strpos($meta_zert, 'psm') !== false ||
-        strpos($meta_zert, 'pspo') !== false
-    ) {
+        (strpos($course_title_lower, 'product owner') !== false && strpos($course_title_lower, 'agile') === false)
+    );
+
+    if ($is_scrum) {
         if ((strpos($wish_lower, 'pspo') !== false && strpos($wish_lower, 'psm') !== false) ||
             (strpos($course_title_lower, 'product owner') !== false && strpos($course_title_lower, 'scrum master') !== false)) {
             return [[
@@ -1000,27 +1125,6 @@ function crm_resolve_course_certification(int $entry_id, int $course_id): array
             'price'      => '497,00',
             'percentage' => '20%'
         ]];
-    }
-
-    // 5. Check ACF repeater am Kurs
-    if (function_exists('have_rows') && have_rows('zertifizierungen', $course_id)) {
-        $course_certs = [];
-        while (have_rows('zertifizierungen', $course_id)) {
-            the_row();
-            $z_name  = get_sub_field('name-zert');
-            $z_preis = get_sub_field('preis');
-            $z_ust   = get_sub_field('Ust_satz');
-            if ($z_name && $z_preis) {
-                $course_certs[] = [
-                    'name'       => (string)$z_name,
-                    'price'      => (string)$z_preis,
-                    'percentage' => !empty($z_ust) ? (string)$z_ust . '%' : '20%'
-                ];
-            }
-        }
-        if (!empty($course_certs)) {
-            return [$course_certs[0]];
-        }
     }
 
     // Kein blinder Fallback: Wenn der konkrete Kurs keine Zertifizierung anbietet, gibt es kein Angebot 2
@@ -1114,6 +1218,35 @@ function crm_friedelin_process_entry(int $entry_id, bool $manual_trigger = false
         }
     }
 
+    // 2.5 Terminplan / Schulungstage PDF aus Kurs-Stammdaten einbinden
+    $terminplan_url = '';
+    require_once __DIR__ . '/crm-email-sections.php';
+    if ($course_id && function_exists('crm_get_course_terminplan_url')) {
+        $terminplan_url = crm_get_course_terminplan_url($course_id);
+    } elseif ($course_id) {
+        $tp_val = function_exists('get_field') ? get_field('kurszeiten_details_pdf', $course_id) : '';
+        if (empty($tp_val)) {
+            $tp_val = get_post_meta($course_id, 'kurszeiten_details_pdf', true);
+        }
+        if (!empty($tp_val)) {
+            if (is_numeric($tp_val)) {
+                $terminplan_url = wp_get_attachment_url((int)$tp_val) ?: '';
+            } elseif (is_string($tp_val) && filter_var($tp_val, FILTER_VALIDATE_URL)) {
+                $terminplan_url = $tp_val;
+            } elseif (is_string($tp_val) && (strpos($tp_val, '/') !== false || substr($tp_val, -4) === '.pdf')) {
+                $terminplan_url = content_url($tp_val);
+            }
+        }
+    }
+    $has_terminplan  = !empty($terminplan_url);
+    $want_terminplan = $has_custom_selection ? (!empty($selected_docs['terminplan']) && $has_terminplan) : $has_terminplan;
+
+    if ($want_terminplan && !empty($terminplan_url)) {
+        $tp_filename = basename(parse_url($terminplan_url, PHP_URL_PATH));
+        $generated_pdfs[] = 'Terminplan (' . $tp_filename . ')';
+        $pdf_urls[]       = $terminplan_url;
+    }
+
     // 3. AGB 2025 (wird nicht als Dateianhang mitgeschickt, sondern verbleibt als reiner Online-Link in der E-Mail)
     $agb_url = function_exists('crm_get_setting') ? crm_get_setting('legal_agb_url') : '';
     if (empty($agb_url)) {
@@ -1128,13 +1261,16 @@ function crm_friedelin_process_entry(int $entry_id, bool $manual_trigger = false
     // 4. Draft Companion Email via central authoritative X-SIEBEN Engine
     require_once __DIR__ . '/crm-email-sections.php';
     $offer_email_data = crm_build_standard_offer_email($entry_id, $course_id, [
-        'is_ams_funding'  => ($is_ams_funding || $want_kb),
-        'has_cert_option' => ($has_cert_option && $want_offer_2),
-        'cert_name'       => $cert_name,
-        'want_offer_1'    => $want_offer_1,
-        'want_offer_2'    => $want_offer_2,
-        'want_kb'         => $want_kb,
-        'want_agb'        => $want_agb,
+        'is_ams_funding'     => ($is_ams_funding || $want_kb),
+        'has_cert_option'    => ($has_cert_option && $want_offer_2),
+        'cert_name'          => $cert_name,
+        'want_offer_1'       => $want_offer_1,
+        'want_offer_2'       => $want_offer_2,
+        'want_kb'            => $want_kb,
+        'want_terminplan'    => $want_terminplan,
+        'has_terminplan_pdf' => $want_terminplan,
+        'terminplan_url'     => $terminplan_url,
+        'want_agb'           => $want_agb,
     ]);
 
     $email_subject = $offer_email_data['subject'];
@@ -1154,10 +1290,11 @@ function crm_friedelin_process_entry(int $entry_id, bool $manual_trigger = false
     }
 
     $final_selected_docs = [
-        'offer_1' => $want_offer_1,
-        'offer_2' => $want_offer_2,
-        'kb'      => $want_kb,
-        'agb'     => $want_agb,
+        'offer_1'    => $want_offer_1,
+        'offer_2'    => $want_offer_2,
+        'kb'         => $want_kb,
+        'terminplan' => $want_terminplan,
+        'agb'        => $want_agb,
     ];
 
     $draft_payload = [

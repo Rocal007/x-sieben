@@ -59,7 +59,7 @@ class CRM_Pdf_Kb_Elements
         return require __DIR__ . '/kb-teilnehmer.php';
     }
 
-    public static function render_kurstyp(string $kursart_t, string $kursart_a, string $kursart_we): string
+    public static function render_kurstyp(string $kursart_t, string $kursart_a, string $kursart_we, string $kursart_praesenz = '', string $kursart_online = ''): string
     {
         return require __DIR__ . '/kb-kurstyp.php';
     }

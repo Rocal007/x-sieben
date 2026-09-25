@@ -310,6 +310,12 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
   } elseif ($context === 'kurszeitenbestaetigung' || $context === 'xsieben_kurszeitenbestaetigung') {
     $active_doc = 'kb';
     $kb_url = $pdf_url;
+  } elseif ($context === 'anmeldebestaetigung' || $context === 'xsieben_anmeldebestaetigung' || $context === 'ab') {
+    $active_doc = 'ab';
+    $ab_url = is_string($pdf_url) ? $pdf_url : '';
+  } elseif ($context === 'antrittsbestaetigung' || $context === 'xsieben_antrittsbestaetigung' || $context === 'antritt') {
+    $active_doc = 'antritt';
+    $antritt_url = is_string($pdf_url) ? $pdf_url : '';
   } elseif (is_array($pdf_url)) {
     $active_doc = 'angebot_basis';
     $offer_basis_url = $pdf_url['offer'] ?? ($pdf_url[0] ?? '');
@@ -380,6 +386,24 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
     }
   }
 
+  // 6. Suche nach bereits vorhandener Anmeldebestätigung (AB)
+  if (empty($ab_url) && $entry_id) {
+    $ab_token = function_exists('crm_generate_pdf_token') ? crm_generate_pdf_token($entry_id, 'ab') : '';
+    $matching_ab = !empty($ab_token) ? glob($save_dir . 'Anmeldebestaetigung_*' . $ab_token . '*.pdf') : [];
+    if (!empty($matching_ab)) {
+      $ab_url = $storage_url . rawurlencode(basename(end($matching_ab)));
+    }
+  }
+
+  // 7. Suche nach bereits vorhandener Antrittsmeldung (Antritt)
+  if (empty($antritt_url) && $entry_id) {
+    $antritt_token = function_exists('crm_generate_pdf_token') ? crm_generate_pdf_token($entry_id, 'antritt') : '';
+    $matching_antritt = !empty($antritt_token) ? glob($save_dir . 'Antrittsmeldung_*' . $antritt_token . '*.pdf') : [];
+    if (!empty($matching_antritt)) {
+      $antritt_url = $storage_url . rawurlencode(basename(end($matching_antritt)));
+    }
+  }
+
   $cache_ts = time();
   $add_cache_buster = function ($url) use ($cache_ts) {
     if (empty($url)) return '';
@@ -397,20 +421,41 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
   } elseif ($active_doc === 'kb') {
     $active_url = $kb_url;
     $active_title = 'Kurszeiten (KB)';
+  } elseif ($active_doc === 'ab') {
+    $active_url = $ab_url;
+    $active_title = 'Anmeldebestätigung (AB)';
+  } elseif ($active_doc === 'antritt') {
+    $active_url = $antritt_url;
+    $active_title = 'Antrittsmeldung (AMS)';
   } else {
     $active_url = $offer_basis_url;
     $active_title = 'Angebot 1: Basis';
   }
 
   $active_embed_url = $add_cache_buster($active_url);
-  $email_pdf_param  = !empty($kb_url) ? ($active_url . ',' . $kb_url) : $active_url;
 
-  // Status-Badges für die 5 Dokumenten-Tabs (Birkenbihl: Erkennen statt Raten)
-  $badge_basis  = !empty($offer_basis_url) ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
-  $badge_zert   = !empty($offer_zert_url)  ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
-  $badge_kb     = !empty($kb_url)          ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
-  $badge_tb     = !empty($tb_url)          ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
-  $badge_diplom = !empty($diplom_url)      ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
+  // Terminplan PDF aus Kurs-Stammdaten ermitteln
+  $terminplan_url = '';
+  require_once dirname(__DIR__) . '/helpers/crm-email-sections.php';
+  if (function_exists('crm_get_course_terminplan_url') && !empty($course_id)) {
+    $terminplan_url = crm_get_course_terminplan_url((int)$course_id);
+  }
+
+  $default_email_docs = [];
+  if (!empty($offer_basis_url)) $default_email_docs[] = $offer_basis_url;
+  if ($has_cert_option && !empty($offer_zert_url)) $default_email_docs[] = $offer_zert_url;
+  if (!empty($kb_url)) $default_email_docs[] = $kb_url;
+  if (!empty($terminplan_url)) $default_email_docs[] = $terminplan_url;
+  $email_pdf_param = !empty($default_email_docs) ? implode(',', $default_email_docs) : $active_url;
+
+  // Status-Badges für die 7 Dokumenten-Tabs (Birkenbihl: Erkennen statt Raten)
+  $badge_basis   = !empty($offer_basis_url) ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
+  $badge_zert    = !empty($offer_zert_url)  ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
+  $badge_kb      = !empty($kb_url)          ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
+  $badge_tb      = !empty($tb_url)          ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
+  $badge_diplom  = !empty($diplom_url)      ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
+  $badge_ab      = !empty($ab_url)          ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
+  $badge_antritt = !empty($antritt_url)     ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
 ?>
   <div id="x-sieben-container" class="wp-clearfix" style="display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap;">
 
@@ -463,6 +508,19 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
             <?php endif; ?>
           </button>
 
+          <?php if (!empty($terminplan_url)) : ?>
+          <button type="button" class="button crm-preview-switch-embed <?php echo ($active_doc === 'terminplan') ? 'active' : ''; ?>"
+                  data-entry-id="<?php echo absint($entry_id); ?>"
+                  data-course-id="<?php echo absint($course_id); ?>"
+                  data-doc="terminplan"
+                  data-label="Terminplan / Schulungstage"
+                  data-url="<?php echo esc_url($add_cache_buster($terminplan_url)); ?>"
+                  style="<?php echo ($active_doc === 'terminplan') ? 'border-color:#0d9488; color:#0d9488; background:#f0fdfa; font-weight:700;' : 'color:#334155;'; ?> font-size:12px; height:28px; line-height:26px; padding:0 10px;">
+            <span>🗓️ <?php esc_html_e('Terminplan', 'custom-crm'); ?></span>
+            <span class="crm-tab-status-badge crm-status-ready">✓ Hinterlegt</span>
+          </button>
+          <?php endif; ?>
+
           <button type="button" class="button crm-preview-switch-embed <?php echo ($active_doc === 'tb') ? 'active' : ''; ?>"
                   data-entry-id="<?php echo absint($entry_id); ?>"
                   data-course-id="<?php echo absint($course_id); ?>"
@@ -483,6 +541,28 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
                   style="<?php echo ($active_doc === 'diplom') ? 'border-color:#b45309; color:#b45309; background:#fffbeb; font-weight:700;' : 'color:#334155;'; ?> font-size:12px; height:28px; line-height:26px; padding:0 10px;">
             <span>🎓 <?php esc_html_e('Diplom', 'custom-crm'); ?></span>
             <?php echo $badge_diplom; ?>
+          </button>
+
+          <button type="button" class="button crm-preview-switch-embed <?php echo ($active_doc === 'ab') ? 'active' : ''; ?>"
+                  data-entry-id="<?php echo absint($entry_id); ?>"
+                  data-course-id="<?php echo absint($course_id); ?>"
+                  data-doc="ab"
+                  data-label="Anmeldebestätigung (AB)"
+                  data-url="<?php echo esc_url($add_cache_buster($ab_url)); ?>"
+                  style="<?php echo ($active_doc === 'ab') ? 'border-color:#2563eb; color:#1d4ed8; background:#eff6ff; font-weight:700;' : 'color:#334155;'; ?> font-size:12px; height:28px; line-height:26px; padding:0 10px;">
+            <span>📝 <?php esc_html_e('Anmeldung (AB)', 'custom-crm'); ?></span>
+            <?php echo $badge_ab; ?>
+          </button>
+
+          <button type="button" class="button crm-preview-switch-embed <?php echo ($active_doc === 'antritt') ? 'active' : ''; ?>"
+                  data-entry-id="<?php echo absint($entry_id); ?>"
+                  data-course-id="<?php echo absint($course_id); ?>"
+                  data-doc="antritt"
+                  data-label="Antrittsmeldung (AMS)"
+                  data-url="<?php echo esc_url($add_cache_buster($antritt_url)); ?>"
+                  style="<?php echo ($active_doc === 'antritt') ? 'border-color:#0891b2; color:#0e7490; background:#ecfeff; font-weight:700;' : 'color:#334155;'; ?> font-size:12px; height:28px; line-height:26px; padding:0 10px;">
+            <span>📋 <?php esc_html_e('Antrittsmeldung', 'custom-crm'); ?></span>
+            <?php echo $badge_antritt; ?>
           </button>
         </div>
       </div>

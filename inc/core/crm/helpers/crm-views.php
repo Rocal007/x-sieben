@@ -340,6 +340,22 @@ function crm_render_card_view($prepared_entries, $all_statuses_def) {
                                     <button type="button" class="crm-mini-doc-btn crm-direct-editor-btn"
                                         data-entry-id="<?php echo esc_attr($item['entry_id']); ?>"
                                         data-course-id="<?php echo esc_attr($item['course_id'] ?: 0); ?>"
+                                        data-doc="ab"
+                                        data-action="xsieben_anmeldebestaetigung"
+                                        title="<?php esc_attr_e('Anmeldebestätigung (AB) öffnen', 'custom-crm'); ?>">
+                                        📝 <?php esc_html_e('AB', 'custom-crm'); ?>
+                                    </button>
+                                    <button type="button" class="crm-mini-doc-btn crm-direct-editor-btn"
+                                        data-entry-id="<?php echo esc_attr($item['entry_id']); ?>"
+                                        data-course-id="<?php echo esc_attr($item['course_id'] ?: 0); ?>"
+                                        data-doc="antritt"
+                                        data-action="xsieben_antrittsbestaetigung"
+                                        title="<?php esc_attr_e('Antrittsmeldung (AMS) öffnen', 'custom-crm'); ?>">
+                                        📋 <?php esc_html_e('Antritt', 'custom-crm'); ?>
+                                    </button>
+                                    <button type="button" class="crm-mini-doc-btn crm-direct-editor-btn"
+                                        data-entry-id="<?php echo esc_attr($item['entry_id']); ?>"
+                                        data-course-id="<?php echo esc_attr($item['course_id'] ?: 0); ?>"
                                         data-doc="tb"
                                         data-action="xsieben_teilnahmebestaetigung"
                                         title="<?php esc_attr_e('Teilnahmebestätigung (TB) öffnen', 'custom-crm'); ?>">
@@ -842,6 +858,22 @@ function crm_render_split_dossier($entry_id, $course_id = 0, $item = null) {
                     data-action="xsieben_kurszeitenbestaetigung"
                     title="<?php esc_attr_e('Kurszeitenbestätigung (KB) öffnen', 'custom-crm'); ?>">
                     📋 <?php esc_html_e('KB', 'custom-crm'); ?>
+                </button>
+                <button type="button" class="crm-mini-doc-btn crm-direct-editor-btn"
+                    data-entry-id="<?php echo esc_attr($entry_id); ?>"
+                    data-course-id="<?php echo esc_attr($course_id); ?>"
+                    data-doc="ab"
+                    data-action="xsieben_anmeldebestaetigung"
+                    title="<?php esc_attr_e('Anmeldebestätigung (AB) öffnen', 'custom-crm'); ?>">
+                    📝 <?php esc_html_e('AB', 'custom-crm'); ?>
+                </button>
+                <button type="button" class="crm-mini-doc-btn crm-direct-editor-btn"
+                    data-entry-id="<?php echo esc_attr($entry_id); ?>"
+                    data-course-id="<?php echo esc_attr($course_id); ?>"
+                    data-doc="antritt"
+                    data-action="xsieben_antrittsbestaetigung"
+                    title="<?php esc_attr_e('Antrittsmeldung (AMS) öffnen', 'custom-crm'); ?>">
+                    📋 <?php esc_html_e('Antritt', 'custom-crm'); ?>
                 </button>
                 <button type="button" class="crm-mini-doc-btn crm-direct-editor-btn"
                     data-entry-id="<?php echo esc_attr($entry_id); ?>"
