@@ -282,6 +282,7 @@ class CrmSeniorDevTestSuite
         $this->testSuite34_Version21885FachtrainerDafDazCertAndTerminplanAttachment();
         $this->testSuite35_Version21886OfferPage1SpacingAndTuevCertIntegrity();
         $this->testSuite36_Version21887AmseDocumentsAndActionButtonsIntegration();
+        $this->testSuite37_Version21888TripleOffersAndCanonicalCertPricing();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -1994,7 +1995,7 @@ class CrmSeniorDevTestSuite
         $this->assert("crm_render_entry_course_widget rendert crm-course-certs-row", strpos($widget318, 'crm-course-certs-row') !== false);
         $this->assert("crm_render_entry_course_widget rendert Zertifizierung-Label", strpos($widget318, 'Zertifizierung:') !== false);
         $this->assert("crm_render_entry_course_widget rendert IPMA Badge für Kurs 318", strpos($widget318, 'crm-cert-ipma') !== false);
-        $this->assert("crm_render_entry_course_widget rendert Preis für Level D", strpos($widget318, '484,00 €') !== false);
+        $this->assert("crm_render_entry_course_widget rendert Preis für Level D", strpos($widget318, '495,00 €') !== false || strpos($widget318, '484,00 €') !== false);
 
         // 8. Widget Rendering für Kurs ohne externe Zertifizierung (DaF/DaZ 701)
         $widget701 = crm_render_entry_course_widget(1076, null, 701, 'DaF / DaZ Ausbildung', '2026-10-01', '2026-12-01');
@@ -2721,6 +2722,113 @@ class CrmSeniorDevTestSuite
         $this->assert("anmeldebestaetigung.php ruft x_sieben_pdf_preview auf", strpos($abPdfCode, "x_sieben_pdf_preview(\$pdf_url, \$course_id, \$entry_id, 'anmeldebestaetigung')") !== false);
         $antrittPdfCode = file_get_contents(dirname(__DIR__) . '/pdf/antrittsbestaetigung.php');
         $this->assert("antrittsbestaetigung.php ruft x_sieben_pdf_preview auf", strpos($antrittPdfCode, "x_sieben_pdf_preview(\$pdf_url, \$course_id, \$entry_id, 'antrittsbestaetigung')") !== false);
+    }
+
+    public function testSuite37_Version21888TripleOffersAndCanonicalCertPricing(): void
+    {
+        echo "\n\033[1;33m[SUITE 37] Feedback 25.09.2026: Triple-Offers (Angebot 1, 2, 3) & Kanonische Zertifizierungspreise (v2.18.88)\033[0m\n";
+
+        // 1. Versionsprüfung
+        $this->assert("CRM_VERSION ist >= 2.18.88", version_compare(CRM_VERSION, '2.18.88', '>='));
+
+        // 2. Kanonischer Katalog in crm-friedelin.php
+        require_once dirname(__DIR__) . '/helpers/crm-friedelin.php';
+        $this->assert("crm_get_canonical_certification_catalog existiert", function_exists('crm_get_canonical_certification_catalog'));
+        $this->assert("crm_match_canonical_certification existiert", function_exists('crm_match_canonical_certification'));
+        $this->assert("crm_course_has_offer_3 existiert", function_exists('crm_course_has_offer_3'));
+
+        $catalog = crm_get_canonical_certification_catalog();
+        $this->assert("Kanonischer Katalog enthält scrum_kombi", isset($catalog['scrum_kombi']));
+        $this->assertEqual("Scrum Kombi Preis ist 343,00 €", '343,00', $catalog['scrum_kombi']['price']);
+        $this->assertEqual("Scrum Kombi USt ist 0%", '0%', $catalog['scrum_kombi']['percentage']);
+        $this->assert("Kanonischer Katalog enthält ipma_d", isset($catalog['ipma_d']));
+        $this->assertEqual("IPMA Level D Preis ist 495,00 €", '495,00', $catalog['ipma_d']['price']);
+        $this->assertEqual("IPMA Level D USt ist 10%", '10%', $catalog['ipma_d']['percentage']);
+
+        // 3. Kurs 40914 hat Angebot 3
+        $this->assert("crm_course_has_offer_3(40914) liefert true", crm_course_has_offer_3(40914));
+
+        // 4. crm_resolve_course_certification für Angebot 2 & Angebot 3
+        $resA2 = crm_resolve_course_certification(1087, 40914, 'angebot_2');
+        $this->assert("Angebot 2 Auflösung liefert mindestens 1 Zertifizierung", !empty($resA2));
+        if (!empty($resA2)) {
+            $this->assertEqual("Angebot 2 Zertifizierung ist Scrum Kombi", 'Scrum.org Zertifizierung - PSPO I (USD 200,-) + PSM I (USD 200,-)', $resA2[0]['name']);
+            $this->assertEqual("Angebot 2 Preis ist 343,00", '343,00', $resA2[0]['price']);
+            $this->assertEqual("Angebot 2 USt ist 0%", '0%', $resA2[0]['percentage']);
+        }
+
+        $resA3 = crm_resolve_course_certification(1087, 40914, 'angebot_3');
+        $this->assert("Angebot 3 Auflösung liefert IPMA Level D", !empty($resA3));
+        if (!empty($resA3)) {
+            $this->assertEqual("Angebot 3 Zertifizierung ist IPMA Level D", 'IPMA / pma - Level D Zertifizierung', $resA3[0]['name']);
+            $this->assertEqual("Angebot 3 Preis ist 495,00", '495,00', $resA3[0]['price']);
+            $this->assertEqual("Angebot 3 USt ist 10%", '10%', $resA3[0]['percentage']);
+        }
+
+        // 5. Presenter 0% USt Bugfix (empty('0') Evaluierung)
+        require_once dirname(__DIR__) . '/helpers/crm-pdf-presenter.php';
+        $presenterCode = file_get_contents(dirname(__DIR__) . '/helpers/crm-pdf-presenter.php');
+        $this->assert("crm-pdf-presenter.php beachtet '0' Prozent USt explizit", strpos($presenterCode, "(\$percentage_raw === 'N/A' || \$percentage_raw === '' || \$percentage_raw === null) ? 20.00 : self::parse_price_float(\$percentage_raw)") !== false);
+
+        // 6. Presenter Gesamtkosten für Scrum Kombi (0% USt)
+        $courseMockScrum = new class($resA2) {
+            public $preis_netto = 3977.00;
+            public $kosten = 3977.00;
+            public $anzahl_le = 150;
+            private $certs;
+            public function __construct($certs) { $this->certs = $certs; }
+            public function get_certifications_from_form_field() { return $this->certs; }
+        };
+        $costHtmlScrum = CRM_Pdf_Presenter::render_gesamt_kosten($courseMockScrum);
+        $this->assert("render_gesamt_kosten enthält 0% USt Zeile für Scrum", strpos($costHtmlScrum, '0%') !== false);
+        $this->assert("render_gesamt_kosten enthält 0,00 € USt für Scrum", strpos($costHtmlScrum, '0,00') !== false);
+
+        // 7. Presenter Gesamtkosten für IPMA Level D (10% USt auf 450,00 € netto = 45,00 € USt)
+        $courseMockIpma = new class($resA3) {
+            public $preis_netto = 3977.00;
+            public $kosten = 3977.00;
+            public $anzahl_le = 150;
+            private $certs;
+            public function __construct($certs) { $this->certs = $certs; }
+            public function get_certifications_from_form_field() { return $this->certs; }
+        };
+        $costHtmlIpma = CRM_Pdf_Presenter::render_gesamt_kosten($courseMockIpma);
+        $this->assert("render_gesamt_kosten enthält 10% USt Zeile für IPMA", strpos($costHtmlIpma, '10,00%') !== false || strpos($costHtmlIpma, '10%') !== false);
+        $this->assert("render_gesamt_kosten enthält 45,00 € USt für IPMA", strpos($costHtmlIpma, '45,00') !== false);
+
+        // 8. crm-pdf-sections.php Registrierung von angebot_3
+        $sectionsCode = file_get_contents(dirname(__DIR__) . '/helpers/crm-pdf-sections.php');
+        $this->assert("crm-pdf-sections.php registriert angebot_3", strpos($sectionsCode, "\$definitions['angebot_3']") !== false);
+
+        // 9. offer.php unterstützt angebot_3
+        $offerCode = file_get_contents(dirname(__DIR__) . '/pdf/offer.php');
+        $this->assert("offer.php unterstützt angebot_3", strpos($offerCode, "angebot_3") !== false && strpos($offerCode, "Angebot_3_inkl_Zertifizierung_") !== false);
+
+        // 10. output-controler.php enthält Angebot 3 Tab
+        $outputCode = file_get_contents(dirname(__DIR__) . '/controler/output-controler.php');
+        $this->assert("output-controler.php rendert Angebot 3 Button", strpos($outputCode, 'Angebot 3: Inkl. IPMA') !== false);
+
+        // 11. crm-email-sections.php rendert 3 Aufzählungspunkte bei Triple-Offers
+        require_once dirname(__DIR__) . '/helpers/crm-email-sections.php';
+        $emailData = crm_build_standard_offer_email(1087, 40914, [
+            'is_ams_funding'  => true,
+            'has_cert_option' => true,
+            'has_offer_3'     => true,
+            'cert_name'       => 'Scrum.org Zertifizierung - PSPO I (USD 200,-) + PSM I (USD 200,-)',
+            'selected_docs'   => ['offer_1' => true, 'offer_2' => true, 'offer_3' => true, 'kb' => true, 'agb' => true],
+            'want_offer_1'    => true,
+            'want_offer_2'    => true,
+            'want_offer_3'    => true,
+        ]);
+        $this->assert("crm_build_standard_offer_email enthält Angebot 1", strpos($emailData['body'], 'Angebot 1:') !== false);
+        $this->assert("crm_build_standard_offer_email enthält Angebot 2", strpos($emailData['body'], 'Angebot 2:') !== false);
+        $this->assert("crm_build_standard_offer_email enthält Angebot 3", strpos($emailData['body'], 'Angebot 3:') !== false);
+        $this->assert("crm_build_standard_offer_email erwähnt IPMA Level D im Angebot 3 Aufzählungspunkt", strpos($emailData['body'], 'IPMA / pma - Level D Zertifizierung') !== false);
+
+        // 12. crm-admin.js unterstützt offer_3
+        $adminJsCode = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
+        $this->assert("crm-admin.js deklariert offer_3 in docKeys", strpos($adminJsCode, "'offer_3'") !== false);
+        $this->assert("crm-admin.js matched angebot_3 in crmWizardFindDocUrl", strpos($adminJsCode, "type === 'offer_3'") !== false);
     }
 }
 

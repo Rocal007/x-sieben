@@ -80,7 +80,7 @@ function xsieben_invoice_pdf($entry_id, $course_id, $output_to_browser = true, $
             $c_name  = htmlspecialchars($clean_text($cert['name']));
             $c_price = CRM_Pdf_Presenter::parse_price_float($cert['price'] ?? 0);
             $pct_raw = rtrim((string)($cert['percentage'] ?? '20'), '%');
-            $c_ust_satz = ($pct_raw === 'N/A' || empty($pct_raw)) ? 20.00 : CRM_Pdf_Presenter::parse_price_float($pct_raw);
+            $c_ust_satz = ($pct_raw === 'N/A' || $pct_raw === '' || $pct_raw === null) ? 20.00 : CRM_Pdf_Presenter::parse_price_float($pct_raw);
 
             $c_ust    = round(($c_price / (100 + $c_ust_satz)) * $c_ust_satz, 2);
             $c_netto  = round($c_price - $c_ust, 2);

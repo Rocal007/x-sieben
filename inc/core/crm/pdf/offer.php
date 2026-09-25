@@ -21,14 +21,20 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser = true, $cu
     // Load course data
     $course = new CRM_Model($course_id, $entry_id);
 
-    // Variantensteuerung: 'basis' (nur Kurs) vs. 'mit_zertifikat' (Kurs + Zertifizierung)
+    // Variantensteuerung: 'basis' (nur Kurs) vs. 'mit_zertifikat' (Kurs + Zertifizierung) vs. 'angebot_3'
     if ($offer_variant === 'basis') {
         $course->override_certifications = [];
-    } elseif ($offer_variant === 'mit_zertifikat') {
+    } elseif ($offer_variant === 'mit_zertifikat' || $offer_variant === 'angebot_2') {
         if ($custom_certifications !== null && is_array($custom_certifications)) {
             $course->override_certifications = $custom_certifications;
         } elseif (function_exists('crm_resolve_course_certification')) {
-            $course->override_certifications = crm_resolve_course_certification($entry_id, $course_id);
+            $course->override_certifications = crm_resolve_course_certification($entry_id, $course_id, 'angebot_2');
+        }
+    } elseif ($offer_variant === 'angebot_3' || $offer_variant === 'mit_ipma') {
+        if ($custom_certifications !== null && is_array($custom_certifications)) {
+            $course->override_certifications = $custom_certifications;
+        } elseif (function_exists('crm_resolve_course_certification')) {
+            $course->override_certifications = crm_resolve_course_certification($entry_id, $course_id, 'angebot_3');
         }
     }
 
@@ -344,8 +350,10 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser = true, $cu
     $variant_tag   = '';
     if ($offer_variant === 'basis') {
         $variant_tag = 'Angebot_1_Basis_';
-    } elseif ($offer_variant === 'mit_zertifikat') {
+    } elseif ($offer_variant === 'mit_zertifikat' || $offer_variant === 'angebot_2') {
         $variant_tag = 'Angebot_2_inkl_Zertifizierung_';
+    } elseif ($offer_variant === 'angebot_3' || $offer_variant === 'mit_ipma') {
+        $variant_tag = 'Angebot_3_inkl_Zertifizierung_';
     }
     $pdf_name      = "A_" . $nummer . "_" . $variant_tag . ($token ? $token . '_' : '') . $safe_title . "_" . $safe_vorname . "_" . $safe_nachname . ".pdf";
 
@@ -400,6 +408,11 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser = true, $cu
         $all_sections = $custom_sections;
     } else {
         $target_doc = ($offer_variant === 'mit_zertifikat') ? 'angebot_2' : 'angebot';
+        if ($offer_variant === 'angebot_2') {
+            $target_doc = 'angebot_2';
+        } elseif ($offer_variant === 'angebot_3' || $offer_variant === 'mit_ipma') {
+            $target_doc = 'angebot_3';
+        }
         $all_sections = crm_get_pdf_section_order($target_doc, $entry_id);
         // Filter falls $custom_sections als Key-Liste übergeben wurde
         if (is_array($custom_sections) && !empty($custom_sections)) {
@@ -672,8 +685,10 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser = true, $cu
     $clean_pattern = 'A_' . $nummer . '_*.pdf';
     if ($offer_variant === 'basis') {
         $clean_pattern = 'A_' . $nummer . '_Angebot_1_Basis_*.pdf';
-    } elseif ($offer_variant === 'mit_zertifikat') {
+    } elseif ($offer_variant === 'mit_zertifikat' || $offer_variant === 'angebot_2') {
         $clean_pattern = 'A_' . $nummer . '_Angebot_2_inkl_Zertifizierung_*.pdf';
+    } elseif ($offer_variant === 'angebot_3' || $offer_variant === 'mit_ipma') {
+        $clean_pattern = 'A_' . $nummer . '_Angebot_3_inkl_Zertifizierung_*.pdf';
     }
     $existing_old_files = glob($save_dir . $clean_pattern);
     if (!empty($existing_old_files)) {

@@ -1111,6 +1111,12 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
     $definitions['angebot_2']['kosten']['title']    = __('Ihre Investition & Kosten (inkl. Zertifizierung)', 'custom-crm');
     $definitions['angebot_2']['kosten']['desc']     = __('Kursgebühr inkl. optionale Zertifizierungen, Gesamtkosten, Angebotsgültigkeit und Bankverbindung.', 'custom-crm');
 
+    // Angebot 3 (Inkl. 2. Zertifizierung / IPMA): Erbt ebenfalls von Angebot 2
+    $definitions['angebot_3'] = $definitions['angebot_2'];
+    $definitions['angebot_3']['abschluss']['title'] = __('Ihr persönlicher Abschluss & Zertifizierung (IPMA / pma)', 'custom-crm');
+    $definitions['angebot_3']['kosten']['title']    = __('Ihre Investition & Kosten (inkl. IPMA / pma Zertifizierung)', 'custom-crm');
+    $definitions['angebot_3']['kosten']['desc']     = __('Kursgebühr inkl. IPMA / pma Zertifizierung, Gesamtkosten, Angebotsgültigkeit und Bankverbindung.', 'custom-crm');
+
     // Anmeldebestätigung (AB)
     $definitions['ab'] = [
         'anschreiben' => [
@@ -1466,9 +1472,12 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
     $global_opt_key = 'crm_pdf_section_order_' . $doc_type;
     $global_order   = get_option($global_opt_key, null);
 
-    // Fallback für Angebot 2: Wenn für angebot_2 noch keine eigene Konfiguration existiert, von angebot erben
+    // Fallback für Angebot 2 & 3: Wenn noch keine eigene Konfiguration existiert, von angebot erben
     if ($doc_type === 'angebot_2' && $global_order === null) {
         $global_order = get_option('crm_pdf_section_order_angebot', null);
+    }
+    if ($doc_type === 'angebot_3' && $global_order === null) {
+        $global_order = get_option('crm_pdf_section_order_angebot_2', null) ?: get_option('crm_pdf_section_order_angebot', null);
     }
 
     if (!empty($entry_id)) {
@@ -1501,7 +1510,7 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
     }
 
     // Auto-Migration für Angebot: zertifizierungen & ort_durchfuehrung von veranstaltung (Seite 2) nach abschluss (Seite 3) verschieben
-    if (in_array($doc_type, ['angebot', 'angebot_2'], true) && is_array($saved_order)) {
+    if (in_array($doc_type, ['angebot', 'angebot_2', 'angebot_3'], true) && is_array($saved_order)) {
         $moved_subs = [];
         $need_migration = false;
         foreach ($saved_order as &$sec_item) {
@@ -2241,7 +2250,9 @@ function crm_get_subsection_default_html(string $doc_type, string $sec_key, stri
     $course = new CRM_Model($course_id ?: 0, $entry_id);
 
     if ($doc_type === 'angebot_2' && function_exists('crm_resolve_course_certification')) {
-        $course->override_certifications = crm_resolve_course_certification($entry_id, $course_id);
+        $course->override_certifications = crm_resolve_course_certification($entry_id, $course_id, 'angebot_2');
+    } elseif ($doc_type === 'angebot_3' && function_exists('crm_resolve_course_certification')) {
+        $course->override_certifications = crm_resolve_course_certification($entry_id, $course_id, 'angebot_3');
     }
 
     $gens = [];
@@ -2249,6 +2260,7 @@ function crm_get_subsection_default_html(string $doc_type, string $sec_key, stri
     switch ($doc_type) {
         case 'angebot':
         case 'angebot_2':
+        case 'angebot_3':
             require_once dirname(__DIR__) . '/pdf/elements/offer-elements.php';
             $angebotsnummer  = 'A_' . ($entry_id ?: '0') . '-' . ($course->post_id ?? '0');
             $salutation_name = trim($course->salutation . ' ' . trim($course->titel . ' ' . $course->vorname . ' ' . $course->nachname));

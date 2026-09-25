@@ -336,9 +336,12 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
     $cid_check = $tmp_model->post_id;
   }
   if ($entry_id && function_exists('crm_resolve_course_certification')) {
-    $resolved_cert = crm_resolve_course_certification((int)$entry_id, (int)$cid_check);
+    $resolved_cert = crm_resolve_course_certification((int)$entry_id, (int)$cid_check, 'angebot_2');
     $has_cert_option = !empty($resolved_cert);
   }
+
+  $has_offer_3 = function_exists('crm_course_has_offer_3') && crm_course_has_offer_3((int)$cid_check);
+  $offer_3_url = '';
 
   $save_dir = function_exists('crm_get_pdf_storage_dir') ? crm_get_pdf_storage_dir() : (get_template_directory() . '/angebote/');
   $storage_url = function_exists('crm_get_pdf_storage_url') ? crm_get_pdf_storage_url() : (get_template_directory_uri() . '/angebote/');
@@ -355,6 +358,22 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
         $offer_zert_url = xsieben_offer_pdf($entry_id, $cid_check, false, null, 'mit_zertifikat');
       } catch (\Throwable $e) {
         error_log('CRM Auto Angebot 2 Error: ' . $e->getMessage());
+      }
+    }
+  }
+
+  if ($has_offer_3 && empty($offer_3_url) && $entry_id) {
+    // 1. Suche nach vorhandener Angebot 3 PDF-Datei auf dem Server
+    $matching_files_3 = glob($save_dir . 'A_' . $entry_id . '-*_Angebot_3_*.pdf');
+    if (!empty($matching_files_3)) {
+      $latest_file_3 = end($matching_files_3);
+      $offer_3_url = $storage_url . rawurlencode(basename($latest_file_3));
+    } elseif ($cid_check && function_exists('xsieben_offer_pdf')) {
+      // 2. Falls noch nicht generiert: Angebot 3 sofort autark vorrendern
+      try {
+        $offer_3_url = xsieben_offer_pdf($entry_id, $cid_check, false, null, 'angebot_3');
+      } catch (\Throwable $e) {
+        error_log('CRM Auto Angebot 3 Error: ' . $e->getMessage());
       }
     }
   }
@@ -444,13 +463,15 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
   $default_email_docs = [];
   if (!empty($offer_basis_url)) $default_email_docs[] = $offer_basis_url;
   if ($has_cert_option && !empty($offer_zert_url)) $default_email_docs[] = $offer_zert_url;
+  if ($has_offer_3 && !empty($offer_3_url)) $default_email_docs[] = $offer_3_url;
   if (!empty($kb_url)) $default_email_docs[] = $kb_url;
   if (!empty($terminplan_url)) $default_email_docs[] = $terminplan_url;
   $email_pdf_param = !empty($default_email_docs) ? implode(',', $default_email_docs) : $active_url;
 
-  // Status-Badges für die 7 Dokumenten-Tabs (Birkenbihl: Erkennen statt Raten)
+  // Status-Badges für die 8 Dokumenten-Tabs (Birkenbihl: Erkennen statt Raten)
   $badge_basis   = !empty($offer_basis_url) ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
   $badge_zert    = !empty($offer_zert_url)  ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
+  $badge_offer_3 = !empty($offer_3_url)     ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
   $badge_kb      = !empty($kb_url)          ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
   $badge_tb      = !empty($tb_url)          ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
   $badge_diplom  = !empty($diplom_url)      ? '<span class="crm-tab-status-badge crm-status-ready">✓ Bereit</span>' : '<span class="crm-tab-status-badge crm-status-ondemand">⚡ Klick</span>';
@@ -491,6 +512,20 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
                   style="<?php echo ($active_doc === 'angebot_zert') ? 'border-color:#7c3aed; color:#6d28d9; background:#faf5ff; font-weight:700;' : 'color:#334155;'; ?> font-size:12px; height:28px; line-height:26px; padding:0 10px;">
             <span>📑 <?php esc_html_e('Angebot 2: Inkl. Zert.', 'custom-crm'); ?></span>
             <?php echo $badge_zert; ?>
+          </button>
+          <?php endif; ?>
+
+          <?php if ($has_offer_3) : ?>
+          <button type="button" class="button crm-preview-switch-embed <?php echo ($active_doc === 'angebot_3') ? 'active' : ''; ?>"
+                  data-entry-id="<?php echo absint($entry_id); ?>"
+                  data-course-id="<?php echo absint($course_id); ?>"
+                  data-doc="angebot"
+                  data-variant="angebot_3"
+                  data-label="Angebot 3: Inkl. IPMA"
+                  data-url="<?php echo esc_url($add_cache_buster($offer_3_url)); ?>"
+                  style="<?php echo ($active_doc === 'angebot_3') ? 'border-color:#059669; color:#047857; background:#ecfdf5; font-weight:700;' : 'color:#334155;'; ?> font-size:12px; height:28px; line-height:26px; padding:0 10px;">
+            <span>📑 <?php esc_html_e('Angebot 3: Inkl. IPMA', 'custom-crm'); ?></span>
+            <?php echo $badge_offer_3; ?>
           </button>
           <?php endif; ?>
 

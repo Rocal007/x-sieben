@@ -1200,6 +1200,7 @@ add_action('wp_ajax_crm_get_wizard_data', function () {
     $resolved_cert = ($course_id && function_exists('crm_resolve_course_certification')) ? crm_resolve_course_certification($entry_id, $course_id) : [];
     $has_cert_option = !empty($resolved_cert);
     $cert_name = $has_cert_option ? $resolved_cert[0]['name'] : '';
+    $has_offer_3 = ($course_id && function_exists('crm_course_has_offer_3')) ? crm_course_has_offer_3($course_id) : false;
 
     $agb_url = function_exists('crm_get_setting') ? crm_get_setting('legal_agb_url') : '';
     if (empty($agb_url)) {
@@ -1219,6 +1220,7 @@ add_action('wp_ajax_crm_get_wizard_data', function () {
                 : [
                     'offer_1' => true,
                     'offer_2' => $has_cert_option,
+                    'offer_3' => $has_offer_3,
                     'kb'      => $is_ams,
                     'agb'     => true,
                 ];
@@ -1226,6 +1228,7 @@ add_action('wp_ajax_crm_get_wizard_data', function () {
             $std_mail = crm_build_standard_offer_email($entry_id, $course_id, [
                 'is_ams_funding'  => $is_ams,
                 'has_cert_option' => $has_cert_option,
+                'has_offer_3'     => $has_offer_3,
                 'cert_name'       => $cert_name,
                 'selected_docs'   => $sel_docs,
             ]);
@@ -1309,6 +1312,7 @@ add_action('wp_ajax_crm_get_wizard_data', function () {
         'history_count'       => count($formatted_history),
         'default_test_email'  => $default_test_email,
         'has_cert_option'     => $has_cert_option,
+        'has_offer_3'         => $has_offer_3,
         'cert_name'           => $cert_name,
         'agb_url'             => $agb_url,
     ]);
@@ -1331,10 +1335,12 @@ add_action('wp_ajax_crm_get_wizard_email_preview', function () {
     $resolved_cert = ($course_id && function_exists('crm_resolve_course_certification')) ? crm_resolve_course_certification($entry_id, $course_id) : [];
     $has_cert_option = !empty($resolved_cert);
     $cert_name = $has_cert_option ? $resolved_cert[0]['name'] : '';
+    $has_offer_3 = ($course_id && function_exists('crm_course_has_offer_3')) ? crm_course_has_offer_3($course_id) : false;
 
     $mail_data = crm_build_standard_offer_email($entry_id, $course_id, [
         'is_ams_funding'  => $is_ams,
         'has_cert_option' => $has_cert_option,
+        'has_offer_3'     => $has_offer_3,
         'cert_name'       => $cert_name,
         'selected_docs'   => $selected_docs,
     ]);
@@ -3725,7 +3731,24 @@ function crm_get_course_available_certifications(int $course_id, $entry_id = 0):
                     $short_name = 'SystemCERT ISO 17024';
                 }
 
+                // Verbindlicher Abgleich mit kanonischem CRM-Katalog (Feld 99)
+                if (function_exists('crm_match_canonical_certification')) {
+                    $canonical = crm_match_canonical_certification($clean_name);
+                    if ($canonical) {
+                        $price_num = floatval($canonical['price_raw']);
+                        $price_formatted = number_format($price_num, 2, ',', '.') . ' €';
+                        $raw_preis = (string)$price_num;
+                        $raw_ust = (string)$canonical['ust'];
+                        $clean_name = $canonical['name'];
+                        if (empty($short_name) || $short_name === $clean_name) {
+                            $short_name = $canonical['short_name'];
+                        }
+                        $provider = $canonical['provider'] ?? $provider;
+                    }
+                }
+
                 $is_selected = $is_cert_in_resolved($clean_name, $short_name, $raw_name);
+                $ust_display = ($raw_ust !== '' && $raw_ust !== null) ? (rtrim((string)$raw_ust, '%') . '%') : '20%';
 
                 $certs[] = [
                     'raw_name'        => $raw_name,
@@ -3734,11 +3757,11 @@ function crm_get_course_available_certifications(int $course_id, $entry_id = 0):
                     'price_raw'       => (string)$raw_preis,
                     'price_num'       => $price_num,
                     'price_formatted' => $price_formatted,
-                    'ust'             => !empty($raw_ust) ? $raw_ust . '%' : '20%',
+                    'ust'             => $ust_display,
                     'provider'        => $provider,
                     'badge_class'     => $badge_class,
                     'is_selected'     => $is_selected,
-                    'tooltip'         => $tooltip ?: ($clean_name . ($price_formatted ? ($price_num == 497.00 || stripos($clean_name, 'tüv') !== false ? ' (' . $price_formatted . ' brutto inkl. ' . (!empty($raw_ust) ? $raw_ust . '%' : '20%') . ' USt)' : ' (' . $price_formatted . ')') : '')),
+                    'tooltip'         => $tooltip ?: ($clean_name . ($price_formatted ? ($price_num == 497.00 || stripos($clean_name, 'tüv') !== false ? ' (' . $price_formatted . ' brutto inkl. ' . $ust_display . ' USt)' : ' (' . $price_formatted . ')') : '')),
                     'source'          => 'acf'
                 ];
             }

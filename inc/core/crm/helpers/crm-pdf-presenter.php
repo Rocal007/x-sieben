@@ -256,7 +256,7 @@ class CRM_Pdf_Presenter
                 $price = self::parse_price_float($cert['price']);
                 $percentage_raw = rtrim((string)($cert['percentage'] ?? '20'), '%');
 
-                $ust_satz_cert = ($percentage_raw === 'N/A' || empty($percentage_raw)) ? 20.00 : self::parse_price_float($percentage_raw);
+                $ust_satz_cert = ($percentage_raw === 'N/A' || $percentage_raw === '' || $percentage_raw === null) ? 20.00 : self::parse_price_float($percentage_raw);
 
                 $ust_cert = round(($price / (100 + $ust_satz_cert)) * $ust_satz_cert, 2);
                 $netto_cert = round($price - $ust_cert, 2);
@@ -977,7 +977,7 @@ class CRM_Pdf_Presenter
             $price = self::parse_price_float($cert['price']);
             $percentage_raw = rtrim((string)($cert['percentage'] ?? '20'), '%');
 
-            $ust_satz = ($percentage_raw === 'N/A' || empty($percentage_raw)) ? 20.00 : self::parse_price_float($percentage_raw);
+            $ust_satz = ($percentage_raw === 'N/A' || $percentage_raw === '' || $percentage_raw === null) ? 20.00 : self::parse_price_float($percentage_raw);
 
             $ust = round(($price / (100 + $ust_satz)) * $ust_satz, 2);
             $zert_preis_netto = round($price - $ust, 2);

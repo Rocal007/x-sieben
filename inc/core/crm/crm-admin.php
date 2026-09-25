@@ -19,7 +19,7 @@
 
 // --- Core Setup & Helpers ---
 if (!defined('CRM_VERSION')) {
-    define('CRM_VERSION', '2.18.87');
+    define('CRM_VERSION', '2.18.88');
 }
 
 require_once __DIR__ . '/helpers/crm-cache.php';
@@ -947,6 +947,9 @@ add_action('wp_ajax_crm_save_pdf_section_order', function () {
                 } elseif ($doc_type === 'angebot_2') {
                     require_once __DIR__ . '/pdf/offer.php';
                     $pdf_url = xsieben_offer_pdf($entry_id, $course_id, false, null, 'mit_zertifikat');
+                } elseif ($doc_type === 'angebot_3') {
+                    require_once __DIR__ . '/pdf/offer.php';
+                    $pdf_url = xsieben_offer_pdf($entry_id, $course_id, false, null, 'angebot_3');
                 } elseif ($doc_type === 'kb') {
                     require_once __DIR__ . '/pdf/kurszeitenbestaetigung.php';
                     $pdf_url = xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, false);

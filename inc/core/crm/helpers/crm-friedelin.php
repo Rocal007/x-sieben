@@ -740,6 +740,193 @@ function crm_detect_course_from_message(string $message_text = '', array $entry_
  * @param int $course_id
  * @return array|null
  */
+/**
+ * Single Source of Truth (SSOT) für kanonische Zertifizierungsgebühren aus CRM Feld 99.
+ * Verbindliche Preisquelle gemäß Vorgabe der Geschäftsführung.
+ */
+function crm_get_canonical_certification_catalog(): array
+{
+    return [
+        'scrum_kombi' => [
+            'name'       => 'Scrum.org Zertifizierung - PSPO I (USD 200,-) + PSM I (USD 200,-)',
+            'short_name' => 'Scrum.org PSPO I + PSM I',
+            'price'      => '343,00',
+            'price_raw'  => 343.00,
+            'percentage' => '0%',
+            'ust'        => 0,
+            'provider'   => 'Scrum.org',
+        ],
+        'scrum_psm' => [
+            'name'       => 'Scrum.org Zertifizierung - PSM I (USD 200,-)',
+            'short_name' => 'Scrum.org PSM I',
+            'price'      => '171,50',
+            'price_raw'  => 171.50,
+            'percentage' => '0%',
+            'ust'        => 0,
+            'provider'   => 'Scrum.org',
+        ],
+        'scrum_pspo' => [
+            'name'       => 'Scrum.org Zertifizierung - PSPO I (USD 200,-)',
+            'short_name' => 'Scrum.org PSPO I',
+            'price'      => '171,50',
+            'price_raw'  => 171.50,
+            'percentage' => '0%',
+            'ust'        => 0,
+            'provider'   => 'Scrum.org',
+        ],
+        'ipma_d' => [
+            'name'       => 'IPMA / pma - Level D Zertifizierung',
+            'short_name' => 'IPMA Level D',
+            'price'      => '495,00',
+            'price_raw'  => 495.00,
+            'percentage' => '10%',
+            'ust'        => 10,
+            'provider'   => 'IPMA / pma',
+        ],
+        'ipma_c' => [
+            'name'       => 'IPMA / pma - Level C Zertifizierung',
+            'short_name' => 'IPMA Level C',
+            'price'      => '1.210,00',
+            'price_raw'  => 1210.00,
+            'percentage' => '10%',
+            'ust'        => 10,
+            'provider'   => 'IPMA / pma',
+        ],
+        'ipma_b' => [
+            'name'       => 'IPMA / pma - Level B Zertifizierung',
+            'short_name' => 'IPMA Level B',
+            'price'      => '2.365,00',
+            'price_raw'  => 2365.00,
+            'percentage' => '10%',
+            'ust'        => 10,
+            'provider'   => 'IPMA / pma',
+        ],
+        'ipma_b_online' => [
+            'name'       => 'IPMA / pma - Level B Zertifizierung (Online)',
+            'short_name' => 'IPMA Level B Online',
+            'price'      => '1.958,00',
+            'price_raw'  => 1958.00,
+            'percentage' => '10%',
+            'ust'        => 10,
+            'provider'   => 'IPMA / pma',
+        ],
+        'systemcert_fachtrainer' => [
+            'name'       => 'SystemCERT- Kompetenzzertifizierung FachtrainerIn gemäß den Forderungen der ISO 17024',
+            'short_name' => 'SystemCERT FachtrainerIn ISO 17024',
+            'price'      => '324,00',
+            'price_raw'  => 324.00,
+            'percentage' => '20%',
+            'ust'        => 20,
+            'provider'   => 'SystemCERT',
+        ],
+        'tuev_iso17024' => [
+            'name'       => 'TÜV - ISO/IEC 17024 Kompetenz-Zertifizierung',
+            'short_name' => 'TÜV ISO/IEC 17024',
+            'price'      => '497,00',
+            'price_raw'  => 497.00,
+            'percentage' => '20%',
+            'ust'        => 20,
+            'provider'   => 'TÜV AUSTRIA',
+        ],
+        'tuev_iso17024_online' => [
+            'name'       => 'Option: TÜV - EN ISO 17024 Kompetenz-Zertifizierung - Online',
+            'short_name' => 'TÜV EN ISO 17024 Online',
+            'price'      => '497,00',
+            'price_raw'  => 497.00,
+            'percentage' => '20%',
+            'ust'        => 20,
+            'provider'   => 'TÜV AUSTRIA',
+        ],
+        'logl_iso17024' => [
+            'name'       => 'LOG+L - Kompetenzzertifizierung nach DIN EN ISO 17024',
+            'short_name' => 'LOG+L ISO 17024',
+            'price'      => '306,00',
+            'price_raw'  => 306.00,
+            'percentage' => '20%',
+            'ust'        => 20,
+            'provider'   => 'LOG+L',
+        ],
+    ];
+}
+
+/**
+ * Gleicht einen beliebigen Zertifizierungsnamen mit den verbindlichen CRM-Katalogpreisen ab.
+ */
+function crm_match_canonical_certification(string $name): ?array
+{
+    $catalog = crm_get_canonical_certification_catalog();
+    $name_l = mb_strtolower(trim($name), 'UTF-8');
+
+    // 1. Exakter Match
+    foreach ($catalog as $cat) {
+        if ($name_l === mb_strtolower($cat['name'], 'UTF-8')) {
+            return $cat;
+        }
+    }
+
+    // 2. Spezifische Heuristiken
+    if (strpos($name_l, 'scrum') !== false) {
+        if ((strpos($name_l, 'psm') !== false && strpos($name_l, 'pspo') !== false) || strpos($name_l, '343') !== false) {
+            return $catalog['scrum_kombi'];
+        }
+        if (strpos($name_l, 'pspo') !== false) {
+            return $catalog['scrum_pspo'];
+        }
+        if (strpos($name_l, 'psm') !== false) {
+            return $catalog['scrum_psm'];
+        }
+    }
+    if (strpos($name_l, 'ipma') !== false || strpos($name_l, 'pma') !== false) {
+        if (strpos($name_l, 'level b') !== false || strpos($name_l, 'ebene b') !== false) {
+            return (strpos($name_l, 'online') !== false) ? $catalog['ipma_b_online'] : $catalog['ipma_b'];
+        }
+        if (strpos($name_l, 'level c') !== false || strpos($name_l, 'ebene c') !== false) {
+            return $catalog['ipma_c'];
+        }
+        if (strpos($name_l, 'level d') !== false || strpos($name_l, 'ebene d') !== false) {
+            return $catalog['ipma_d'];
+        }
+    }
+    if (strpos($name_l, 'fachtrainer') !== false || strpos($name_l, 'systemcert') !== false) {
+        return $catalog['systemcert_fachtrainer'];
+    }
+    if (strpos($name_l, 'tüv') !== false || strpos($name_l, 'tuev') !== false) {
+        return (strpos($name_l, 'online') !== false) ? $catalog['tuev_iso17024_online'] : $catalog['tuev_iso17024'];
+    }
+    if (strpos($name_l, 'log+l') !== false || strpos($name_l, 'logl') !== false) {
+        return $catalog['logl_iso17024'];
+    }
+
+    return null;
+}
+
+/**
+ * Prüft, ob ein Kurs ein drittes Angebot (z.B. IPMA Level D zusätzlich zu Scrum) unterstützt.
+ * Kurs 40914: Agiles & Digitales Projektmanagement - Scrum PSM I - PSPO I - Lehrgang
+ */
+function crm_course_has_offer_3(int $course_id): bool
+{
+    if (!$course_id) {
+        return false;
+    }
+    if ($course_id === 40914) {
+        return true;
+    }
+    $title = function_exists('get_the_title') ? mb_strtolower(get_the_title($course_id), 'UTF-8') : '';
+    if (strpos($title, 'scrum') !== false && (strpos($title, 'psm') !== false || strpos($title, 'pspo') !== false) && (strpos($title, 'projektmanagement') !== false || strpos($title, 'pm') !== false)) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Parst eine einzelne Zertifizierungszeile (z.B. aus Feld 99 oder Formulareingabe)
+ * in ein standardisiertes Array mit Name, Preis und USt-Prozentsatz.
+ *
+ * @param string $line
+ * @param int $course_id
+ * @return array|null
+ */
 function crm_parse_certification_line(string $line, int $course_id = 0): ?array
 {
     $line = trim($line);
@@ -759,15 +946,15 @@ function crm_parse_certification_line(string $line, int $course_id = 0): ?array
     if (preg_match($pattern1, $line, $matches)) {
         $name = trim($matches[1]);
         $price = trim($matches[2]);
-        $percentage = !empty($matches[3]) ? $matches[3] . '%' : ((stripos($name, 'ipma') !== false || stripos($name, 'pma') !== false) ? '10%' : '20%');
+        $percentage = (isset($matches[3]) && $matches[3] !== '') ? $matches[3] . '%' : ((stripos($name, 'ipma') !== false || stripos($name, 'pma') !== false) ? '10%' : ((stripos($name, 'scrum') !== false) ? '0%' : '20%'));
     } elseif (preg_match($pattern2, $line, $matches2)) {
         $name = trim($matches2[1]);
         $price = trim($matches2[2]);
-        $percentage = (stripos($name, 'ipma') !== false || stripos($name, 'pma') !== false) ? '10%' : '20%';
+        $percentage = (stripos($name, 'ipma') !== false || stripos($name, 'pma') !== false) ? '10%' : ((stripos($name, 'scrum') !== false) ? '0%' : '20%');
     } elseif (stripos($line, 'Fachtrainer') !== false) {
         // Sonderfall: FachtrainerIn
         $name = $line;
-        $price = '528,00';
+        $price = '324,00';
         $percentage = '20%';
     } elseif ($course_id && function_exists('crm_get_course_available_certifications')) {
         // Fallback: Name mit verfügbaren Kurszertifizierungen abgleichen
@@ -779,7 +966,7 @@ function crm_parse_certification_line(string $line, int $course_id = 0): ?array
             if ($line_l === $ac_name_l || $line_l === $ac_short_l || stripos($ac_name_l, $line_l) !== false || stripos($line_l, $ac_short_l) !== false) {
                 $name = $ac['short_name'] ?: $ac['name'];
                 $price = !empty($ac['price_formatted']) ? preg_replace('/[^\d,\.]/', '', $ac['price_formatted']) : (string)($ac['price_raw'] ?? '0,00');
-                $percentage = !empty($ac['ust']) ? $ac['ust'] : '20%';
+                $percentage = isset($ac['ust']) ? $ac['ust'] : '20%';
                 break;
             }
         }
@@ -794,7 +981,7 @@ function crm_parse_certification_line(string $line, int $course_id = 0): ?array
     $clean_for_float = str_replace('.', '', $price_clean);
     $clean_for_float = str_replace(',', '.', $clean_for_float);
     $price_float = (float)$clean_for_float;
-    $ust_int = (int)preg_replace('/[^\d]/', '', $percentage) ?: 20;
+    $ust_int = (isset($matches[3]) && $matches[3] !== '') ? (int)$matches[3] : ((int)preg_replace('/[^\d]/', '', $percentage));
 
     return [
         'name'       => $name,
@@ -813,7 +1000,7 @@ function crm_parse_certification_line(string $line, int $course_id = 0): ?array
  * @param int $course_id
  * @return array Array of certification records for CRM_Model::get_certifications_from_form_field()
  */
-function crm_resolve_course_certification(int $entry_id, int $course_id): array
+function crm_resolve_course_certification(int $entry_id, int $course_id, string $target_offer = 'angebot_2'): array
 {
     if (!$course_id) {
         return [];
@@ -902,6 +1089,34 @@ function crm_resolve_course_certification(int $entry_id, int $course_id): array
         }
 
         if (!empty($resolved_from_field)) {
+            if ($target_offer === 'angebot_3') {
+                foreach ($resolved_from_field as $rf) {
+                    if (stripos($rf['name'], 'ipma') !== false || stripos($rf['name'], 'pma') !== false) {
+                        return [$rf];
+                    }
+                }
+                if (count($resolved_from_field) > 1) {
+                    return [$resolved_from_field[1]];
+                }
+                if (function_exists('crm_course_has_offer_3') && crm_course_has_offer_3($course_id)) {
+                    return [[
+                        'name'       => 'IPMA / pma - Level D Zertifizierung',
+                        'price'      => '495,00',
+                        'price_raw'  => 495.00,
+                        'percentage' => '10%',
+                        'ust'        => 10
+                    ]];
+                }
+            } elseif ($target_offer === 'angebot_2') {
+                if (function_exists('crm_course_has_offer_3') && crm_course_has_offer_3($course_id)) {
+                    foreach ($resolved_from_field as $rf) {
+                        if (stripos($rf['name'], 'scrum') !== false || stripos($rf['name'], 'psm') !== false || stripos($rf['name'], 'pspo') !== false) {
+                            return [$rf];
+                        }
+                    }
+                }
+                return [$resolved_from_field[0]];
+            }
             return $resolved_from_field;
         }
     } elseif ($has_field_99 && trim((string)$field_99_raw) === '') {
@@ -935,7 +1150,9 @@ function crm_resolve_course_certification(int $entry_id, int $course_id): array
         return [[
             'name'       => 'Option: TÜV - EN ISO 17024 Kompetenz-Zertifizierung - Online',
             'price'      => '497,00',
-            'percentage' => '20%'
+            'price_raw'  => 497.00,
+            'percentage' => '20%',
+            'ust'        => 20
         ]];
     }
 
@@ -950,7 +1167,9 @@ function crm_resolve_course_certification(int $entry_id, int $course_id): array
         return [[
             'name'       => 'TÜV - ISO/IEC 17024 Kompetenz-Zertifizierung',
             'price'      => '497,00',
-            'percentage' => '20%'
+            'price_raw'  => 497.00,
+            'percentage' => '20%',
+            'ust'        => 20
         ]];
     }
 
@@ -960,7 +1179,36 @@ function crm_resolve_course_certification(int $entry_id, int $course_id): array
         return [[
             'name'       => 'LOG+L - Kompetenzzertifizierung nach DIN EN ISO 17024',
             'price'      => '255,00',
-            'percentage' => '20%'
+            'price_raw'  => 255.00,
+            'percentage' => '20%',
+            'ust'        => 20
+        ]];
+    }
+
+    // 1.5d Agiles & Digitales Projektmanagement - Scrum PSM I - PSPO I - Lehrgang (Kurs 40914)
+    // Verbindlich nach Geschäftsführungs-Vorgabe: Angebot 2 = Scrum Kombi (343 € / 0%), Angebot 3 = IPMA Level D (450 € netto / 495 € brutto / 10%)
+    $is_scrum_pm_kombi = (
+        $course_id == 40914 ||
+        (strpos($course_title_lower, 'scrum') !== false && 
+         (strpos($course_title_lower, 'psm') !== false || strpos($course_title_lower, 'pspo') !== false) &&
+         (strpos($course_title_lower, 'projektmanagement') !== false || strpos($course_title_lower, 'pm') !== false))
+    );
+    if ($is_scrum_pm_kombi) {
+        if ($target_offer === 'angebot_3') {
+            return [[
+                'name'       => 'IPMA / pma - Level D Zertifizierung',
+                'price'      => '495,00',
+                'price_raw'  => 495.00,
+                'percentage' => '10%',
+                'ust'        => 10
+            ]];
+        }
+        return [[
+            'name'       => 'Scrum.org Zertifizierung - PSPO I (USD 200,-) + PSM I (USD 200,-)',
+            'price'      => '343,00',
+            'price_raw'  => 343.00,
+            'percentage' => '0%',
+            'ust'        => 0
         ]];
     }
 
@@ -977,10 +1225,18 @@ function crm_resolve_course_certification(int $entry_id, int $course_id): array
                 $clean_name = rtrim($clean_name, '.');
                 $price_num  = is_numeric($z_preis) ? floatval($z_preis) : floatval(str_replace(',', '.', str_replace('.', '', (string)$z_preis)));
                 $price_formatted = $price_num > 0 ? number_format($price_num, 2, ',', '.') : (string)$z_preis;
+                $canon = function_exists('crm_match_canonical_certification') ? crm_match_canonical_certification($clean_name) : null;
+                if ($canon) {
+                    $clean_name = $canon['name'];
+                    $price_formatted = $canon['price'];
+                    $z_ust = $canon['percentage'];
+                }
                 $course_acf_certs[] = [
                     'name'       => $clean_name,
                     'price'      => $price_formatted,
-                    'percentage' => !empty($z_ust) ? (string)$z_ust . '%' : '20%'
+                    'price_raw'  => $canon ? $canon['price_raw'] : $price_num,
+                    'percentage' => (rtrim((string)$z_ust, '%') !== '') ? (rtrim((string)$z_ust, '%') . '%') : '20%',
+                    'ust'        => $canon ? $canon['ust'] : (int)preg_replace('/[^\d]/', '', (string)$z_ust)
                 ];
             }
         }
@@ -995,15 +1251,33 @@ function crm_resolve_course_certification(int $entry_id, int $course_id): array
                 $clean_name = rtrim($clean_name, '.');
                 $price_num  = is_numeric($z_preis) ? floatval($z_preis) : floatval(str_replace(',', '.', str_replace('.', '', (string)$z_preis)));
                 $price_formatted = $price_num > 0 ? number_format($price_num, 2, ',', '.') : (string)$z_preis;
+                $canon = function_exists('crm_match_canonical_certification') ? crm_match_canonical_certification($clean_name) : null;
+                if ($canon) {
+                    $clean_name = $canon['name'];
+                    $price_formatted = $canon['price'];
+                    $z_ust = $canon['percentage'];
+                }
                 $course_acf_certs[] = [
                     'name'       => $clean_name,
                     'price'      => $price_formatted,
-                    'percentage' => !empty($z_ust) ? (string)$z_ust . '%' : '20%'
+                    'price_raw'  => $canon ? $canon['price_raw'] : $price_num,
+                    'percentage' => (rtrim((string)$z_ust, '%') !== '') ? (rtrim((string)$z_ust, '%') . '%') : '20%',
+                    'ust'        => $canon ? $canon['ust'] : (int)preg_replace('/[^\d]/', '', (string)$z_ust)
                 ];
             }
         }
     }
     if (!empty($course_acf_certs)) {
+        if ($target_offer === 'angebot_3') {
+            foreach ($course_acf_certs as $cac) {
+                if (stripos($cac['name'], 'ipma') !== false || stripos($cac['name'], 'pma') !== false) {
+                    return [$cac];
+                }
+            }
+            if (count($course_acf_certs) > 1) {
+                return [$course_acf_certs[1]];
+            }
+        }
         return [$course_acf_certs[0]];
     }
 
@@ -1022,7 +1296,9 @@ function crm_resolve_course_certification(int $entry_id, int $course_id): array
         return [[
             'name'       => 'LOG+L - Kompetenzzertifizierung nach DIN EN ISO 17024',
             'price'      => '255,00',
-            'percentage' => '20%'
+            'price_raw'  => 255.00,
+            'percentage' => '20%',
+            'ust'        => 20
         ]];
     }
 
@@ -1040,22 +1316,28 @@ function crm_resolve_course_certification(int $entry_id, int $course_id): array
         if (strpos($wish_lower, 'level b') !== false || strpos($wish_lower, 'ebene b') !== false) {
             return [[
                 'name'       => (strpos($wish_lower, 'online') !== false) ? 'IPMA / pma - Level B Zertifizierung (Online)' : 'IPMA / pma - Level B Zertifizierung',
-                'price'      => (strpos($wish_lower, 'online') !== false) ? '1.848,00' : '2.304,50',
-                'percentage' => '10%'
+                'price'      => (strpos($wish_lower, 'online') !== false) ? '1.958,00' : '2.365,00',
+                'price_raw'  => (strpos($wish_lower, 'online') !== false) ? 1958.00 : 2365.00,
+                'percentage' => '10%',
+                'ust'        => 10
             ]];
         }
         if (strpos($wish_lower, 'level c') !== false || strpos($wish_lower, 'ebene c') !== false) {
             return [[
                 'name'       => 'IPMA / pma - Level C Zertifizierung',
-                'price'      => '1.133,00',
-                'percentage' => '10%'
+                'price'      => '1.210,00',
+                'price_raw'  => 1210.00,
+                'percentage' => '10%',
+                'ust'        => 10
             ]];
         }
-        // Default for PM: Level D
+        // Default for PM: Level D (450,00 € netto / 495,00 € brutto mit 10% USt)
         return [[
             'name'       => 'IPMA / pma - Level D Zertifizierung',
-            'price'      => '484,00',
-            'percentage' => '10%'
+            'price'      => '495,00',
+            'price_raw'  => 495.00,
+            'percentage' => '10%',
+            'ust'        => 10
         ]];
     }
 
@@ -1070,24 +1352,31 @@ function crm_resolve_course_certification(int $entry_id, int $course_id): array
 
     if ($is_scrum) {
         if ((strpos($wish_lower, 'pspo') !== false && strpos($wish_lower, 'psm') !== false) ||
-            (strpos($course_title_lower, 'product owner') !== false && strpos($course_title_lower, 'scrum master') !== false)) {
+            (strpos($course_title_lower, 'product owner') !== false && strpos($course_title_lower, 'scrum master') !== false) ||
+            (strpos($course_title_lower, 'pspo') !== false && strpos($course_title_lower, 'psm') !== false)) {
             return [[
-                'name'       => 'Scrum.org Zertifizierung - PSPO I + PSM I',
+                'name'       => 'Scrum.org Zertifizierung - PSPO I (USD 200,-) + PSM I (USD 200,-)',
                 'price'      => '343,00',
-                'percentage' => '0%'
+                'price_raw'  => 343.00,
+                'percentage' => '0%',
+                'ust'        => 0
             ]];
         }
         if (strpos($wish_lower, 'pspo') !== false || strpos($course_title_lower, 'product owner') !== false) {
             return [[
                 'name'       => 'Scrum.org Zertifizierung - PSPO I (USD 200,-)',
                 'price'      => '171,50',
-                'percentage' => '0%'
+                'price_raw'  => 171.50,
+                'percentage' => '0%',
+                'ust'        => 0
             ]];
         }
         return [[
             'name'       => 'Scrum.org Zertifizierung - PSM I (USD 200,-)',
             'price'      => '171,50',
-            'percentage' => '0%'
+            'price_raw'  => 171.50,
+            'percentage' => '0%',
+            'ust'        => 0
         ]];
     }
 
@@ -1163,14 +1452,17 @@ function crm_friedelin_process_entry(int $entry_id, bool $manual_trigger = false
     $course_title = $course_model ? $course_model->title : ($analysis['course_title'] ?: 'Ihre Aus- & Weiterbildung');
 
     // Resolve Certification
-    $resolved_cert = crm_resolve_course_certification($entry_id, $course_id);
+    $resolved_cert = crm_resolve_course_certification($entry_id, $course_id, 'angebot_2');
     $has_cert_option = !empty($resolved_cert);
     $cert_name = $has_cert_option ? $resolved_cert[0]['name'] : '';
+
+    $has_offer_3 = function_exists('crm_course_has_offer_3') && crm_course_has_offer_3($course_id);
 
     // Determine which documents should be generated/attached
     $has_custom_selection = !empty($selected_docs);
     $want_offer_1 = $has_custom_selection ? !empty($selected_docs['offer_1']) : true;
     $want_offer_2 = $has_custom_selection ? (!empty($selected_docs['offer_2']) && $has_cert_option) : $has_cert_option;
+    $want_offer_3 = $has_custom_selection ? (!empty($selected_docs['offer_3']) && $has_offer_3) : $has_offer_3;
     $want_kb      = $has_custom_selection ? !empty($selected_docs['kb']) : $is_ams_funding;
     $want_agb     = $has_custom_selection ? !empty($selected_docs['agb']) : true;
 
@@ -1192,6 +1484,15 @@ function crm_friedelin_process_entry(int $entry_id, bool $manual_trigger = false
                 if ($offer_2_url) {
                     $generated_pdfs[] = 'Angebot 2: Inkl. Zertifizierung (' . basename($offer_2_url) . ')';
                     $pdf_urls[] = $offer_2_url;
+                }
+            }
+
+            // Offer 3: Inkl. 2. Zertifizierung (z.B. IPMA / pma Level D bei Scrum)
+            if ($want_offer_3) {
+                $offer_3_url = xsieben_offer_pdf($entry_id, $course_id, false, null, 'angebot_3');
+                if ($offer_3_url) {
+                    $generated_pdfs[] = 'Angebot 3: Inkl. IPMA Zertifizierung (' . basename($offer_3_url) . ')';
+                    $pdf_urls[] = $offer_3_url;
                 }
             }
         } else {
@@ -1264,8 +1565,10 @@ function crm_friedelin_process_entry(int $entry_id, bool $manual_trigger = false
         'is_ams_funding'     => ($is_ams_funding || $want_kb),
         'has_cert_option'    => ($has_cert_option && $want_offer_2),
         'cert_name'          => $cert_name,
+        'has_offer_3'        => ($has_offer_3 && $want_offer_3),
         'want_offer_1'       => $want_offer_1,
         'want_offer_2'       => $want_offer_2,
+        'want_offer_3'       => $want_offer_3,
         'want_kb'            => $want_kb,
         'want_terminplan'    => $want_terminplan,
         'has_terminplan_pdf' => $want_terminplan,
@@ -1292,6 +1595,7 @@ function crm_friedelin_process_entry(int $entry_id, bool $manual_trigger = false
     $final_selected_docs = [
         'offer_1'    => $want_offer_1,
         'offer_2'    => $want_offer_2,
+        'offer_3'    => $want_offer_3,
         'kb'         => $want_kb,
         'terminplan' => $want_terminplan,
         'agb'        => $want_agb,

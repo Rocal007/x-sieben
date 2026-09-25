@@ -1568,7 +1568,8 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
     $found_angebot   = $find_server_pdf("A_{$entry_id}-");
     $found_angebot_1 = $find_server_pdf("A_{$entry_id}-", "Angebot_1_Basis");
     $found_angebot_2 = $find_server_pdf("A_{$entry_id}-", "Angebot_2_inkl_Zertifizierung");
-    if (!$found_angebot_1 && !$found_angebot_2) {
+    $found_angebot_3 = $find_server_pdf("A_{$entry_id}-", "Angebot_3_inkl_Zertifizierung");
+    if (!$found_angebot_1 && !$found_angebot_2 && !$found_angebot_3) {
         $found_angebot_1 = $found_angebot;
     }
 
@@ -1636,6 +1637,14 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
         $has_cert_cand = true;
     }
 
+    $has_offer_3_cand = false;
+    if ($course_id && function_exists('crm_course_has_offer_3')) {
+        $has_offer_3_cand = crm_course_has_offer_3($course_id);
+    }
+    if (!empty($found_angebot_3)) {
+        $has_offer_3_cand = true;
+    }
+
     // 3. Strukturierte Dokumentkandidaten zusammenstellen
     $candidates = [];
 
@@ -1666,6 +1675,21 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
             'can_generate' => true,
             'desc'         => __('Kursangebot inklusive der optionalen Zertifizierung.', 'custom-crm'),
         ];
+        if ($has_offer_3_cand) {
+            $candidates['angebot_3'] = [
+                'doc_type'     => 'angebot',
+                'title'        => __('Angebot 3: Inkl. IPMA (PDF)', 'custom-crm'),
+                'badge'        => '📄 Angebot 3',
+                'badge_class'  => 'crm-badge-amber',
+                'color'        => '#d97706',
+                'icon'         => 'dashicons-awards',
+                'url'          => $get_cand_url($found_angebot_3),
+                'filename'     => $found_angebot_3 ?: '',
+                'filesize'     => $get_cand_size($found_angebot_3),
+                'can_generate' => true,
+                'desc'         => __('Kursangebot inklusive der optionalen IPMA / pma - Level D Zertifizierung.', 'custom-crm'),
+            ];
+        }
     } else {
         $candidates['angebot'] = [
             'doc_type'     => 'angebot',
@@ -1812,8 +1836,9 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
                 if (in_array($act_url, $processed_urls, true)) continue;
                 $bn = basename(parse_url($act_url, PHP_URL_PATH));
                 $matches = false;
-                if (($k === 'angebot' || $k === 'angebot_1') && (strpos($bn, 'A_') === 0 || stristr($bn, 'angebot') !== false) && strpos($bn, 'Angebot_2') === false) $matches = true;
-                if ($k === 'angebot_2' && (strpos($bn, 'Angebot_2') !== false || (strpos($bn, 'A_') === 0 && stristr($bn, 'zertifizierung') !== false))) $matches = true;
+                if (($k === 'angebot' || $k === 'angebot_1') && (strpos($bn, 'A_') === 0 || stristr($bn, 'angebot') !== false) && strpos($bn, 'Angebot_2') === false && strpos($bn, 'Angebot_3') === false) $matches = true;
+                if ($k === 'angebot_2' && (strpos($bn, 'Angebot_2') !== false || (strpos($bn, 'A_') === 0 && stristr($bn, 'zertifizierung') !== false && strpos($bn, 'Angebot_3') === false))) $matches = true;
+                if ($k === 'angebot_3' && (strpos($bn, 'Angebot_3') !== false || (strpos($bn, 'A_') === 0 && stristr($bn, 'ipma') !== false))) $matches = true;
                 if ($k === 'kb' && (strpos($bn, 'Kurszeitenbestaetigung_') === 0 || strpos($bn, 'KB_') === 0)) $matches = true;
                 if ($k === 'terminplan' && (stripos($bn, 'terminplan') !== false || stripos($bn, 'schulungstage') !== false || stripos($bn, 'kurszeiten') !== false || (!empty($found_terminplan_name) && $bn === $found_terminplan_name))) $matches = true;
                 if ($k === 'tb' && (strpos($bn, 'Teilnahmebestaetigung_') === 0 || strpos($bn, 'TB_') === 0)) $matches = true;
@@ -2293,15 +2318,21 @@ function crm_build_standard_offer_email(int $entry_id, int $course_id, array $op
     $body_html .= '<p><strong>' . esc_html($kurstage_hinweis) . '</strong></p>';
 
     $selected_docs = isset($options['selected_docs']) && is_array($options['selected_docs']) ? $options['selected_docs'] : [];
+    $has_offer_3_opt = ($course_id && function_exists('crm_course_has_offer_3')) ? crm_course_has_offer_3($course_id) : false;
     $want_offer_1 = isset($options['want_offer_1']) ? (bool)$options['want_offer_1'] : (isset($selected_docs['offer_1']) ? (bool)$selected_docs['offer_1'] : true);
     $want_offer_2 = isset($options['want_offer_2']) ? (bool)$options['want_offer_2'] : (isset($selected_docs['offer_2']) ? (bool)$selected_docs['offer_2'] : $has_cert_option);
+    $want_offer_3 = isset($options['want_offer_3']) ? (bool)$options['want_offer_3'] : (isset($selected_docs['offer_3']) ? (bool)$selected_docs['offer_3'] : $has_offer_3_opt);
     $want_kb      = isset($options['want_kb'])      ? (bool)$options['want_kb']      : (isset($selected_docs['kb']) ? (bool)$selected_docs['kb'] : $is_ams_funding);
     $want_agb     = isset($options['want_agb'])     ? (bool)$options['want_agb']     : (isset($selected_docs['agb']) ? (bool)$selected_docs['agb'] : true);
 
     // 3. Angebote im Anhang
-    if ($want_offer_1 || $want_offer_2) {
+    if ($want_offer_1 || $want_offer_2 || $want_offer_3) {
         $body_html .= '<p>Ihr persönliches Angebot zur Ausbildung findet sich ebenfalls im Anhang:<br>';
-        if ($want_offer_1 && $want_offer_2 && $has_cert_option) {
+        if ($want_offer_1 && $want_offer_2 && $want_offer_3 && $has_cert_option) {
+            $body_html .= '• <strong>Angebot 1:</strong> Ein Angebot ohne Zertifizierung (ausschließlich Lehrgangs-/Seminargebühr)<br>';
+            $body_html .= '• <strong>Angebot 2:</strong> Ein weiteres Angebot inklusive der optional möglichen Zertifizierung: <strong>' . esc_html($cert_name) . '</strong><br>';
+            $body_html .= '• <strong>Angebot 3:</strong> Ein zusätzliches Angebot inklusive der optionalen <strong>IPMA / pma - Level D Zertifizierung</strong>';
+        } elseif ($want_offer_1 && $want_offer_2 && $has_cert_option) {
             $body_html .= '• <strong>Angebot 1:</strong> Ein Angebot ohne Zertifizierung (ausschließlich Lehrgangs-/Seminargebühr)<br>';
             $body_html .= '• <strong>Angebot 2:</strong> Ein weiteres Angebot inklusive der optional möglichen Zertifizierung: <strong>' . esc_html($cert_name) . '</strong>';
         } elseif ($want_offer_2 && $has_cert_option) {

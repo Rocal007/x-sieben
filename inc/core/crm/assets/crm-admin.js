@@ -2082,11 +2082,15 @@ document.addEventListener("DOMContentLoaded", function () {
                 const u = urls[i];
                 const lower = u.toLowerCase();
                 if (type === 'offer_1') {
-                    if (lower.includes('basis') || lower.includes('angebot_1') || (lower.includes('angebot') && !lower.includes('angebot_2') && !lower.includes('zert')) || (!lower.includes('angebot_2') && !lower.includes('zert') && !lower.includes('kurszeiten') && !lower.includes('agb') && !lower.includes('diplom') && !lower.includes('teilnahme') && (lower.includes('a_') || lower.includes('.pdf')))) {
+                    if (lower.includes('basis') || lower.includes('angebot_1') || (lower.includes('angebot') && !lower.includes('angebot_2') && !lower.includes('angebot_3') && !lower.includes('zert') && !lower.includes('ipma')) || (!lower.includes('angebot_2') && !lower.includes('angebot_3') && !lower.includes('zert') && !lower.includes('ipma') && !lower.includes('kurszeiten') && !lower.includes('agb') && !lower.includes('diplom') && !lower.includes('teilnahme') && (lower.includes('a_') || lower.includes('.pdf')))) {
                         return u;
                     }
                 } else if (type === 'offer_2') {
-                    if (lower.includes('angebot_2') || lower.includes('zertifikat') || lower.includes('zertifizierung')) {
+                    if (lower.includes('angebot_2') || (!lower.includes('angebot_3') && !lower.includes('ipma') && (lower.includes('zertifikat') || lower.includes('zertifizierung')))) {
+                        return u;
+                    }
+                } else if (type === 'offer_3') {
+                    if (lower.includes('angebot_3') || lower.includes('ipma')) {
                         return u;
                     }
                 } else if (type === 'kb') {
@@ -2111,6 +2115,9 @@ document.addEventListener("DOMContentLoaded", function () {
             const result = [];
             // AGB wird niemals als Dateianhang mitgeschickt, sondern immer als Online-Link in der E-Mail verlinkt
             const docKeys = ['offer_1', 'offer_2', 'kb'];
+            if (data && (data.has_offer_3 || (data.selected_docs && data.selected_docs.offer_3))) {
+                docKeys.splice(2, 0, 'offer_3');
+            }
             docKeys.forEach(k => {
                 if (sel[k]) {
                     const url = crmWizardFindDocUrl(k, data);
@@ -2200,10 +2207,12 @@ document.addEventListener("DOMContentLoaded", function () {
                         const draft = currentWizardData.draft;
                         const isAms = Boolean(currentWizardData.foerderung && (currentWizardData.foerderung.ams || currentWizardData.foerderung.waff));
                         const hasCert = Boolean(currentWizardData.has_cert_option);
+                        const hasOffer3 = Boolean(currentWizardData.has_offer_3);
                         
                         let initialSel = {
                             offer_1: true,
                             offer_2: hasCert,
+                            offer_3: hasOffer3,
                             kb: isAms,
                             agb: true
                         };
@@ -2212,6 +2221,7 @@ document.addEventListener("DOMContentLoaded", function () {
                             initialSel = {
                                 offer_1: draft.selected_docs.offer_1 !== false,
                                 offer_2: Boolean(draft.selected_docs.offer_2),
+                                offer_3: typeof draft.selected_docs.offer_3 !== 'undefined' ? Boolean(draft.selected_docs.offer_3) : hasOffer3,
                                 kb: Boolean(draft.selected_docs.kb),
                                 agb: draft.selected_docs.agb !== false
                             };
@@ -2219,11 +2229,15 @@ document.addEventListener("DOMContentLoaded", function () {
                             const urls = draft.pdf_urls;
                             const hasA1 = urls.some(u => {
                                 const l = u.toLowerCase();
-                                return l.includes('basis') || l.includes('angebot_1') || (l.includes('angebot') && !l.includes('angebot_2') && !l.includes('zert'));
+                                return l.includes('basis') || l.includes('angebot_1') || (l.includes('angebot') && !l.includes('angebot_2') && !l.includes('angebot_3') && !l.includes('zert') && !l.includes('ipma'));
                             });
                             const hasA2 = urls.some(u => {
                                 const l = u.toLowerCase();
-                                return l.includes('angebot_2') || l.includes('zertifikat') || l.includes('zertifizierung');
+                                return l.includes('angebot_2') || (!l.includes('angebot_3') && !l.includes('ipma') && (l.includes('zertifikat') || l.includes('zertifizierung')));
+                            });
+                            const hasA3 = urls.some(u => {
+                                const l = u.toLowerCase();
+                                return l.includes('angebot_3') || l.includes('ipma');
                             });
                             const hasKb = urls.some(u => {
                                 const l = u.toLowerCase();
@@ -2232,8 +2246,9 @@ document.addEventListener("DOMContentLoaded", function () {
                             const hasAgb = urls.some(u => u.toLowerCase().includes('agb'));
 
                             initialSel = {
-                                offer_1: hasA1 || (!hasA1 && !hasA2),
+                                offer_1: hasA1 || (!hasA1 && !hasA2 && !hasA3),
                                 offer_2: hasA2,
+                                offer_3: hasA3 || hasOffer3,
                                 kb: hasKb || isAms,
                                 agb: hasAgb || true
                             };
@@ -2781,12 +2796,13 @@ document.addEventListener("DOMContentLoaded", function () {
                     currentWizardData.selected_docs = {
                         offer_1: true,
                         offer_2: Boolean(currentWizardData.has_cert_option),
+                        offer_3: Boolean(currentWizardData.has_offer_3),
                         kb: isAms,
                         agb: true
                     };
                 }
                 const sel = currentWizardData.selected_docs;
-                const activeAttCount = ['offer_1', 'offer_2', 'kb'].filter(k => Boolean(sel[k])).length;
+                const activeAttCount = ['offer_1', 'offer_2', 'offer_3', 'kb'].filter(k => Boolean(sel[k])).length;
 
                 const docConfigs = [
                     {
@@ -2810,7 +2826,21 @@ document.addEventListener("DOMContentLoaded", function () {
                         badgeText: currentWizardData.cert_name ? `Option: ${currentWizardData.cert_name}` : 'Zertifizierungsoption',
                         badgeStyle: 'background:#fffbeb; color:#b45309; border:1px solid #fde68a;',
                         pdfUrl: crmWizardFindDocUrl('offer_2', currentWizardData)
-                    },
+                    }
+                ];
+
+                if (currentWizardData.has_offer_3) {
+                    docConfigs.push({
+                        key: 'offer_3',
+                        icon: 'dashicons-awards',
+                        iconColor: '#7c3aed',
+                        title: 'Angebot 3: Inkl. IPMA (PDF)',
+                        subtitle: 'Kursgebühr inklusive optionaler IPMA / pma - Level D Zertifizierung',
+                        badgeText: 'Option: IPMA Level D',
+                        badgeStyle: 'background:#faf5ff; color:#7c3aed; border:1px solid #e9d5ff;',
+                        pdfUrl: crmWizardFindDocUrl('offer_3', currentWizardData)
+                    });
+                }
                     {
                         key: 'kb',
                         icon: 'dashicons-calendar-alt',
@@ -3230,10 +3260,11 @@ document.addEventListener("DOMContentLoaded", function () {
                         }
                     }
 
-                    const activeAttCount = ['offer_1', 'offer_2', 'kb'].filter(k => Boolean(currentWizardData.selected_docs[k])).length;
+                    const maxDocs = currentWizardData.has_offer_3 ? 4 : 3;
+                    const activeAttCount = ['offer_1', 'offer_2', 'offer_3', 'kb'].filter(k => Boolean(currentWizardData.selected_docs[k])).length;
                     const countBadge = document.getElementById('crm-wizard-selected-count-badge');
                     if (countBadge) {
-                        countBadge.textContent = `${activeAttCount} von 3 PDF-Anhängen`;
+                        countBadge.textContent = `${activeAttCount} von ${maxDocs} PDF-Anhängen`;
                     }
                     return;
                 }
@@ -3249,6 +3280,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         currentWizardData.selected_docs = {
                             offer_1: true,
                             offer_2: true,
+                            offer_3: Boolean(currentWizardData.has_offer_3),
                             kb: true,
                             agb: true
                         };
@@ -3256,6 +3288,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         currentWizardData.selected_docs = {
                             offer_1: true,
                             offer_2: false,
+                            offer_3: false,
                             kb: false,
                             agb: true
                         };
@@ -6165,7 +6198,7 @@ jQuery(document).ready(function ($) {
                     security: postNonce,
                     entry_id: entryId,
                     course_id: courseId,
-                    doc_type: (variant === 'mit_zertifikat' || doc === 'angebot_zert') ? 'angebot' : doc,
+                    doc_type: (variant === 'mit_zertifikat' || variant === 'angebot_3' || doc === 'angebot_zert' || doc === 'angebot_3') ? 'angebot' : doc,
                     variant: variant
                 },
                 success: function (res) {
