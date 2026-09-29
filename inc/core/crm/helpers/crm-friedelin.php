@@ -1060,6 +1060,16 @@ function crm_resolve_course_certification(int $entry_id, int $course_id, string 
         return [];
     }
 
+    // 0.05 Ausschluss für Eventmanagement (Lehrgang bietet ausschließlich Abschluss-Diplom, keine Zertifizierungsprüfung)
+    $is_eventmanagement = (
+        $course_id == 542 ||
+        strpos($course_title_lower, 'eventmanagement') !== false ||
+        strpos($course_title_lower, 'eventmananagement') !== false
+    );
+    if ($is_eventmanagement) {
+        return [];
+    }
+
     // 0.1 Expliziter Kunden-Ausschluss (Opt-Out in Notizen / Nachricht)
     // Wenn Interessent:innen ausdrücklich erklären, dass sie keine Zertifizierung wünschen (z.B. Fall Transformation Manager)
     $has_opt_out = (
@@ -1400,15 +1410,33 @@ function crm_resolve_course_certification(int $entry_id, int $course_id, string 
         ]];
     }
 
-    // 4. Check expliziter Kundenwunsch nach TÜV / ISO 17024
-    if (
+    // 4. Check expliziter Kundenwunsch nach TÜV / ISO 17024 oder verifizierte Zertifizierungsoption
+    // WICHTIG: Das Institutsgütesiegel "Zertifikat/Diplom vom CERT NÖ & TÜV Anbieter / Weiterbilder"
+    // ist die Träger-Zertifizierung von X-SIEBEN, KEINE Personen-Zertifizierungsoption!
+    $is_provider_seal_only = (
+        (strpos($meta_zert, 'anbieter') !== false || strpos($meta_zert, 'weiterbilder') !== false) &&
+        (strpos($meta_zert, 'optional') === false && strpos($meta_zert, 'option') === false && strpos($meta_zert, 'zusatzoption') === false)
+    );
+
+    $has_explicit_tuev_option_in_meta = (
+        !$is_provider_seal_only &&
+        (strpos($meta_zert, 'tüv') !== false || strpos($meta_zert, 'tuev') !== false || strpos($meta_zert, 'iso 17024') !== false || strpos($meta_zert, '17024') !== false) &&
+        (strpos($meta_zert, 'option') !== false || strpos($meta_zert, 'zusatzoption') !== false || strpos($meta_zert, 'optional') !== false || strpos($meta_zert, 'prüfung') !== false)
+    );
+
+    $has_tuev_in_title = (
+        (strpos($course_title_lower, 'iso 17024') !== false || strpos($course_title_lower, '17024') !== false) ||
+        (strpos($course_title_lower, 'tüv') !== false && strpos($course_title_lower, 'anbieter') === false)
+    );
+
+    $customer_explicitly_wants_tuev = (
         strpos($wish_lower, 'tüv') !== false ||
         strpos($wish_lower, 'tuev') !== false ||
         strpos($wish_lower, 'iso 17024') !== false ||
-        strpos($wish_lower, '17024') !== false ||
-        strpos($meta_zert, 'tüv') !== false ||
-        strpos($meta_zert, 'iso 17024') !== false
-    ) {
+        strpos($wish_lower, '17024') !== false
+    );
+
+    if ($has_explicit_tuev_option_in_meta || $has_tuev_in_title || ($customer_explicitly_wants_tuev && !$is_provider_seal_only)) {
         return [[
             'name'       => 'TÜV - ISO/IEC 17024 Kompetenz-Zertifizierung',
             'price'      => '497,00',
@@ -1459,6 +1487,14 @@ function crm_friedelin_process_entry(int $entry_id, bool $manual_trigger = false
     $has_offer_3 = function_exists('crm_course_has_offer_3') && crm_course_has_offer_3($course_id);
 
     // Determine which documents should be generated/attached
+    require_once __DIR__ . '/crm-email-sections.php';
+    $terminplan_url = '';
+    if ($course_id && function_exists('crm_get_course_terminplan_url')) {
+        $terminplan_url = crm_get_course_terminplan_url($course_id);
+    }
+    $backend_dates = ($course_id && function_exists('crm_get_course_terminplan_entries')) ? crm_get_course_terminplan_entries($course_id) : [];
+    $has_backend_termine = !empty($terminplan_url) || !empty($backend_dates);
+
     $has_custom_selection = !empty($selected_docs);
     $want_offer_1 = $has_custom_selection ? !empty($selected_docs['offer_1']) : true;
     $want_offer_2 = $has_custom_selection ? (!empty($selected_docs['offer_2']) && $has_cert_option) : $has_cert_option;

@@ -1215,13 +1215,17 @@ add_action('wp_ajax_crm_get_wizard_data', function () {
     if (empty($draft) || $is_corrupt_body) {
         if ($course_id && function_exists('crm_build_standard_offer_email')) {
             require_once __DIR__ . '/crm-email-sections.php';
+            $terminplan_url = function_exists('crm_get_course_terminplan_url') ? crm_get_course_terminplan_url($course_id) : '';
+            $backend_dates  = function_exists('crm_get_course_terminplan_entries') ? crm_get_course_terminplan_entries($course_id) : [];
+            $has_backend_termine = !empty($terminplan_url) || !empty($backend_dates);
+
             $sel_docs = (!empty($draft['selected_docs']) && is_array($draft['selected_docs']))
                 ? $draft['selected_docs']
                 : [
                     'offer_1' => true,
                     'offer_2' => $has_cert_option,
                     'offer_3' => $has_offer_3,
-                    'kb'      => $is_ams,
+                    'kb'      => (bool)$is_ams,
                     'agb'     => true,
                 ];
 

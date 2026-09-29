@@ -1492,6 +1492,54 @@ function crm_get_course_terminplan_url(int $course_id): string
 }
 
 /**
+ * Liest hinterlegte Kurstermine aus dem Kurs-Backend (ACF-Repeater nachster_termine).
+ *
+ * @param int $course_id
+ * @return array
+ */
+function crm_get_course_terminplan_entries(int $course_id): array
+{
+    if ($course_id <= 0) {
+        return [];
+    }
+    $termine = [];
+    if (function_exists('have_rows') && have_rows('nachster_termine', $course_id)) {
+        while (have_rows('nachster_termine', $course_id)) {
+            the_row();
+            $datum_raw = get_sub_field('datum');
+            $datum_formatted = !empty($datum_raw) && strtotime($datum_raw) ? date('d.m.Y', strtotime($datum_raw)) : (string)$datum_raw;
+            $inhalte = (string)get_sub_field('inhalte');
+            $trainer = (string)get_sub_field('trainer_kurzel');
+            if (!empty($datum_formatted) || !empty($inhalte)) {
+                $termine[] = [
+                    'datum'   => $datum_formatted,
+                    'inhalte' => $inhalte,
+                    'trainer' => $trainer,
+                ];
+            }
+        }
+    } else {
+        $rep_count = (int)get_post_meta($course_id, 'nachster_termine', true);
+        if ($rep_count > 0) {
+            for ($i = 0; $i < $rep_count; $i++) {
+                $datum_raw = get_post_meta($course_id, "nachster_termine_{$i}_datum", true);
+                $datum_formatted = !empty($datum_raw) && strtotime($datum_raw) ? date('d.m.Y', strtotime($datum_raw)) : (string)$datum_raw;
+                $inhalte = (string)get_post_meta($course_id, "nachster_termine_{$i}_inhalte", true);
+                $trainer = (string)get_post_meta($course_id, "nachster_termine_{$i}_trainer_kurzel", true);
+                if (!empty($datum_formatted) || !empty($inhalte)) {
+                    $termine[] = [
+                        'datum'   => $datum_formatted,
+                        'inhalte' => $inhalte,
+                        'trainer' => $trainer,
+                    ];
+                }
+            }
+        }
+    }
+    return $termine;
+}
+
+/**
  * Rendert die interaktive PDF-Anhänge-Auswahlbox im Mailer (x_sieben_pdf_mailer).
  *
  * @param string $pdf_url Comma-separated or single PDF URL
@@ -2281,12 +2329,15 @@ function crm_build_standard_offer_email(int $entry_id, int $course_id, array $op
 
     // Termin-Hinweiszeile (dynamisch nach Vorhandensein von Terminplan-PDF vs. festen Wochentagen)
     $has_terminplan_pdf = false;
+    $terminplan_url = '';
     if (!empty($options['terminplan_url'])) {
         $has_terminplan_pdf = true;
+        $terminplan_url = $options['terminplan_url'];
     } elseif ($course_id && function_exists('crm_get_course_terminplan_url')) {
         $tp_check = crm_get_course_terminplan_url($course_id);
         if (!empty($tp_check)) {
             $has_terminplan_pdf = true;
+            $terminplan_url = $tp_check;
         }
     } elseif ($course_id) {
         $pdf_meta = get_post_meta($course_id, 'kurszeiten_details_pdf', true);
@@ -2294,28 +2345,71 @@ function crm_build_standard_offer_email(int $entry_id, int $course_id, array $op
             $pdf_field = get_field('kurszeiten_details_pdf', $course_id);
             if (!empty($pdf_field)) {
                 $has_terminplan_pdf = true;
+                $terminplan_url = is_array($pdf_field) ? ($pdf_field['url'] ?? '') : wp_get_attachment_url((int)$pdf_field);
             }
         }
         if (!empty($pdf_meta)) {
             $has_terminplan_pdf = true;
+            if (empty($terminplan_url)) {
+                $terminplan_url = is_numeric($pdf_meta) ? wp_get_attachment_url((int)$pdf_meta) : (string)$pdf_meta;
+            }
         }
     }
     if (!empty($options['has_terminplan_pdf']) || !empty($options['termine_pdf'])) {
         $has_terminplan_pdf = true;
     }
 
-    $raw_referent = ($course_id) ? (string)get_post_meta($course_id, 'referent', true) : '';
-    $schedule_days = crm_get_course_schedule_days($course_id, $raw_referent, $vortragende_html);
+    $terminplan_entries = ($course_id && function_exists('crm_get_course_terminplan_entries')) ? crm_get_course_terminplan_entries($course_id) : [];
+    $has_backend_termine = $has_terminplan_pdf || !empty($terminplan_entries);
+    $has_direct_terminplan_link = ($has_terminplan_pdf && !empty($terminplan_url));
 
-    if ($has_terminplan_pdf) {
+    $ref = $course_id ? (string)get_post_meta($course_id, 'referent', true) : '';
+    $schedule_days = ($course_id && function_exists('crm_get_course_schedule_days')) 
+        ? crm_get_course_schedule_days($course_id, $ref, $vortragende_html) 
+        : null;
+
+    $kurstage_hinweis = '';
+    if ($has_direct_terminplan_link) {
+        // Hannes Feedback 29.09.2026: Wenn ein direkter PDF-Link zum Terminplan existiert,
+        // entfällt der redundante Satz '→ Die genauen Kurstermine sehen Sie im Anhang.'
+        $kurstage_hinweis = '';
+    } elseif ($has_terminplan_pdf) {
         $kurstage_hinweis = '→ Die genauen Kurstermine sehen Sie im Anhang.';
     } elseif (!empty($schedule_days)) {
         $kurstage_hinweis = '→ Kurstermine jeweils ' . $schedule_days . '.';
-    } else {
-        $kurstage_hinweis = '→ Die genauen Kurstermine sehen Sie im Anhang.';
     }
 
-    $body_html .= '<p><strong>' . esc_html($kurstage_hinweis) . '</strong></p>';
+    if (!empty($kurstage_hinweis)) {
+        $body_html .= '<p><strong>' . esc_html($kurstage_hinweis) . '</strong></p>';
+    }
+
+    // Konkrete Termintabelle einbinden, wenn im Backend Termine eingepflegt sind
+    if (!empty($terminplan_entries)) {
+        $body_html .= '<div style="margin: 14px 0 18px 0; overflow-x: auto;">';
+        $body_html .= '<table role="presentation" border="0" cellpadding="8" cellspacing="0" width="100%" style="border-collapse: collapse; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px; font-family: Arial, sans-serif; font-size: 13px; color: #1e293b;">';
+        $body_html .= '<thead><tr style="background: #007C90; color: #ffffff; text-align: left;">';
+        $body_html .= '<th style="padding: 8px 12px; font-weight: bold; border-bottom: 1px solid #006070;">Datum</th>';
+        $body_html .= '<th style="padding: 8px 12px; font-weight: bold; border-bottom: 1px solid #006070;">Schulungsinhalte / Einheiten</th>';
+        $body_html .= '<th style="padding: 8px 12px; font-weight: bold; border-bottom: 1px solid #006070; width: 80px;">Trainer</th>';
+        $body_html .= '</tr></thead><tbody>';
+        foreach ($terminplan_entries as $idx => $t_entry) {
+            $row_bg = ($idx % 2 === 1) ? '#f8fafc' : '#ffffff';
+            $body_html .= '<tr style="background: ' . $row_bg . '; border-bottom: 1px solid #e2e8f0;">';
+            $body_html .= '<td style="padding: 8px 12px; font-weight: bold; color: #0f172a; white-space: nowrap;">' . esc_html($t_entry['datum'] ?: '-') . '</td>';
+            $body_html .= '<td style="padding: 8px 12px; color: #334155;">' . esc_html($t_entry['inhalte'] ?: 'Lehreinheiten laut Lehrplan') . '</td>';
+            $body_html .= '<td style="padding: 8px 12px; color: #64748b;">' . esc_html($t_entry['trainer'] ?: 'X7') . '</td>';
+            $body_html .= '</tr>';
+        }
+        $body_html .= '</tbody></table></div>';
+    }
+
+    // Wenn ein Terminplan-PDF hinterlegt ist, direkten Link zur Ansicht anzeigen
+    if ($has_terminplan_pdf && !empty($terminplan_url)) {
+        $body_html .= '<p style="margin: 8px 0 16px 0; font-size: 13.5px; line-height: 1.6;">';
+        $body_html .= '📅 <strong>Detaillierter Termin- & Ablaufplan:</strong><br>';
+        $body_html .= '<a href="' . esc_url($terminplan_url) . '" target="_blank" style="color: #007C90; font-weight: bold; text-decoration: underline;">Terminplan für ' . esc_html($course_title) . ' (PDF) ansehen / herunterladen</a>';
+        $body_html .= '</p>';
+    }
 
     $selected_docs = isset($options['selected_docs']) && is_array($options['selected_docs']) ? $options['selected_docs'] : [];
     $has_offer_3_opt = ($course_id && function_exists('crm_course_has_offer_3')) ? crm_course_has_offer_3($course_id) : false;

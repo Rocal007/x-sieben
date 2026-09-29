@@ -2841,6 +2841,8 @@ document.addEventListener("DOMContentLoaded", function () {
                         pdfUrl: crmWizardFindDocUrl('offer_3', currentWizardData)
                     });
                 }
+
+                docConfigs.push(
                     {
                         key: 'kb',
                         icon: 'dashicons-calendar-alt',
@@ -2861,7 +2863,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         badgeStyle: 'background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;',
                         pdfUrl: currentWizardData.agb_url || 'https://x-sieben.at/wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf'
                     }
-                ];
+                );
 
                 let docsListHtml = `
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px; font-size:12.5px;">
@@ -7010,6 +7012,83 @@ jQuery(document).ready(function ($) {
                     $btn.html($btn.html().replace(/✓\s*/g, '🏅 '));
                 }
                 alert('Netzwerk- oder Serverfehler: ' + err);
+            }
+        });
+    });
+
+    // =========================================================================
+    // E-Mail-Anfrage einspielen Modal Handler (v2.18.90)
+    // =========================================================================
+    jQuery('#crmOpenEmailImportModal').on('click', function (e) {
+        e.preventDefault();
+        jQuery('#crmEmailImportText').val('');
+        jQuery('#crmEmailImportFeedback').hide().empty();
+        jQuery('#crmSubmitEmailImportBtn').prop('disabled', false);
+        jQuery('#crmSubmitEmailImportText').text('Lead jetzt anlegen');
+        jQuery('#crm-email-import-modal-backdrop').fadeIn(200).css('display', 'flex');
+        jQuery('#crmEmailImportText').focus();
+    });
+
+    jQuery('.crm-close-email-import-modal').on('click', function (e) {
+        e.preventDefault();
+        jQuery('#crm-email-import-modal-backdrop').fadeOut(150);
+    });
+
+    jQuery('#crm-email-import-modal-backdrop').on('click', function (e) {
+        if (e.target === this) {
+            jQuery(this).fadeOut(150);
+        }
+    });
+
+    jQuery('#crmSubmitEmailImportBtn').on('click', function (e) {
+        e.preventDefault();
+        const emailText = jQuery('#crmEmailImportText').val().trim();
+        const runPrep = jQuery('#crmEmailImportPrep').is(':checked') ? 1 : 0;
+        const $feedback = jQuery('#crmEmailImportFeedback');
+        const $btn = jQuery(this);
+        const $btnText = jQuery('#crmSubmitEmailImportText');
+
+        if (!emailText) {
+            $feedback.css({ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' })
+                .html('Bitte fügen Sie den E-Mail-Text in das Textfeld ein.').show();
+            return;
+        }
+
+        $btn.prop('disabled', true);
+        $btnText.text('Wird analysiert & importiert...');
+        $feedback.css({ background: '#f0f9ff', color: '#0369a1', border: '1px solid #bae6fd' })
+            .html('<span class="dashicons dashicons-update spin"></span> Kontaktdaten und Kurs werden analysiert...').show();
+
+        jQuery.ajax({
+            url: ajaxUrl,
+            type: 'POST',
+            data: {
+                action: 'crm_import_email_lead',
+                nonce: nonce,
+                email_text: emailText,
+                run_preparation: runPrep
+            },
+            success: function (res) {
+                if (res && res.success) {
+                    $feedback.css({ background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0' })
+                        .html('<strong>✓ Erfolg!</strong> ' + (res.data && res.data.message ? res.data.message : 'Lead erfolgreich angelegt.'));
+                    $btnText.text('✓ Angelegt');
+
+                    setTimeout(function () {
+                        window.location.reload();
+                    }, 1400);
+                } else {
+                    $btn.prop('disabled', false);
+                    $btnText.text('Erneut versuchen');
+                    $feedback.css({ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' })
+                        .html('<strong>Fehler:</strong> ' + (res && res.data && res.data.message ? res.data.message : 'Konnte Lead nicht anlegen.'));
+                }
+            },
+            error: function (xhr, status, err) {
+                $btn.prop('disabled', false);
+                $btnText.text('Erneut versuchen');
+                $feedback.css({ background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' })
+                    .html('<strong>Netzwerkfehler:</strong> ' + err);
             }
         });
     });

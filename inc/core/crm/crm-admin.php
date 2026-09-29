@@ -19,7 +19,7 @@
 
 // --- Core Setup & Helpers ---
 if (!defined('CRM_VERSION')) {
-    define('CRM_VERSION', '2.18.88');
+    define('CRM_VERSION', '2.18.93');
 }
 
 require_once __DIR__ . '/helpers/crm-cache.php';
@@ -28,6 +28,7 @@ require_once __DIR__ . '/helpers/crm-pdf-sections.php';
 require_once __DIR__ . '/helpers/crm-email-sections.php';
 require_once __DIR__ . '/helpers/crm-ai-client.php';
 require_once __DIR__ . '/helpers/crm-views.php';
+require_once __DIR__ . '/helpers/crm-email-lead-importer.php';
 require_once __DIR__ . '/crm-settings.php';
 
 /**
@@ -1466,6 +1467,10 @@ function render_crm_admin_page()
                             <option value="course_date_asc"><?php esc_html_e('⏳ Kursbeginn: Nächste', 'custom-crm'); ?></option>
                         </select>
                         <input type="text" id="courseTableSearch" placeholder="<?php printf(esc_attr__('Search %d entries...', 'custom-crm'), $total_entries); ?>" style="width: 220px;">
+                        <button type="button" class="button" id="crmOpenEmailImportModal" style="height:32px; font-size:13px; font-weight:600; background:#0284c7; color:#fff; border-color:#0284c7; display:inline-flex; align-items:center; gap:6px; border-radius:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:pointer;" title="<?php esc_attr_e('Weitergeleitete E-Mail-Anfrage einfügen & automatisch als Lead anlegen', 'custom-crm'); ?>">
+                            <span class="dashicons dashicons-email-alt" style="font-size:16px; line-height:30px; width:16px; height:16px;"></span>
+                            <span><?php esc_html_e('E-Mail-Anfrage einspielen', 'custom-crm'); ?></span>
+                        </button>
                     </div>
                 </div>
 
@@ -2358,6 +2363,50 @@ function render_crm_admin_page()
                     <p style="text-align:center; padding:30px; color:#64748b;">
                         <span class="dashicons dashicons-update spin"></span> <?php esc_html_e('Formular wird geladen...', 'custom-crm'); ?>
                     </p>
+                </div>
+        </div>
+
+        <!-- E-Mail Lead Import Modal Backdrop -->
+        <div id="crm-email-import-modal-backdrop" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.7); backdrop-filter:blur(3px); z-index:100060; align-items:center; justify-content:center;">
+            <div id="crm-email-import-modal" style="background:#ffffff; border-radius:12px; width:92%; max-width:720px; max-height:92vh; display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); position:relative; overflow:hidden;">
+                <!-- Header -->
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 24px; background:linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-bottom:1px solid #e2e8f0;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span class="dashicons dashicons-email-alt" style="font-size:24px; width:24px; height:24px; color:#0284c7;"></span>
+                        <div>
+                            <h3 style="margin:0; font-size:16px; font-weight:700; color:#0f172a; line-height:1.2;">
+                                <?php esc_html_e('E-Mail-Anfrage direkt ins CRM einspielen', 'custom-crm'); ?>
+                            </h3>
+                            <div style="font-size:12px; color:#64748b; margin-top:3px;">
+                                <?php esc_html_e('Automatische Kontaktdaten-Extraktion & Zuordnung zu CPT courses', 'custom-crm'); ?>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="crm-close-email-import-modal" style="background:none; border:none; font-size:26px; color:#64748b; cursor:pointer; padding:0 4px; line-height:1;" title="<?php esc_attr_e('Schließen', 'custom-crm'); ?>">&times;</button>
+                </div>
+                <!-- Body -->
+                <div style="padding:20px 24px; overflow-y:auto; flex:1;">
+                    <p style="margin-top:0; margin-bottom:12px; font-size:13px; color:#334155; line-height:1.5;">
+                        <?php esc_html_e('Kopieren Sie den gesamten Text der weitergeleiteten Anfrage (z. B. aus Apple Mail oder kursfinder.de) hier hinein. Name, Adresse, Telefon, Kurs und Förderstellen werden automatisch erkannt.', 'custom-crm'); ?>
+                    </p>
+                    <textarea id="crmEmailImportText" rows="11" style="width:100%; font-family:monospace; font-size:12px; line-height:1.4; padding:12px; border:1px solid #cbd5e1; border-radius:8px; box-sizing:border-box; background:#f8fafc; color:#0f172a; margin-bottom:14px;" placeholder="Von: Interessent &lt;kunde@domain.at&gt;&#10;Guten Tag, mein Name ist... Ich interessiere mich für den Kurs..."></textarea>
+                    
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px; background:#f1f5f9; padding:10px 14px; border-radius:6px; border:1px solid #e2e8f0;">
+                        <input type="checkbox" id="crmEmailImportPrep" checked style="margin:0;">
+                        <label for="crmEmailImportPrep" style="font-size:13px; font-weight:600; color:#1e293b; cursor:pointer;">
+                            <?php esc_html_e('Dokumente & Angebote (1, 2) sofort mit Friedelin vorbereiten', 'custom-crm'); ?>
+                        </label>
+                    </div>
+
+                    <div id="crmEmailImportFeedback" style="display:none; padding:12px 16px; border-radius:6px; margin-bottom:14px; font-size:13px;"></div>
+                </div>
+                <!-- Footer -->
+                <div style="display:flex; justify-content:flex-end; align-items:center; gap:10px; padding:14px 24px; background:#f8fafc; border-top:1px solid #e2e8f0;">
+                    <button type="button" class="button crm-close-email-import-modal" style="height:34px; padding:0 14px; font-size:13px;"><?php esc_html_e('Abbrechen', 'custom-crm'); ?></button>
+                    <button type="button" class="button button-primary" id="crmSubmitEmailImportBtn" style="height:34px; padding:0 16px; font-size:13px; font-weight:600; background:#0284c7; border-color:#0284c7; display:inline-flex; align-items:center; gap:6px;">
+                        <span class="dashicons dashicons-upload" style="font-size:16px; line-height:32px; width:16px; height:16px;"></span>
+                        <span id="crmSubmitEmailImportText"><?php esc_html_e('Lead jetzt anlegen', 'custom-crm'); ?></span>
+                    </button>
                 </div>
             </div>
         </div>

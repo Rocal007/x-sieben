@@ -215,23 +215,21 @@ function xsieben_anmeldebestaetigung_pdf($entry_id, $course_id, $output_to_brows
         vielen Dank für Ihre Anmeldung zur Schulung. Wir bestätigen diese hiermit zum unten angeführten ' . esc_html($kategorie_label) . ':
     </div>
 
-    <!-- Eckdaten mit orangem Highlight -->
-    <div style="margin-left: 20px; margin-bottom: 18px; font-size: 10pt; line-height: 1.6;">
-        <table width="100%" cellpadding="3" cellspacing="0" border="0">
-            <tr>
-                <td width="30%" style="font-weight: bold; color: #0f172a;">Veranstaltungstitel:</td>
-                <td width="70%" style="color: #ea580c; font-weight: bold;">' . esc_html($clean_course_title) . '</td>
-            </tr>
-            <tr>
-                <td width="30%" style="font-weight: bold; color: #0f172a;">Veranstaltungsbeginn:</td>
-                <td width="70%" style="color: #ea580c; font-weight: bold;">' . esc_html($beginn_text) . '</td>
-            </tr>
-            <tr>
-                <td width="30%" style="font-weight: bold; color: #0f172a;">Veranstaltungsort:</td>
-                <td width="70%" style="color: #ea580c; font-weight: bold;">' . esc_html($ort_text) . '</td>
-            </tr>
-        </table>
-    </div>
+    <!-- Eckdaten an einheitlicher linker Grundlinie -->
+    <table width="100%" cellpadding="3" cellspacing="0" border="0" style="margin-bottom: 18px; font-size: 10pt; line-height: 1.6;">
+        <tr>
+            <td width="30%" style="font-weight: bold; color: #0f172a; vertical-align: top;">Veranstaltungstitel:</td>
+            <td width="70%" style="color: #007c8c; font-weight: bold; vertical-align: top;">' . esc_html($clean_course_title) . '</td>
+        </tr>
+        <tr>
+            <td width="30%" style="font-weight: bold; color: #0f172a; vertical-align: top;">Veranstaltungsbeginn:</td>
+            <td width="70%" style="color: #007c8c; font-weight: bold; vertical-align: top;">' . esc_html($beginn_text) . '</td>
+        </tr>
+        <tr>
+            <td width="30%" style="font-weight: bold; color: #0f172a; vertical-align: top;">Veranstaltungsort:</td>
+            <td width="70%" style="color: #007c8c; font-weight: bold; vertical-align: top;">' . esc_html($ort_text) . '</td>
+        </tr>
+    </table>
 
     <!-- Hotline-Hinweis -->
     <div style="font-size: 10pt; line-height: 1.5; color: #1e293b; margin-bottom: 18px;">
@@ -244,7 +242,7 @@ function xsieben_anmeldebestaetigung_pdf($entry_id, $course_id, $output_to_brows
     </div>
 
     <div style="margin-bottom: 6px;">
-        <img src="' . $stempel . '" height="52" />
+        <img src="' . $stempel . '" height="74" />
     </div>
 
     <div style="font-size: 9.5pt; font-weight: bold; color: #0f172a;">

@@ -283,6 +283,11 @@ class CrmSeniorDevTestSuite
         $this->testSuite35_Version21886OfferPage1SpacingAndTuevCertIntegrity();
         $this->testSuite36_Version21887AmseDocumentsAndActionButtonsIntegration();
         $this->testSuite37_Version21888TripleOffersAndCanonicalCertPricing();
+        $this->testSuite38_Version21889WizardSyntaxIntegrity();
+        $this->testSuite39_Version21890EmailToCrmLeadAutomation();
+        $this->testSuite40_Version21891EventmanagementCertCleanupAndTermineIngestion();
+        $this->testSuite41_Version21892TerminplanRedundancyCleanupAndDecoupledKbTrigger();
+        $this->testSuite42_Version21893OpticalHarmonizationAbAndAntrittsmeldung();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -2829,6 +2834,245 @@ class CrmSeniorDevTestSuite
         $adminJsCode = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
         $this->assert("crm-admin.js deklariert offer_3 in docKeys", strpos($adminJsCode, "'offer_3'") !== false);
         $this->assert("crm-admin.js matched angebot_3 in crmWizardFindDocUrl", strpos($adminJsCode, "type === 'offer_3'") !== false);
+    }
+
+    public function testSuite38_Version21889WizardSyntaxIntegrity(): void
+    {
+        echo "\n\033[1;33m[SUITE 38] Feedback 27.09.2026: Wizard Syntax-Integrität & Angebotserstellung Fix (v2.18.89)\033[0m\n";
+
+        // 1. Version check
+        $this->assert("CRM_VERSION ist >= 2.18.89", version_compare(CRM_VERSION, '2.18.89', '>='));
+
+        // 2. Syntax-Validierung von crm-admin.js
+        $adminJsCode = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
+        $this->assert("crm-admin.js schließt docConfigs sauber ab und pusht kb & agb", strpos($adminJsCode, "docConfigs.push(") !== false && strpos($adminJsCode, "key: 'kb'") !== false);
+        $this->assert("crm-admin.js registriert crmOpenWizardModal", strpos($adminJsCode, "window.crmOpenWizardModal = openWizardModal;") !== false);
+        $this->assert("crm-admin.js bindet crm-run-wizard-btn ein", strpos($adminJsCode, "jQuery(document).on('click', '.crm-run-wizard-btn, .crm-run-friedelin-btn'") !== false);
+    }
+
+    public function testSuite39_Version21890EmailToCrmLeadAutomation(): void
+    {
+        echo "\n\033[1;33m[SUITE 39] E-Mail-zu-CRM Lead-Automatisierung & Import der 3 Anfragen (v2.18.90)\033[0m\n";
+
+        // 1. Version check
+        $this->assert("CRM_VERSION ist >= 2.18.90", version_compare(CRM_VERSION, '2.18.90', '>='));
+
+        // 2. Helper-Datei existiert
+        $helperPath = dirname(__DIR__) . '/helpers/crm-email-lead-importer.php';
+        $this->assert("crm-email-lead-importer.php existiert", file_exists($helperPath));
+        require_once $helperPath;
+
+        // 3. Test Anfrage 1: Michael Modzelewski
+        $text1 = "Meine Name ist Michael Modzelewski (Ada-Christengasse 2 in 1100 Wien), und ich möchte mit in Sachen Projektmanagement weiterbilden. 
+Dabei bin ich auf IPMA aufmerksam geworden und überlege, bei Ihnen den IPMA® / pma – Level D Zertifizierungsvorbereitung zu machen. Das AMS würde mich finanziell unterstützen. Können Sie mir bitte einen Kostenvoranschlag für den Kurs machen?
+Wann wären die nächsten Vorbereitungskurse?
+Bei Fragen erreichen Sie mich auch unter 0680 550 4 690.
+Danke, Michael Modzelewski";
+        $res1 = crm_parse_email_inquiry_text($text1);
+        $this->assert("Modzelewski: Vorname ist Michael", $res1['vorname'] === 'Michael');
+        $this->assert("Modzelewski: Nachname ist Modzelewski", $res1['nachname'] === 'Modzelewski');
+        $this->assert("Modzelewski: Telefon ist 0680 550 4 690", strpos($res1['telefon'], '0680') !== false);
+        $this->assert("Modzelewski: Straße ist Ada-Christengasse 2", $res1['strasse'] === 'Ada-Christengasse 2');
+        $this->assert("Modzelewski: PLZ ist 1100", $res1['plz'] === '1100');
+        $this->assert("Modzelewski: Ort ist Wien", $res1['ort'] === 'Wien');
+        $this->assert("Modzelewski: Kurs ID ist 1167 (IPMA Level D)", $res1['kurs_id'] === 1167);
+        $this->assert("Modzelewski: AMS-Förderung erkannt", $res1['foerderung'] === true);
+
+        // 4. Test Anfrage 2: Fiona Draganovic
+        $text2 = "Von: Fiona Draganovic <draganovicfiona@gmail.com>
+Betreff: Kostenvoranschlag Eventmanagement-Lehrgang
+Datum: 28. September 2026 um 12:35:32 MESZ
+Guten Tag, ich interessiere mich für Ihren Eventmanagement-Lehrgang mit Start am 14.10.2026 und möchte beim AMS eine mögliche Kostenübernahme beantragen.
+Dafür benötige ich bitte einen Kostenvoranschlag bzw. ein offizielles Kursangebot mit den Gesamtkosten, der Kursdauer und dem Startdatum.
+Da ich meinen AMS-Termin bereits am 30.09. habe, wäre ich Ihnen sehr dankbar, wenn Sie mir diesen vorab per E-Mail zusenden könnten.
+Vielen Dank!
+Mit freundlichen Grüßen
+Fiona Draganovic";
+        $res2 = crm_parse_email_inquiry_text($text2);
+        $this->assert("Draganovic: Vorname ist Fiona", $res2['vorname'] === 'Fiona');
+        $this->assert("Draganovic: Nachname ist Draganovic", $res2['nachname'] === 'Draganovic');
+        $this->assert("Draganovic: Anrede ist Frau", $res2['anrede'] === 'Frau');
+        $this->assert("Draganovic: E-Mail ist draganovicfiona@gmail.com", $res2['email'] === 'draganovicfiona@gmail.com');
+        $this->assert("Draganovic: Kurs ID ist 542 (Eventmanagement)", $res2['kurs_id'] === 542);
+        $this->assert("Draganovic: Startdatum ist 2026-10-14", $res2['start_datum'] === '2026-10-14');
+        $this->assert("Draganovic: AMS-Förderung erkannt", $res2['foerderung'] === true);
+
+        // 5. Test Anfrage 3: Sabrina Radowski (Kursfinder.de)
+        $text3 = "Datum: 9/28/2026 11:21:02 AM W. Europe Standard Time
+Kurs: Diplomierter / Zertifizierter Agile Coach – ISO 17024 vom TÜV
+Anbieter: X SIEBEN Wirtschaftstraining GmbH
+Anrede: Herr
+Vorname: Sabrina
+Nachname: Radowski
+E-Mail: lukas290304@aol.com
+Telefon: +49 15561 799800
+Gewünschter Veranstaltungsort: Online-Kurs / Fernlehrgang
+Firma: DRK Gifhorn Service und Pflegeteam gGmbH";
+        $res3 = crm_parse_email_inquiry_text($text3);
+        $this->assert("Radowski: Vorname ist Sabrina", $res3['vorname'] === 'Sabrina');
+        $this->assert("Radowski: Nachname ist Radowski", $res3['nachname'] === 'Radowski');
+        $this->assert("Radowski: Anrede korrigiert zu Frau", $res3['anrede'] === 'Frau');
+        $this->assert("Radowski: E-Mail ist lukas290304@aol.com", $res3['email'] === 'lukas290304@aol.com');
+        $this->assert("Radowski: Telefon ist +49 15561 799800", $res3['telefon'] === '+49 15561 799800');
+        $this->assert("Radowski: Firma ist DRK Gifhorn Service und Pflegeteam gGmbH", $res3['firma'] === 'DRK Gifhorn Service und Pflegeteam gGmbH');
+        $this->assert("Radowski: ist_firma ist true", $res3['ist_firma'] === true);
+        $this->assert("Radowski: Kurs ID ist 65536 (Agile Coach ISO 17024)", $res3['kurs_id'] === 65536);
+
+        // 6. Test UI & JS Integration
+        $adminPhpCode = file_get_contents(dirname(__DIR__) . '/crm-admin.php');
+        $this->assert("crm-admin.php enthält crmOpenEmailImportModal Button", strpos($adminPhpCode, 'id="crmOpenEmailImportModal"') !== false);
+        $this->assert("crm-admin.php enthält crm-email-import-modal-backdrop", strpos($adminPhpCode, 'id="crm-email-import-modal-backdrop"') !== false);
+
+        $adminJsCode = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
+        $this->assert("crm-admin.js bindet crmOpenEmailImportModal ein", strpos($adminJsCode, "jQuery('#crmOpenEmailImportModal')") !== false);
+        $this->assert("crm-admin.js sendet action crm_import_email_lead", strpos($adminJsCode, "action: 'crm_import_email_lead'") !== false);
+    }
+
+    public function testSuite40_Version21891EventmanagementCertCleanupAndTermineIngestion(): void
+    {
+        echo "\n\033[1;33m[SUITE 40] Feedback 28.09.2026: Zertifizierungsbereinigung & Terminplan-Ingestion (v2.18.91)\033[0m\n";
+
+        // 1. Version check
+        $this->assert("CRM_VERSION ist >= 2.18.91", version_compare(CRM_VERSION, '2.18.91', '>='));
+
+        // 2. Helper & Funktionen laden
+        $friedelinPath = dirname(__DIR__) . '/helpers/crm-friedelin.php';
+        $emailSectionsPath = dirname(__DIR__) . '/helpers/crm-email-sections.php';
+        $statusPath = dirname(__DIR__) . '/helpers/crm-status.php';
+        require_once $friedelinPath;
+        require_once $emailSectionsPath;
+        require_once $statusPath;
+
+        $this->assert("crm_resolve_course_certification existiert", function_exists('crm_resolve_course_certification'));
+        $this->assert("crm_get_course_terminplan_entries existiert", function_exists('crm_get_course_terminplan_entries'));
+        $this->assert("crm_get_course_terminplan_url existiert", function_exists('crm_get_course_terminplan_url'));
+
+        // 3. Eventmanagement (Kurs 542) darf NIEMALS eine Zertifizierung zurückgeben
+        $res542 = crm_resolve_course_certification(0, 542);
+        $this->assert("Eventmanagement (Kurs 542) liefert empty array für Zertifizierung", empty($res542));
+
+        // 4. Kurse mit reinem Instituts-Gütesiegel ("CERT NÖ & TÜV Anbieter") dürfen keine Personen-Zertifizierung liefern
+        $res577 = crm_resolve_course_certification(0, 577);
+        $this->assert("Marketing & Vertrieb (577) mit Gütesiegel 'CERT NÖ & TÜV Anbieter' liefert empty array", empty($res577));
+
+        $res1066 = crm_resolve_course_certification(0, 1066);
+        $this->assert("Integrationscoach (1066) mit Gütesiegel 'CERT NÖ & TÜV AUSTRIA Anbieter' liefert empty array", empty($res1066));
+
+        // 5. Kurse mit echter TÜV ISO 17024 Personen-Zertifizierung liefern weiterhin verlässlich ihr Angebot
+        $resAgile = crm_resolve_course_certification(0, 65536);
+        $this->assert("Agile Coach (65536) liefert weiterhin echte TÜV ISO 17024 Zertifizierung", !empty($resAgile));
+        if (!empty($resAgile)) {
+            $this->assert("Agile Coach Zertifizierungspreis ist 497,00 €", ($resAgile[0]['price'] ?? '') === '497,00');
+            $this->assert("Agile Coach Zertifizierungsname enthält ISO 17024", strpos($resAgile[0]['name'] ?? '', 'ISO 17024') !== false);
+        }
+
+        $resMarketing = crm_resolve_course_certification(1076, 36593);
+        $this->assert("Digital Marketing Manager (36593) liefert weiterhin echte TÜV ISO 17024 Zertifizierung", !empty($resMarketing));
+
+        // 6. Terminplan-URL für Eventmanagement prüfen
+        $tpUrl542 = crm_get_course_terminplan_url(542);
+        $this->assert("crm_get_course_terminplan_url(542) liefert Terminplan-PDF URL", !empty($tpUrl542) && strpos($tpUrl542, '.pdf') !== false);
+
+        // 7. Standard-Begleitmail für Eventmanagement (Kurs 542) generieren
+        $emailData = crm_build_standard_offer_email(0, 542, [
+            'is_ams_funding'  => false,
+            'has_cert_option' => false,
+            'has_offer_3'     => false,
+            'cert_name'       => '',
+        ]);
+        $this->assert("Standard-Begleitmail für Kurs 542 enthält KEIN Angebot 2", strpos($emailData['body'], 'Angebot 2') === false);
+        $this->assert("Standard-Begleitmail für Kurs 542 enthält Link auf Terminplan-PDF", strpos($emailData['body'], 'Terminplan für') !== false);
+        $emailDataWithKb = crm_build_standard_offer_email(0, 542, [
+            'is_ams_funding'  => false,
+            'want_kb'         => true,
+            'has_cert_option' => false,
+            'has_offer_3'     => false,
+            'cert_name'       => '',
+        ]);
+        $this->assert("Standard-Begleitmail für Kurs 542 erwähnt Kurszeitenbestätigung wenn want_kb aktiv", strpos($emailDataWithKb['body'], 'Kurszeiten') !== false);
+
+        // 8. Code-Integrität in Helpers prüfen
+        $friedelinCode = file_get_contents($friedelinPath);
+        $this->assert("crm-friedelin.php enthält Eventmanagement-Ausschluss", strpos($friedelinCode, '$is_eventmanagement') !== false);
+        $this->assert("crm-friedelin.php prüft has_backend_termine für want_kb", strpos($friedelinCode, '$has_backend_termine') !== false);
+
+        $statusCode = file_get_contents($statusPath);
+        $this->assert("crm-status.php berücksichtigt has_backend_termine für default selected_docs", strpos($statusCode, '$has_backend_termine') !== false);
+    }
+
+    public function testSuite41_Version21892TerminplanRedundancyCleanupAndDecoupledKbTrigger(): void
+    {
+        echo "\n\033[1;33m[SUITE 41] Feedback 29.09.2026: Terminplan Redundanz-Bereinigung & Entkoppelte KB (v2.18.92)\033[0m\n";
+
+        // 1. Version check
+        $this->assert("CRM_VERSION ist >= 2.18.92", version_compare(CRM_VERSION, '2.18.92', '>='));
+
+        // 2. Begleitmail für Kurs 542 (hat Terminplan-PDF) erzeugen
+        $emailData542 = crm_build_standard_offer_email(0, 542, [
+            'is_ams_funding'  => false,
+            'has_cert_option' => false,
+            'has_offer_3'     => false,
+            'cert_name'       => '',
+        ]);
+
+        // Satz "→ Die genauen Kurstermine sehen Sie im Anhang." darf NICHT mehr enthalten sein
+        $this->assert("Begleitmail mit direktem PDF-Link unterdrückt redundanten Anhang-Satz", strpos($emailData542['body'], 'Die genauen Kurstermine sehen Sie im Anhang') === false);
+        $this->assert("Begleitmail enthält direkten PDF-Link zum Terminplan", strpos($emailData542['body'], 'Terminplan für Eventmanagement') !== false);
+        $this->assert("Begleitmail ohne Förderbezug enthält keine automatische Kurszeitenbestätigung (KB)", strpos($emailData542['body'], 'Kurszeitenbestätigung (KB)') === false);
+
+        // 3. Begleitmail MIT Förderbezug erzeugen (z.B. Fall Fiona Draganovic mit AMS-Förderung)
+        $emailDataAms = crm_build_standard_offer_email(0, 542, [
+            'is_ams_funding'  => true,
+            'has_cert_option' => false,
+            'has_offer_3'     => false,
+            'cert_name'       => '',
+        ]);
+        $this->assert("Begleitmail mit AMS-Förderbezug enthält offizielle Kurszeitenbestätigung (KB)", strpos($emailDataAms['body'], 'Kurszeitenbestätigung (KB)') !== false);
+
+        // 4. Code-Integrität in Helpers prüfen
+        $friedelinPath = dirname(__DIR__) . '/helpers/crm-friedelin.php';
+        $statusPath = dirname(__DIR__) . '/helpers/crm-status.php';
+        $emailSectionsPath = dirname(__DIR__) . '/helpers/crm-email-sections.php';
+
+        $friedelinCode = file_get_contents($friedelinPath);
+        $this->assert("crm-friedelin.php koppelt want_kb standardmäßig an is_ams_funding", strpos($friedelinCode, '$want_kb      = $has_custom_selection ? !empty($selected_docs[\'kb\']) : $is_ams_funding;') !== false);
+
+        $statusCode = file_get_contents($statusPath);
+        $this->assert("crm-status.php setzt default kb strikt auf is_ams", strpos($statusCode, "'kb'      => (bool)\$is_ams,") !== false);
+
+        $sectionsCode = file_get_contents($emailSectionsPath);
+        $this->assert("crm-email-sections.php prüft has_direct_terminplan_link", strpos($sectionsCode, '$has_direct_terminplan_link') !== false);
+    }
+
+    public function testSuite42_Version21893OpticalHarmonizationAbAndAntrittsmeldung(): void
+    {
+        echo "\n\033[1;33m[SUITE 42] Feedback 29.09.2026: Optische Harmonisierung Anmeldebestätigung & Antrittsmeldung (v2.18.93)\033[0m\n";
+
+        // 1. Version check
+        $this->assert("CRM_VERSION ist >= 2.18.93", version_compare(CRM_VERSION, '2.18.93', '>='));
+
+        // 2. Anmeldebestätigung Code-Checks
+        $abPath = dirname(__DIR__) . '/pdf/anmeldebestaetigung.php';
+        $abCode = file_get_contents($abPath);
+        $this->assert("anmeldebestaetigung.php enthält keine unruhige Einrückung (margin-left: 20px entfernt)", strpos($abCode, 'margin-left: 20px') === false);
+        $this->assert("anmeldebestaetigung.php richtet Eckdaten an einheitlicher linker Grundlinie aus", strpos($abCode, 'Eckdaten an einheitlicher linker Grundlinie') !== false);
+        $this->assert("anmeldebestaetigung.php verwendet #007c8c für Eckdaten-Highlights", strpos($abCode, 'color: #007c8c') !== false);
+        $this->assert("anmeldebestaetigung.php Stampiglie vergrößert (height=74)", strpos($abCode, 'height="74"') !== false);
+
+        // 3. Antrittsmeldung Code-Checks
+        $antrittPath = dirname(__DIR__) . '/pdf/antrittsbestaetigung.php';
+        $antrittCode = file_get_contents($antrittPath);
+        $this->assert("antrittsbestaetigung.php bindet zentrales X-SIEBEN Logo ein", strpos($antrittCode, '$logo_x7  = crm_resolve_asset_path(\'xsieben_logo.png\');') !== false);
+        $this->assert("antrittsbestaetigung.php Header enthält X-SIEBEN & AMS Logo", strpos($antrittCode, 'Top Header: X-SIEBEN Logo (links) & AMS Logo (rechts)') !== false);
+        $this->assert("antrittsbestaetigung.php Stammdaten enthält separate Zeile Adresse des Kursinstituts", strpos($antrittCode, 'Adresse des Kursinstituts:') !== false);
+        $this->assert("antrittsbestaetigung.php Stammdaten enthält separate Zeile Schulungsort", strpos($antrittCode, 'Schulungsort:') !== false);
+        $this->assert("antrittsbestaetigung.php Stammdaten enthält separate Zeile UID des Kursinstituts", strpos($antrittCode, 'UID des Kursinstituts:') !== false);
+        $this->assert("antrittsbestaetigung.php Stampiglie vergrößert (height=74)", strpos($antrittCode, 'height="74"') !== false);
+
+        // 4. Central Logo Asset Check
+        $logoPath = dirname(__DIR__) . '/assets/xsieben_logo.png';
+        $this->assert("xsieben_logo.png existiert im CRM-Assets-Ordner", file_exists($logoPath));
+        $this->assert("xsieben_logo.png ist das aktuelle hochauflösende Logo (>100KB)", filesize($logoPath) > 100000);
     }
 }
 

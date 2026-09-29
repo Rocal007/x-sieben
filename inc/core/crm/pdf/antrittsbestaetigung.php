@@ -47,6 +47,7 @@ function xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, $output_to_brow
     }
 
     // Assets
+    $logo_x7  = crm_resolve_asset_path('xsieben_logo.png');
     $ams_logo = crm_resolve_asset_path('ams.png');
     $stempel  = crm_resolve_asset_path('stempel.png');
 
@@ -83,19 +84,22 @@ function xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, $output_to_brow
     $pdf->AddPage();
 
     $html = '
-    <!-- Top Header mit AMS Logo zentriert -->
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
+    <!-- Top Header: X-SIEBEN Logo (links) & AMS Logo (rechts) -->
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px;">
         <tr>
-            <td width="100%" align="center">
-                <img src="' . $ams_logo . '" height="44" />
+            <td width="50%" align="left" style="vertical-align: middle;">
+                <img src="' . $logo_x7 . '" height="38" />
+            </td>
+            <td width="50%" align="right" style="vertical-align: middle;">
+                <img src="' . $ams_logo . '" height="38" />
             </td>
         </tr>
     </table>
 
-    <div style="font-size: 10pt;">&nbsp;</div>
+    <div style="font-size: 8pt;">&nbsp;</div>
 
     <!-- Adressat AMS links & Datum rechts -->
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.4; color: #0f172a; margin-bottom: 25px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.4; color: #0f172a; margin-bottom: 22px;">
         <tr>
             <td width="50%" align="left" style="vertical-align: top;">
                 An das<br>
@@ -107,17 +111,17 @@ function xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, $output_to_brow
         </tr>
     </table>
 
-    <div style="font-size: 16pt;">&nbsp;</div>
+    <div style="font-size: 12pt;">&nbsp;</div>
 
     <!-- Titel -->
-    <div style="font-size: 11pt; font-weight: bold; color: #0f172a; margin-bottom: 24px;">
+    <div style="font-size: 11pt; font-weight: bold; color: #0f172a; margin-bottom: 20px;">
         ANTRITTSMELDUNG: „' . esc_html($clean_course_title) . '“
     </div>
 
-    <div style="font-size: 12pt;">&nbsp;</div>
+    <div style="font-size: 10pt;">&nbsp;</div>
 
-    <!-- 2-Spalten Stammdaten-Matrix -->
-    <table width="100%" cellpadding="5" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.5; color: #0f172a;">
+    <!-- 2-Spalten Stammdaten-Matrix an einheitlicher linker Grundlinie -->
+    <table width="100%" cellpadding="4" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.5; color: #0f172a;">
         <tr>
             <td width="38%" style="vertical-align: top; color: #334155;">
                 Name des / der TeilnehmerIn:
@@ -154,36 +158,51 @@ function xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, $output_to_brow
             <td width="38%" style="vertical-align: top; color: #334155;">
                 beim Kursinstitut:
             </td>
-            <td width="62%" style="vertical-align: top; line-height: 1.45;">
-                X SIEBEN Wirtschaftstraining GmbH; 0800 / 700 170<br>
-                angetreten.<br><br>
-                <strong>Adresse des Kursinstituts:</strong><br>
-                Kurzegasse 7,<br>
-                2493 Lichtenwörth<br><br>
-                <strong>Schulungsort:</strong><br>
-                ' . $schulungsort . '<br><br>
-                ÖSTERREICH<br>
-                UID ATU76624137
+            <td width="62%" style="vertical-align: top; font-weight: bold;">
+                X SIEBEN Wirtschaftstraining GmbH angetreten.
+            </td>
+        </tr>
+        <tr>
+            <td width="38%" style="vertical-align: top; color: #334155;">
+                Adresse des Kursinstituts:
+            </td>
+            <td width="62%" style="vertical-align: top;">
+                Kurzegasse 7, 2493 Lichtenwörth (Tel: 0800 / 700 170)
+            </td>
+        </tr>
+        <tr>
+            <td width="38%" style="vertical-align: top; color: #334155;">
+                Schulungsort:
+            </td>
+            <td width="62%" style="vertical-align: top;">
+                ' . $schulungsort . '
+            </td>
+        </tr>
+        <tr>
+            <td width="38%" style="vertical-align: top; color: #334155;">
+                UID des Kursinstituts:
+            </td>
+            <td width="62%" style="vertical-align: top;">
+                ATU76624137
             </td>
         </tr>
     </table>
 
-    <div style="font-size: 30pt;">&nbsp;</div>
+    <div style="font-size: 20pt;">&nbsp;</div>
 
     <!-- Unterschrift und Firmenstampiglie -->
     <table width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
-            <td width="55%">
-                <div style="margin-bottom: 4px;">
-                    <img src="' . $stempel . '" height="52" />
+            <td width="60%">
+                <div style="margin-bottom: 6px;">
+                    <img src="' . $stempel . '" height="74" />
                 </div>
                 <div style="font-size: 8.5pt; color: #475569; line-height: 1.3;">
                     ........................................................................<br>
-                    Unterschrift<br>
-                    und Firmenstampiglie
+                    Unterschrift und Firmenstampiglie
                 </div>
             </td>
-            <td width="45%">&nbsp;</td>
+            <td width="40%">&nbsp;</td>
         </tr>
     </table>';
 
