@@ -288,6 +288,9 @@ class CrmSeniorDevTestSuite
         $this->testSuite40_Version21891EventmanagementCertCleanupAndTermineIngestion();
         $this->testSuite41_Version21892TerminplanRedundancyCleanupAndDecoupledKbTrigger();
         $this->testSuite42_Version21893OpticalHarmonizationAbAndAntrittsmeldung();
+        $this->testSuite43_Version21894BegleitmailKbSyncAndTerminplanRefinement();
+        $this->testSuite44_Version21895WizardAutoEnsureKbAndOfferRobustness();
+        $this->testSuite45_Version21896FollowupDeltaResponseAndDeduplication();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -3073,6 +3076,110 @@ Firma: DRK Gifhorn Service und Pflegeteam gGmbH";
         $logoPath = dirname(__DIR__) . '/assets/xsieben_logo.png';
         $this->assert("xsieben_logo.png existiert im CRM-Assets-Ordner", file_exists($logoPath));
         $this->assert("xsieben_logo.png ist das aktuelle hochauflösende Logo (>100KB)", filesize($logoPath) > 100000);
+    }
+
+    public function testSuite43_Version21894BegleitmailKbSyncAndTerminplanRefinement(): void
+    {
+        echo "\n\033[1;35m[SUITE 43] Feedback 29. & 30.09.2026: Begleitmail KB-Dokumentensynchronisation & Terminplan-Redundanz (v2.18.94)\033[0m\n";
+
+        // 1. Version Check
+        $this->assert("CRM_VERSION ist >= 2.18.94", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.18.94', '>='));
+
+        require_once dirname(__DIR__) . '/helpers/crm-email-sections.php';
+
+        // 2. Email generation with want_kb = false (Standard without KB)
+        $emailNoKb = crm_build_standard_offer_email(1096, 40914, [
+            'is_ams_funding' => false,
+            'want_kb'        => false,
+            'selected_docs'  => ['offer_1' => true, 'kb' => false],
+            'has_terminplan_pdf' => true,
+            'terminplan_url' => 'https://x-sieben.at/terminplan-test.pdf'
+        ]);
+        $this->assert("Begleitmail mit want_kb=false enthält KEINE Kurszeitenbestätigung im Betreff", strpos($emailNoKb['subject'], 'Kurszeitenbestätigung') === false);
+        $this->assert("Begleitmail mit want_kb=false enthält KEINEN Kurszeitenbestätigung-Förderhinweis im Body", strpos($emailNoKb['body'], 'Kurszeitenbestätigung (KB)') === false);
+
+        // 3. Email generation with want_kb = true (Funding / KB active)
+        $emailWithKb = crm_build_standard_offer_email(1096, 40914, [
+            'is_ams_funding' => true,
+            'want_kb'        => true,
+            'selected_docs'  => ['offer_1' => true, 'kb' => true],
+            'has_terminplan_pdf' => true,
+            'terminplan_url' => 'https://x-sieben.at/terminplan-test.pdf'
+        ]);
+        $this->assert("Begleitmail mit want_kb=true enthält Kurszeitenbestätigung im Betreff", strpos($emailWithKb['subject'], 'Kurszeitenbestätigung') !== false);
+        $this->assert("Begleitmail mit want_kb=true enthält Kurszeitenbestätigung-Förderhinweis im Body", strpos($emailWithKb['body'], 'Kurszeitenbestätigung (KB)') !== false);
+
+        // 4. Terminplan text refinement (Hannes Feedback 29.09.2026 16:39)
+        $this->assert("Begleitmail mit direktem Terminplan-Link enthält 'findet sich im Anhang:' statt 'findet sich ebenfalls im Anhang:'", strpos($emailWithKb['body'], 'findet sich im Anhang:') !== false && strpos($emailWithKb['body'], 'findet sich ebenfalls im Anhang:') === false);
+        $this->assert("Begleitmail mit direktem Terminplan-Link unterdrückt redundanten Terminplan-Anhangspunkt", strpos($emailWithKb['body'], '• <strong>Terminplan:</strong>') === false);
+
+        // 5. Code Integrity Checks in crm-status.php, crm-admin.js and crm-friedelin.php
+        $statusPhp = file_get_contents(dirname(__DIR__) . '/helpers/crm-status.php');
+        $this->assert("crm-status.php liefert is_ams_funding im Split-Dossier zurück", strpos($statusPhp, "'is_ams_funding'      => !empty(\$foerderung['ams']) || !empty(\$foerderung['waff']) || !empty(\$analysis['is_ams_funding'])") !== false);
+
+        $adminJs = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
+        $this->assert("crm-admin.js prüft is_ams_funding für isAms", strpos($adminJs, 'currentWizardData.is_ams_funding') !== false);
+
+        $friedelinPhp = file_get_contents(dirname(__DIR__) . '/helpers/crm-friedelin.php');
+        $this->assert("crm-friedelin.php übergibt want_kb als is_ams_funding", strpos($friedelinPhp, "'is_ams_funding'     => \$want_kb") !== false);
+    }
+
+    /**
+     * [SUITE 44] Automatisches Sicherstellen von KB & Angebot-Robustheit für Förderfälle (v2.18.95)
+     */
+    public function testSuite44_Version21895WizardAutoEnsureKbAndOfferRobustness(): void
+    {
+        echo "\n\033[1;33m[SUITE 44] Automatisches Sicherstellen von KB & Angebot-Robustheit für Förderfälle (v2.18.95)\033[0m\n";
+
+        // 1. Versionierung
+        $this->assert("CRM_VERSION ist >= 2.18.95", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.18.95', '>='));
+
+        $statusPhp = file_get_contents(dirname(__DIR__) . '/helpers/crm-status.php');
+
+        // 2. crm_toggle_foerderung synchronisiert draft und generiert KB PDF falls nötig
+        $this->assert("crm_toggle_foerderung prüft draft und setzt kb=true", strpos($statusPhp, "\$draft['selected_docs']['kb'] = true;") !== false);
+        $this->assert("crm_toggle_foerderung ruft xsieben_kurszeitenbestaetigung_pdf für fehlende KB auf", strpos($statusPhp, "xsieben_kurszeitenbestaetigung_pdf(\$entry_id, \$cid, false)") !== false);
+
+        // 3. crm_get_wizard_data erzwingt KB bei AMS/WAFF Förderung
+        $this->assert("crm_get_wizard_data setzt \$sel_docs['kb'] = true bei \$is_ams", strpos($statusPhp, "if (\$is_ams) {\n        \$sel_docs['kb'] = true;\n    }") !== false);
+        $this->assert("crm_get_wizard_data prüft auf kb_token für KB PDF-Dateien", strpos($statusPhp, "\$kb_token = function_exists('crm_generate_pdf_token') ? crm_generate_pdf_token(\$entry_id, 'kb') : '';") !== false);
+        $this->assert("crm_get_wizard_data generiert fehlende KB automatisch via xsieben_kurszeitenbestaetigung_pdf", strpos($statusPhp, "\$kb_url = xsieben_kurszeitenbestaetigung_pdf(\$entry_id, \$course_id, false);") !== false);
+
+        // 4. crm-admin.js: openWizardModal erzwingt kb=true wenn isAms aktiv ist
+        $adminJs = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
+        $this->assert("crm-admin.js setzt kb: isAms ? true : Boolean(draft.selected_docs.kb)", strpos($adminJs, "kb: isAms ? true : Boolean(draft.selected_docs.kb)") !== false);
+    }
+
+    private function testSuite45_Version21896FollowupDeltaResponseAndDeduplication(): void
+    {
+        echo "\n\033[1;33m[SUITE 45] Feedback 02.10.2026: Folgekommunikation Delta-Antwort, Dublettenschutz & Termin-Plausibilität (v2.18.96)\033[0m\n";
+
+        // 1. Version Check
+        $this->assert("CRM_VERSION ist >= 2.18.96", version_compare(CRM_VERSION, '2.18.96', '>='));
+
+        // 2. Dublettenprüfung in crm_set_entry_status & crm_add_entry_status_history
+        $statusPhp = file_get_contents(dirname(__DIR__) . '/helpers/crm-status.php');
+        $this->assert("crm_set_entry_status enthält Dublettenprüfung", strpos($statusPhp, '$is_duplicate = false;') !== false && strpos($statusPhp, 'time_diff <= 60') !== false);
+        $this->assert("crm_add_entry_status_history enthält Dublettenprüfung", strpos($statusPhp, "status_key = 'folgekommunikation'") === false && strpos($statusPhp, 'time_diff <= 60') !== false);
+
+        // 3. crm_friedelin_process_followup existiert
+        $this->assert("crm_friedelin_process_followup existiert", function_exists('crm_friedelin_process_followup'));
+        $friedelinPhp = file_get_contents(dirname(__DIR__) . '/helpers/crm-friedelin.php');
+        $this->assert("crm_friedelin_process_entry leitet bei Folgekommunikation an crm_friedelin_process_followup weiter", strpos($friedelinPhp, 'crm_friedelin_process_followup($entry_id, $lead_data, $selected_docs)') !== false);
+        $this->assert("Delta-Antwort enthält Freigabe-Prüfhinweis für Hannes", strpos($friedelinPhp, 'PRÜFHINWEIS FÜR FREIGABE (Hannes)') !== false);
+        $this->assert("Delta-Antwort erkennt Semesterferien", strpos($friedelinPhp, '$is_semesterferien =') !== false);
+        $this->assert("Delta-Antwort generiert keine Angebote", strpos($friedelinPhp, "'offer_1'    => false,") !== false);
+
+        // 4. crm-email-lead-importer.php Plausibilitätsprüfung für vereinbarten Einstieg
+        $importerPhp = file_get_contents(dirname(__DIR__) . '/helpers/crm-email-lead-importer.php');
+        $this->assert("crm_create_lead_from_parsed_data erkennt vereinbarten Einstiegstermin", strpos($importerPhp, '$agreed_start_date =') !== false);
+        $this->assert("crm_create_lead_from_parsed_data aktualisiert course_start_date", strpos($importerPhp, "\$status_update['course_start_date'] = \$agreed_start_date;") !== false);
+        $this->assert("crm_create_lead_from_parsed_data besitzt Dublettenprüfung für Verlauf", strpos($importerPhp, 'mb_strpos($prev_msg, $snippet_check) === false') !== false);
+        $this->assert("crm_create_lead_from_parsed_data besitzt Dublettenprüfung für Historie", strpos($importerPhp, '$is_hist_dup = true;') !== false);
+
+        // 5. crm_get_wizard_data beachtet is_delta_draft
+        $this->assert("crm_get_wizard_data beachtet is_delta_draft", strpos($statusPhp, '$is_delta_draft =') !== false);
+        $this->assert("crm_get_wizard_email_preview respektiert Delta-Drafts", strpos($statusPhp, 'if ($is_delta_draft && !$has_any_offer_selected && !empty($draft[\'body\']))') !== false);
     }
 }
 

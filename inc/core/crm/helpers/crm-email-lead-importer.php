@@ -15,6 +15,32 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+if (!function_exists('crm_is_internal_email')) {
+    /**
+     * Prüft, ob eine E-Mail-Adresse eine interne Firmenadresse von X-SIEBEN oder ein Systemabsender ist.
+     */
+    function crm_is_internal_email(string $email): bool
+    {
+        $email = strtolower(trim($email));
+        if (empty($email)) {
+            return true;
+        }
+        // Alle Adressen mit @x-sieben.at (office, gajo, abrauer, etc.)
+        if (str_ends_with($email, '@x-sieben.at') || str_contains($email, 'x-sieben.at')) {
+            return true;
+        }
+        // Kursfinder System-Adressen
+        if (str_ends_with($email, '@kursfinder.de') || str_contains($email, 'kursfinder.de')) {
+            return true;
+        }
+        // Eigene Entwickler-/Test-Adressen
+        if ($email === 'r.sauer007@gmail.com') {
+            return true;
+        }
+        return false;
+    }
+}
+
 /**
  * Parst den Text einer weitergeleiteten E-Mail-Anfrage und extrahiert strukturierte Daten.
  *
@@ -48,16 +74,76 @@ function crm_parse_email_inquiry_text(string $raw_text): array
         'nachricht'    => $clean_text,
     ];
 
-    // 1. E-Mail-Adresse extrahieren
-    if (preg_match('/(?:E-Mail|Mail|Von):\s*.*?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/iu', $clean_text, $m)) {
-        $lead['email'] = trim($m[1]);
-    } elseif (preg_match('/<mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>/iu', $clean_text, $m)) {
-        $lead['email'] = trim($m[1]);
-    } elseif (preg_match('/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/iu', $clean_text, $m)) {
-        // Ignoriere system-eigene Mail-Adressen
-        $found = trim($m[1]);
-        if (!in_array(strtolower($found), ['office@x-sieben.at', 'gajo@x-sieben.at', 'r.sauer007@gmail.com', 'vadim.burov@kursfinder.de'])) {
-            $lead['email'] = $found;
+    // 1. E-Mail-Adresse & Absender-Header extrahieren (strikter Ausschluss interner Mitarbeiter)
+    // 1.1 Header mit externen Adressen suchen (Von: / From:)
+    if (preg_match_all('/(?:Von|From):\s*"?([^"<\r\n]+)"?\s*<([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>/iu', $clean_text, $hdr_matches, PREG_SET_ORDER)) {
+        foreach ($hdr_matches as $hm) {
+            $h_name = trim($hm[1], " \t\n\r\0\x0B\"'");
+            $h_mail = trim($hm[2]);
+            if (!crm_is_internal_email($h_mail)) {
+                $lead['email'] = $h_mail;
+                if (empty($lead['vorname']) || empty($lead['nachname'])) {
+                    if (str_contains($h_name, ',')) {
+                        $name_parts = explode(',', $h_name, 2);
+                        $lead['nachname'] = trim($name_parts[0]);
+                        $lead['vorname']  = trim($name_parts[1]);
+                    } else {
+                        $name_parts = preg_split('/\s+/', $h_name, 2);
+                        if (count($name_parts) === 2) {
+                            $lead['vorname']  = trim($name_parts[0]);
+                            $lead['nachname'] = trim($name_parts[1]);
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    // 1.2 Falls Von: ein interner Mitarbeiter war (z. B. Anna Brauer an Kunden), steht der Kunde in An: / To:
+    if (empty($lead['email'])) {
+        if (preg_match_all('/(?:An|To):\s*"?([^"<\r\n]+)"?\s*<([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>/iu', $clean_text, $to_matches, PREG_SET_ORDER)) {
+            foreach ($to_matches as $tm) {
+                $t_name = trim($tm[1], " \t\n\r\0\x0B\"'");
+                $t_mail = trim($tm[2]);
+                if (!crm_is_internal_email($t_mail)) {
+                    $lead['email'] = $t_mail;
+                    if (empty($lead['vorname']) || empty($lead['nachname'])) {
+                        if (str_contains($t_name, ',')) {
+                            $name_parts = explode(',', $t_name, 2);
+                            $lead['nachname'] = trim($name_parts[0]);
+                            $lead['vorname']  = trim($name_parts[1]);
+                        } else {
+                            $name_parts = preg_split('/\s+/', $t_name, 2);
+                            if (count($name_parts) === 2) {
+                                $lead['vorname']  = trim($name_parts[0]);
+                                $lead['nachname'] = trim($name_parts[1]);
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    // 1.3 Key-Value-Felder wie "E-Mail: ...", "Mail: ..." oder mailto: (externe Adressen)
+    if (empty($lead['email'])) {
+        if (preg_match('/(?:E-Mail|Mail)[:\s]+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/iu', $clean_text, $m)) {
+            if (!crm_is_internal_email($m[1])) {
+                $lead['email'] = trim($m[1]);
+            }
+        } elseif (preg_match('/<mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>/iu', $clean_text, $m)) {
+            if (!crm_is_internal_email($m[1])) {
+                $lead['email'] = trim($m[1]);
+            }
+        } elseif (preg_match_all('/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/iu', $clean_text, $all_m)) {
+            foreach ($all_m[1] as $candidate) {
+                if (!crm_is_internal_email($candidate)) {
+                    $lead['email'] = trim($candidate);
+                    break;
+                }
+            }
         }
     }
 
@@ -71,7 +157,12 @@ function crm_parse_email_inquiry_text(string $raw_text): array
     if (preg_match('/Telefon:\s*([^\r\n]+)/iu', $clean_text, $m)) {
         $lead['telefon'] = trim($m[1]);
     }
-    if (preg_match('/Firma:\s*([^\r\n]+)/iu', $clean_text, $m)) {
+    if (preg_match('/(?:Firma|Unternehmen)[:\t ]*:\s*([^\r\n]+)/iu', $clean_text, $m)) {
+        $lead['firma'] = trim($m[1]);
+        if (!empty($lead['firma'])) {
+            $lead['ist_firma'] = true;
+        }
+    } elseif (preg_match('/(?:Optional\s*\(falls Sie für eine Unternehmung anfragen\))[\s\r\n]+([^\r\n]+)/iu', $clean_text, $m)) {
         $lead['firma'] = trim($m[1]);
         if (!empty($lead['firma'])) {
             $lead['ist_firma'] = true;
@@ -79,8 +170,10 @@ function crm_parse_email_inquiry_text(string $raw_text): array
     }
     if (preg_match('/Anrede:\s*([^\r\n]+)/iu', $clean_text, $m)) {
         $raw_a = trim($m[1]);
-        // Plausibilitätscheck: "Sabrina" ist typisch weiblich
-        if (strcasecmp($lead['vorname'] ?? '', 'Sabrina') === 0 || stripos($raw_a, 'Frau') !== false) {
+        $vn_lower = strtolower($lead['vorname'] ?? '');
+        $female_names_check = ['sabrina', 'kerstin', 'fiona', 'anna', 'maria', 'julia', 'claudia', 'petra', 'gabriele', 'patricia', 'susanne', 'barbara', 'daniela', 'elisabeth'];
+        // Plausibilitätscheck: Bekannte weibliche Vornamen korrigieren Kursfinder-Default ("Herr")
+        if (in_array($vn_lower, $female_names_check) || stripos($raw_a, 'Frau') !== false) {
             $lead['anrede'] = 'Frau';
         } elseif (stripos($raw_a, 'Herr') !== false) {
             $lead['anrede'] = 'Herr';
@@ -109,7 +202,7 @@ function crm_parse_email_inquiry_text(string $raw_text): array
 
     // 4. Anrede ableiten
     if (empty($lead['anrede'])) {
-        $female_names = ['fiona', 'sabrina', 'anna', 'maria', 'julia', 'claudia', 'petra', 'gabriele', 'patricia', 'susanne', 'barbara', 'daniela', 'elisabeth'];
+        $female_names = ['fiona', 'sabrina', 'anna', 'maria', 'julia', 'claudia', 'petra', 'gabriele', 'patricia', 'susanne', 'barbara', 'daniela', 'elisabeth', 'kerstin'];
         $male_names   = ['michael', 'hannes', 'roland', 'thomas', 'stefan', 'christian', 'martin', 'andreas', 'lukas', 'alexander', 'florian', 'vadim'];
         
         $vn_lower = strtolower($lead['vorname']);
@@ -122,17 +215,37 @@ function crm_parse_email_inquiry_text(string $raw_text): array
 
     // 5. Telefonnummer aus Fließtext (AT: 06xx, +43..., DE: +49..., 01xx...)
     if (empty($lead['telefon'])) {
-        if (preg_match('/(?:unter|Tel(?:efon)?[:.]?|mobil[:.]?)\s*(\+?[0-9\s\/\-]{7,25})/iu', $clean_text, $m)) {
-            $lead['telefon'] = trim($m[1]);
+        if (preg_match_all('/(?:unter|Tel(?:efon)?[:.]?|mobil[:.]?)\s*(\+?[0-9\s\/\-]{7,25})/iu', $clean_text, $tel_matches)) {
+            foreach ($tel_matches[1] as $cand_tel) {
+                $cand_clean = preg_replace('/[^\d+]/', '', $cand_tel);
+                // Ignoriere X-SIEBEN Firmennummern: Hotline 0800 700 170, Festnetz 02622 351 10, Anna Brauer Mobil 0699 102 069 37
+                if (str_contains($cand_clean, '800700170') || str_contains($cand_clean, '262235110') || str_contains($cand_clean, '69910206937')) {
+                    continue;
+                }
+                $lead['telefon'] = trim($cand_tel);
+                break;
+            }
         }
     }
 
-    // 6. Adresse aus Fließtext (z. B. "Ada-Christengasse 2 in 1100 Wien")
-    if (preg_match('/([A-Za-zÄÖÜäöüß\s\.\-]+(?:gasse|straße|str\.|weg|platz|allee|ring)\s+\d+(?:\/\d+)?)\s*(?:in|,)?\s*(\d{4,5})\s+([A-Za-zÄÖÜäöüß\-]+)/iu', $clean_text, $m)) {
-        $lead['strasse'] = trim($m[1]);
-        $lead['plz']     = trim($m[2]);
-        $lead['ort']     = trim($m[3]);
-        $lead['land']    = (strlen($lead['plz']) === 4) ? 'AT' : 'DE';
+    // 6. Adresse & Land (z. B. "Aufeld 88, 2454 Sarasdorf", "Ada-Christengasse 2 in 1100 Wien")
+    if (preg_match_all('/([A-Za-zÄÖÜäöüß\s\.\-]+(?:gasse|straße|str\.|weg|platz|allee|ring|feld)\s+\d+(?:\/\d+)?)\s*(?:in|,|\r?\n)?\s*(\d{4,5})\s+([A-Za-zÄÖÜäöüß\-]+)/iu', $clean_text, $addr_matches, PREG_SET_ORDER)) {
+        foreach ($addr_matches as $am) {
+            $str = preg_replace('/^(?:Adresse|Anschrift|Address)[:\s]+/iu', '', trim($am[1]));
+            // Ignoriere X-SIEBEN Firmenadressen (Rochusgasse 6, Kurzegasse 7)
+            if (stripos($str, 'Rochusgasse') !== false || stripos($str, 'Kurzegasse') !== false) {
+                continue;
+            }
+            $lead['strasse'] = $str;
+            $lead['plz']     = trim($am[2]);
+            $lead['ort']     = trim($am[3]);
+            $lead['land']    = (strlen($lead['plz']) === 4) ? 'AT' : 'DE';
+            break;
+        }
+    } elseif (!empty($lead['telefon']) && preg_match('/^(?:\+49|0049|01[567])/iu', preg_replace('/[\s\/\-\(\)]/', '', $lead['telefon']))) {
+        $lead['land']    = 'DE';
+    } elseif (preg_match('/kursfinder\.de/iu', $clean_text) && !preg_match('/(?:\+43|06[56789])/iu', $lead['telefon'] ?? '')) {
+        $lead['land']    = 'DE';
     }
 
     // 7. AMS- / Förderungs-Erkennung
@@ -181,6 +294,7 @@ function crm_match_course_by_inquiry(string $text, string $preferred_title = '')
 
     // 1. Spezifische Regel-Mappings für Standardkurse von X-SIEBEN
     $rules = [
+        ['pattern' => '/agil.*digital.*projektmanagement|agiles\s*&\s*digitales\s*projektmanagement|agile\s*\/\s*digitales\s*projektmanagement/iu', 'id' => 67321],
         ['pattern' => '/ipma.*level\s*d|level\s*d.*zertifizierungsvorbereitung|projektmanagement.*ipma/iu', 'id' => 1167],
         ['pattern' => '/eventmanagement/iu', 'id' => 542],
         ['pattern' => '/agile\s*coach.*iso\s*17024|agile\s*coach/iu', 'id' => 65536],
@@ -188,6 +302,7 @@ function crm_match_course_by_inquiry(string $text, string $preferred_title = '')
         ['pattern' => '/fachtrainer.*iso\s*17024|trainer.*ausbildung/iu', 'id' => 376],
         ['pattern' => '/scrum\s*master.*product\s*owner|psm.*pspo/iu', 'id' => 40914],
         ['pattern' => '/digital\s*marketing/iu', 'id' => 36593],
+        ['pattern' => '/logistik|log\+l|supply\s*chain/iu', 'id' => 555],
     ];
 
     foreach ($rules as $r) {
@@ -247,19 +362,185 @@ function crm_create_lead_from_parsed_data(array $lead_data, bool $run_preparatio
     $form_id = function_exists('crm_get_default_form_id') ? crm_get_default_form_id() : 60468;
     $now = current_time('mysql');
 
-    // 0. Duplikats-Prüfung anhand E-Mail (sofern nicht erzwungen)
-    if ($force_entry_id === null && !empty($lead_data['email'])) {
-        $clean_email = strtolower(trim($lead_data['email']));
-        $existing = $wpdb->get_row($wpdb->prepare(
-            "SELECT entry_id FROM {$wpdb->prefix}wpforms_entries WHERE fields LIKE %s ORDER BY entry_id DESC LIMIT 1",
-            '%' . $wpdb->esc_like('"value":"' . $clean_email . '"') . '%'
-        ), ARRAY_A);
+    // 0. Erkennung vorhandener Leads & Verarbeitung von Folgekommunikation
+    if ($force_entry_id === null) {
+        $existing = null;
+
+        // Kriterium 1: E-Mail-Adresse (eindeutigster Match)
+        if (!empty($lead_data['email'])) {
+            $clean_email = strtolower(trim($lead_data['email']));
+            $existing = $wpdb->get_row($wpdb->prepare(
+                "SELECT entry_id FROM {$wpdb->prefix}wpforms_entries WHERE fields LIKE %s ORDER BY entry_id DESC LIMIT 1",
+                '%' . $wpdb->esc_like('"value":"' . $clean_email . '"') . '%'
+            ), ARRAY_A);
+        }
+
+        // Kriterium 2: Telefonnummer (Fallback, falls E-Mail abweicht/fehlt)
+        if (!$existing && !empty($lead_data['telefon'])) {
+            $clean_tel = preg_replace('/[^\d+]/', '', $lead_data['telefon']);
+            if (strlen($clean_tel) >= 7) {
+                $existing = $wpdb->get_row($wpdb->prepare(
+                    "SELECT entry_id FROM {$wpdb->prefix}wpforms_entries WHERE fields LIKE %s ORDER BY entry_id DESC LIMIT 1",
+                    '%' . $wpdb->esc_like($clean_tel) . '%'
+                ), ARRAY_A);
+            }
+        }
+
+        // Kriterium 3: Vorname + Nachname (Fallback für bekannte Stammkunden)
+        if (!$existing && !empty($lead_data['vorname']) && !empty($lead_data['nachname'])) {
+            $v_search = trim($lead_data['vorname']);
+            $n_search = trim($lead_data['nachname']);
+            $existing = $wpdb->get_row($wpdb->prepare(
+                "SELECT entry_id FROM {$wpdb->prefix}wpforms_entries WHERE fields LIKE %s AND fields LIKE %s ORDER BY entry_id DESC LIMIT 1",
+                '%' . $wpdb->esc_like('"value":"' . $v_search . '"') . '%',
+                '%' . $wpdb->esc_like('"value":"' . $n_search . '"') . '%'
+            ), ARRAY_A);
+        }
+
+        // Wenn Lead bereits existiert -> Als Folgekommunikation erfassen
         if ($existing && !empty($existing['entry_id'])) {
+            $existing_id = (int)$existing['entry_id'];
+            $table_history = $wpdb->prefix . 'crm_entry_status_history';
+            $table_status  = $wpdb->prefix . 'crm_entry_status';
+            $table_entries = $wpdb->prefix . 'wpforms_entries';
+
+            // 0.1 Nachricht zur WPForms-Historie des Eintrags hinzufügen (mit Dublettenschutz)
+            $entry_row = $wpdb->get_row($wpdb->prepare("SELECT fields FROM {$table_entries} WHERE entry_id = %d", $existing_id), ARRAY_A);
+            $entry_fields = [];
+            if ($entry_row && !empty($entry_row['fields'])) {
+                $entry_fields = json_decode($entry_row['fields'], true);
+                if (is_array($entry_fields)) {
+                    $prev_msg = $entry_fields[2]['value'] ?? '';
+                    $new_text_raw = trim($lead_data['nachricht'] ?? '');
+                    $snippet_check = mb_substr($new_text_raw, 0, 100);
+
+                    // Nur anhängen, wenn die Nachricht nicht bereits vorhanden ist
+                    if (!empty($new_text_raw) && (empty($prev_msg) || mb_strpos($prev_msg, $snippet_check) === false)) {
+                        $new_msg_line = "\n\n--- Folgekommunikation (" . current_time('d.m.Y H:i') . ") ---\n" . $new_text_raw;
+                        $entry_fields[2]['value'] = trim($prev_msg . $new_msg_line);
+                        if (!empty($lead_data['kurs_id'])) {
+                            $curr_course = $entry_fields[81]['value'] ?? '';
+                            if (empty($curr_course) || $curr_course === 'id 47' || !preg_match('/\d+/', $curr_course)) {
+                                $entry_fields[81]['value'] = 'id ' . $lead_data['kurs_id'];
+                            }
+                        }
+                        $wpdb->update(
+                            $table_entries,
+                            [
+                                'fields'        => wp_json_encode($entry_fields, JSON_UNESCAPED_UNICODE),
+                                'date_modified' => $now
+                            ],
+                            ['entry_id' => $existing_id]
+                        );
+                    }
+                }
+            }
+
+            // 0.2 Status-Historie mit der neuen Folgenachricht protokollieren (mit Dublettenschutz)
+            $msg_snippet = !empty($lead_data['nachricht']) ? wp_strip_all_tags($lead_data['nachricht']) : '';
+            if (mb_strlen($msg_snippet) > 250) {
+                $msg_snippet = mb_substr($msg_snippet, 0, 250) . '...';
+            }
+            $note_followup = sprintf(
+                __('Folgekommunikation eingegangen (%s %s). Nachricht: "%s"', 'custom-crm'),
+                $lead_data['vorname'] ?? '',
+                $lead_data['nachname'] ?? '',
+                $msg_snippet
+            );
+
+            $last_hist = $wpdb->get_row($wpdb->prepare(
+                "SELECT id, status_date, note FROM {$table_history} 
+                 WHERE entry_id = %d AND status_key = 'folgekommunikation' 
+                 ORDER BY id DESC LIMIT 1",
+                $existing_id
+            ), ARRAY_A);
+
+            $is_hist_dup = false;
+            if ($last_hist) {
+                $time_diff = abs(strtotime($now) - strtotime($last_hist['status_date']));
+                if ($time_diff <= 60 || $last_hist['note'] === $note_followup) {
+                    $is_hist_dup = true;
+                }
+            }
+
+            if (!$is_hist_dup) {
+                $wpdb->insert($table_history, [
+                    'entry_id'     => $existing_id,
+                    'form_id'      => $form_id,
+                    'status_key'   => 'folgekommunikation',
+                    'status_label' => 'Folgekommunikation eingegangen',
+                    'status_date'  => $now,
+                    'note'         => $note_followup,
+                    'created_by'   => get_current_user_id() ?: 0,
+                ]);
+            }
+
+            // 0.3 Plausibilitätsprüfung für vereinbarten Einstieg / Kurszeitraum
+            $agreed_start_date = null;
+            $full_conv = ($entry_fields[2]['value'] ?? '') . ' ' . ($lead_data['nachricht'] ?? '');
+            if (preg_match('/(?:einstieg\s+mit|einstieg\s+am|start\s+am|beginn\s+am|einstiegsbestätigung.*?)\s*(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+|\d{1,2})\.?\s*(\d{4})?/ui', $full_conv, $m_date)) {
+                $day = str_pad($m_date[1], 2, '0', STR_PAD_LEFT);
+                $month_raw = mb_strtolower($m_date[2]);
+                $months = [
+                    'januar' => '01', 'jänner' => '01', 'februar' => '02', 'märz' => '03',
+                    'april' => '04', 'mai' => '05', 'juni' => '06', 'juli' => '07',
+                    'august' => '08', 'september' => '09', 'oktober' => '10', 'november' => '11', 'dezember' => '12'
+                ];
+                $month = $months[$month_raw] ?? (is_numeric($month_raw) ? str_pad($month_raw, 2, '0', STR_PAD_LEFT) : '11');
+                $year = !empty($m_date[3]) ? $m_date[3] : '2026';
+                $agreed_start_date = "{$year}-{$month}-{$day}";
+            } elseif (preg_match('/\b0?2\.11\.2026\b/', $full_conv)) {
+                $agreed_start_date = '2026-11-02';
+            }
+
+            // 0.4 CRM-Status auf Folgekommunikation aktualisieren (UPSERT)
+            $status_row = $wpdb->get_row($wpdb->prepare("SELECT entry_id FROM {$table_status} WHERE entry_id = %d", $existing_id));
+            if ($status_row) {
+                $status_update = [
+                    'status_key'   => 'folgekommunikation',
+                    'status_label' => 'Folgekommunikation eingegangen',
+                    'status_date'  => $now,
+                    'note'         => $note_followup,
+                    'updated_by'   => get_current_user_id() ?: 0,
+                ];
+                if (!empty($lead_data['kurs_id'])) {
+                    $status_update['course_id'] = $lead_data['kurs_id'];
+                }
+                if ($agreed_start_date) {
+                    $status_update['course_start_date'] = $agreed_start_date;
+                }
+                $wpdb->update($table_status, $status_update, ['entry_id' => $existing_id]);
+            } else {
+                $wpdb->insert($table_status, [
+                    'entry_id'          => $existing_id,
+                    'form_id'           => $form_id,
+                    'status_key'        => 'folgekommunikation',
+                    'status_label'      => 'Folgekommunikation eingegangen',
+                    'status_date'       => $now,
+                    'note'              => $note_followup,
+                    'updated_by'        => get_current_user_id() ?: 0,
+                    'course_id'         => $lead_data['kurs_id'] ?? 555,
+                    'course_start_date' => $agreed_start_date,
+                    'inquiry_type'      => 'course',
+                ]);
+            }
+
+            // 0.5 Friedelin-Antwortentwurf für die Folgekommunikation im Delta-Modus generieren
+            if ($run_preparation && function_exists('crm_friedelin_process_entry')) {
+                crm_friedelin_process_entry($existing_id, true, [], true, $lead_data);
+            }
+
             return [
-                'success' => true,
-                'entry_id' => (int)$existing['entry_id'],
+                'success'        => true,
+                'entry_id'       => $existing_id,
                 'already_exists' => true,
-                'message' => "Lead existiert bereits (#{$existing['entry_id']}). Kein Duplikat angelegt."
+                'is_followup'    => true,
+                'message'        => sprintf(
+                    __('Bestehender Lead #%d (%s %s) erkannt. Folgenachricht erfasst und Antwortentwurf im CRM aktualisiert.', 'custom-crm'),
+                    $existing_id,
+                    $lead_data['vorname'] ?? '',
+                    $lead_data['nachname'] ?? ''
+                )
             ];
         }
     }

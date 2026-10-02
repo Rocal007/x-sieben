@@ -86,7 +86,19 @@ function crm_friedelin_analyze_entry(int $entry_id): array
 
     // Resolve course ID
     $course_id = 0;
-    if (!empty($course_title) && strcasecmp(trim($course_title), 'KONTAKT') !== 0 && function_exists('find_course_id_by_title_exact')) {
+    // 0. Vorrangig: Bereits im CRM-Status hinterlegter Kurs (z.B. vom Lead-Importer oder Sachbearbeiter)
+    global $wpdb;
+    if ($wpdb) {
+        $status_row = $wpdb->get_row($wpdb->prepare("SELECT course_id FROM {$wpdb->prefix}crm_entry_status WHERE entry_id = %d", $entry_id), ARRAY_A);
+        if (!empty($status_row['course_id'])) {
+            $candidate_id = (int)$status_row['course_id'];
+            if (get_post_type($candidate_id) === 'courses') {
+                $course_id = $candidate_id;
+                $course_title = get_the_title($course_id);
+            }
+        }
+    }
+    if (!$course_id && !empty($course_title) && strcasecmp(trim($course_title), 'KONTAKT') !== 0 && function_exists('find_course_id_by_title_exact')) {
         $course_id = find_course_id_by_title_exact($course_title);
     }
     if (!$course_id) {
@@ -1450,14 +1462,171 @@ function crm_resolve_course_certification(int $entry_id, int $course_id, string 
 
 /**
  * Main Friedelin processing engine for a single entry.
+/**
+ * Verarbeitet eine Folgekommunikation für einen bestehenden Lead (Delta-Antwort).
+ * Erzeugt KEINE neuen Angebote oder KB-Dokumente, sondern identifiziert offene Fragen,
+ * bindet einen Freigabe-Prüfhinweis für Hannes ein und legt den Mailentwurf im CRM-Mailer bereit.
+ *
+ * @param int $entry_id
+ * @param array $lead_data
+ * @param array $selected_docs
+ * @return array
+ */
+function crm_friedelin_process_followup(int $entry_id, array $lead_data = [], array $selected_docs = []): array
+{
+    $analysis = crm_friedelin_analyze_entry($entry_id);
+    if (empty($analysis['success'])) {
+        return $analysis;
+    }
+
+    $course_id = $analysis['course_id'];
+    $salutation = !empty($analysis['salutation']) ? $analysis['salutation'] : 'Sehr geehrte Damen und Herren';
+
+    // Gesamtverlauf laden
+    $entry = function_exists('wpforms') ? wpforms()->entry->get($entry_id) : null;
+    $fields = ($entry && is_string($entry->fields)) ? json_decode($entry->fields, true) : ($entry->fields ?? []);
+    $msg_history = is_array($fields) ? ($fields[2]['value'] ?? '') : '';
+    $new_incoming = $lead_data['nachricht'] ?? '';
+    $combined_text = $msg_history . "\n" . $new_incoming;
+
+    // Prüfen, ob der Kunde ausdrücklich ein neues Angebot anfordert
+    $wants_new_offer = (bool)preg_match('/(?:neues|weiteres)\s+angebot|kostenvoranschlag\s+f[üu]r\s+weiteren|neuen?\s+kurs\s+buchen/ui', $combined_text);
+    if ($wants_new_offer) {
+        return crm_friedelin_process_entry($entry_id, true, $selected_docs, false);
+    }
+
+    // Spezifische Frage-Erkennung
+    $is_semesterferien = (bool)preg_match('/(?:semesterferien|ferien|unterbrech|pausier|pause)/ui', $combined_text);
+    
+    // Vereinbarter Starttermin
+    $agreed_start_str = '02.11.2026';
+    if (preg_match('/(?:einstieg\s+mit|einstieg\s+am|start\s+am|beginn\s+am)\s*(\d{1,2}\.\s*[A-Za-zäöüÄÖÜ0-9.]+)/ui', $combined_text, $m_dt)) {
+        $agreed_start_str = trim($m_dt[1]);
+    }
+
+    // Betreff ermitteln
+    $subject = !empty($lead_data['subject']) ? trim($lead_data['subject']) : '';
+    if (empty($subject) || stripos($subject, 'Re:') === false) {
+        $subject = 'Re: [External Email] Ihre Anfrage bei X SIEBEN';
+    }
+
+    // Delta-Antwort Body zusammenstellen nach X-SIEBEN Standard (LINGUA-LOCA AT)
+    if ($is_semesterferien) {
+        $body_html = '<p>' . esc_html($salutation) . ',</p>' . "\n";
+        $body_html .= '<p>vielen Dank für Ihre Rückmeldung und die Information.</p>' . "\n";
+        $body_html .= '<p>Bezüglich Ihrer Frage zur Durchführung während der Semesterferien:</p>' . "\n";
+        
+        // PRÜFHINWEIS FÜR HANNES / FREIGABE
+        $body_html .= '<div style="background-color: #fff3cd; border-left: 4px solid #ffeeba; padding: 12px 16px; margin: 15px 0; border-radius: 4px; font-size: 13px; color: #856404; line-height: 1.5;">' . "\n";
+        $body_html .= '  <strong>⚠️ PRÜFHINWEIS FÜR FREIGABE (Hannes):</strong> Die konkrete Modulplanung für die Semesterferien (Februar 2027) ist im Rahmenterminplan flexibel gehalten. Bitte vor dem Absenden kurz abstimmen bzw. festlegen, ob in den Ferien durchgängig geschult oder pausiert wird. Laut bisheriger Abstimmung mit Herrn DI (FH) Martin Bieber ist die Terminplanung mit den Teilnehmern flexibel vereinbar.' . "\n";
+        $body_html .= '</div>' . "\n";
+
+        $body_html .= '<p>Hier sind wir bei der Terminplanung sehr flexibel gestaltet. Je nach Abstimmung und den Bedürfnissen der Teilnehmenden kann der Lehrgang während der Semesterferien entweder durchgängig weitergeführt werden oder für diesen Zeitraum pausieren.</p>' . "\n";
+        $body_html .= '<p>Sobald der genaue Modulablauf vor Ihrem bestätigten Start am <strong>' . esc_html($agreed_start_str) . '</strong> final abgestimmt wird, fixieren wir diese Termine gemeinsam mit unserem Fachreferenten Herrn DI (FH) Martin Bieber gerne passgenau mit Ihnen.</p>' . "\n";
+        $body_html .= '<p>Für allfällige Fragen stehe ich Ihnen selbstverständlich jederzeit gerne zur Verfügung.</p>' . "\n";
+        $body_html .= '<p>Liebe Grüße,<br><strong>Roland &amp; Friedelin (Assistent)</strong><br><span style="font-size: 11px; color: #666;">X SIEBEN Wirtschaftstraining GmbH</span></p>';
+    } else {
+        $body_html = '<p>' . esc_html($salutation) . ',</p>' . "\n";
+        $body_html .= '<p>vielen Dank für Ihre Nachricht.</p>' . "\n";
+        $body_html .= '<div style="background-color: #fff3cd; border-left: 4px solid #ffeeba; padding: 12px 16px; margin: 15px 0; border-radius: 4px; font-size: 13px; color: #856404; line-height: 1.5;">' . "\n";
+        $body_html .= '  <strong>⚠️ PRÜFHINWEIS FÜR FREIGABE (Hannes):</strong> Folgekommunikation eingegangen. Bitte die offenen Punkte im Verlauf vor dem Absenden kurz verifizieren.' . "\n";
+        $body_html .= '</div>' . "\n";
+        $body_html .= '<p>Wir haben Ihre Rückfrage erhalten und stimmen die offenen Punkte gerne passgenau mit Ihnen ab.</p>' . "\n";
+        $body_html .= '<p>Für allfällige Fragen stehe ich Ihnen selbstverständlich jederzeit gerne zur Verfügung.</p>' . "\n";
+        $body_html .= '<p>Liebe Grüße,<br><strong>Roland &amp; Friedelin (Assistent)</strong><br><span style="font-size: 11px; color: #666;">X SIEBEN Wirtschaftstraining GmbH</span></p>';
+    }
+
+    $summary_note = sprintf(
+        'Folgekommunikation: %s erkannt. Delta-Antwortentwurf im CRM-Mailer hinterlegt (mit Prüfhinweis).',
+        $is_semesterferien ? 'Rückfrage zu Semesterferien' : 'Kunden-Rückfrage'
+    );
+
+    $final_selected_docs = [
+        'offer_1'    => false,
+        'offer_2'    => false,
+        'offer_3'    => false,
+        'kb'         => false,
+        'terminplan' => false,
+        'agb'        => false,
+    ];
+
+    $draft_payload = [
+        'entry_id'        => $entry_id,
+        'course_id'       => $course_id,
+        'process_type'    => 'folgekommunikation',
+        'type'            => 'delta_response',
+        'is_followup'     => true,
+        'is_ams_funding'  => false,
+        'recipient'       => $analysis['email'] ?? '',
+        'subject'         => $subject,
+        'body'            => $body_html,
+        'pdf_urls'        => [],
+        'primary_pdf_url' => '',
+        'all_pdf_param'   => '',
+        'context'         => 'xsieben_folgekommunikation',
+        'prepared_at'     => current_time('mysql'),
+        'ai_summary'      => $summary_note,
+        'selected_docs'   => $final_selected_docs,
+    ];
+
+    update_option('crm_friedelin_draft_' . $entry_id, $draft_payload);
+
+    // Status auf Folgekommunikation aktualisieren
+    $audit_note = sprintf(
+        'Folgekommunikation vorbereitet: %s erkannt. Delta-Antwortentwurf im CRM-Mailer hinterlegt. Wartet auf manuelle Freigabe vor Versand.',
+        $is_semesterferien ? 'Rückfrage zu Semesterferien' : 'Kunden-Rückfrage'
+    );
+
+    if (function_exists('crm_set_entry_status')) {
+        crm_set_entry_status($entry_id, 'folgekommunikation', $audit_note);
+    }
+
+    return [
+        'success'         => true,
+        'entry_id'        => $entry_id,
+        'course_id'       => $course_id,
+        'status_key'      => 'folgekommunikation',
+        'status_label'    => 'Folgekommunikation eingegangen',
+        'generated_pdfs'  => [],
+        'pdf_urls'        => [],
+        'primary_pdf_url' => '',
+        'all_pdf_param'   => '',
+        'context'         => 'xsieben_folgekommunikation',
+        'subject'         => $subject,
+        'body'            => $body_html,
+        'summary'         => $summary_note,
+        'selected_docs'   => $final_selected_docs,
+        'message'         => 'Folgekommunikation erfolgreich als Delta-Entwurf im CRM hinterlegt.',
+    ];
+}
+
+/**
+ * Automates lead preparation:
  * Generates required PDFs, drafts individualized email, saves draft in DB, and sets status to 'versand_vorbereitet'.
  *
  * @param int $entry_id
  * @param bool $manual_trigger
+ * @param array $selected_docs
+ * @param bool $is_followup
+ * @param array $lead_data
  * @return array
  */
-function crm_friedelin_process_entry(int $entry_id, bool $manual_trigger = false, array $selected_docs = []): array
+function crm_friedelin_process_entry(int $entry_id, bool $manual_trigger = false, array $selected_docs = [], bool $is_followup = false, array $lead_data = []): array
 {
+    // Automatische Folgekommunikations-Erkennung:
+    if (!$is_followup) {
+        global $wpdb;
+        $curr_status = $wpdb->get_var($wpdb->prepare("SELECT status_key FROM {$wpdb->prefix}crm_entry_status WHERE entry_id = %d", $entry_id));
+        if ($curr_status === 'folgekommunikation') {
+            $is_followup = true;
+        }
+    }
+
+    $has_manual_offers = !empty($selected_docs['offer_1']) || !empty($selected_docs['offer_2']) || !empty($selected_docs['offer_3']);
+    if ($is_followup && !$has_manual_offers) {
+        return crm_friedelin_process_followup($entry_id, $lead_data, $selected_docs);
+    }
+
     $analysis = crm_friedelin_analyze_entry($entry_id);
     if (empty($analysis['success'])) {
         return $analysis;
@@ -1598,14 +1767,15 @@ function crm_friedelin_process_entry(int $entry_id, bool $manual_trigger = false
     // 4. Draft Companion Email via central authoritative X-SIEBEN Engine
     require_once __DIR__ . '/crm-email-sections.php';
     $offer_email_data = crm_build_standard_offer_email($entry_id, $course_id, [
-        'is_ams_funding'     => ($is_ams_funding || $want_kb),
+        'is_ams_funding'     => $want_kb,
+        'want_kb'            => $want_kb,
+        'selected_docs'      => $selected_docs,
         'has_cert_option'    => ($has_cert_option && $want_offer_2),
         'cert_name'          => $cert_name,
         'has_offer_3'        => ($has_offer_3 && $want_offer_3),
         'want_offer_1'       => $want_offer_1,
         'want_offer_2'       => $want_offer_2,
         'want_offer_3'       => $want_offer_3,
-        'want_kb'            => $want_kb,
         'want_terminplan'    => $want_terminplan,
         'has_terminplan_pdf' => $want_terminplan,
         'terminplan_url'     => $terminplan_url,

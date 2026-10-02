@@ -398,20 +398,44 @@ function crm_set_entry_status($entry_id, $status_key, $note = '', $status_date =
     $table_status = $wpdb->prefix . 'crm_entry_status';
     $table_history = $wpdb->prefix . 'crm_entry_status_history';
 
-    // 1. Insert into history
-    $wpdb->insert(
-        $table_history,
-        [
-            'entry_id'     => $entry_id,
-            'form_id'      => $form_id,
-            'status_key'   => $status_key,
-            'status_label' => $status_label,
-            'status_date'  => $status_date,
-            'note'         => $note,
-            'created_by'   => $user_id,
-        ],
-        ['%d', '%d', '%s', '%s', '%s', '%s', '%d']
-    );
+    // 1. Insert into history with duplicate check (Dublettenprüfung)
+    // Verhindert identische Einträge innerhalb eines 60-Sekunden-Zeitfensters oder mit identischer Notiz
+    $is_duplicate = false;
+    $last_history = $wpdb->get_row($wpdb->prepare(
+        "SELECT id, status_key, status_date, note FROM $table_history 
+         WHERE entry_id = %d AND status_key = %s 
+         ORDER BY id DESC LIMIT 1",
+        $entry_id, $status_key
+    ), ARRAY_A);
+
+    if ($last_history) {
+        $same_key = ($last_history['status_key'] === $status_key);
+        $same_note = ($last_history['note'] === $note);
+        $time_diff = abs(strtotime($status_date) - strtotime($last_history['status_date']));
+        if ($same_key && ($same_note || $time_diff <= 60)) {
+            $is_duplicate = true;
+            // Falls Notiz präzisiert wurde, bestehenden Eintrag aktualisieren statt neu anzulegen
+            if (!$same_note && !empty($note)) {
+                $wpdb->update($table_history, ['note' => $note], ['id' => $last_history['id']], ['%s'], ['%d']);
+            }
+        }
+    }
+
+    if (!$is_duplicate) {
+        $wpdb->insert(
+            $table_history,
+            [
+                'entry_id'     => $entry_id,
+                'form_id'      => $form_id,
+                'status_key'   => $status_key,
+                'status_label' => $status_label,
+                'status_date'  => $status_date,
+                'note'         => $note,
+                'created_by'   => $user_id,
+            ],
+            ['%d', '%d', '%s', '%s', '%s', '%s', '%d']
+        );
+    }
 
     // 2. Upsert into current status table
     $exists = $wpdb->get_var($wpdb->prepare("SELECT entry_id FROM $table_status WHERE entry_id = %d", $entry_id));
@@ -464,15 +488,34 @@ function crm_add_entry_status_history($entry_id, $status_key, $status_label, $no
 
     $form_id = $form_id ? absint($form_id) : crm_get_default_form_id();
     $table_history = $wpdb->prefix . 'crm_entry_status_history';
+    $status_key = sanitize_key($status_key);
+    $status_label = sanitize_text_field($status_label);
+    $now = current_time('mysql');
+
+    // Dublettenprüfung
+    $last_history = $wpdb->get_row($wpdb->prepare(
+        "SELECT id, status_key, status_date, note FROM $table_history 
+         WHERE entry_id = %d AND status_key = %s 
+         ORDER BY id DESC LIMIT 1",
+        $entry_id, $status_key
+    ), ARRAY_A);
+
+    if ($last_history) {
+        $same_note = ($last_history['note'] === $note);
+        $time_diff = abs(strtotime($now) - strtotime($last_history['status_date']));
+        if ($same_note || $time_diff <= 60) {
+            return true; // Bereits vorhanden
+        }
+    }
 
     return (bool) $wpdb->insert(
         $table_history,
         [
             'entry_id'     => $entry_id,
             'form_id'      => $form_id,
-            'status_key'   => sanitize_key($status_key),
-            'status_label' => sanitize_text_field($status_label),
-            'status_date'  => current_time('mysql'),
+            'status_key'   => $status_key,
+            'status_label' => $status_label,
+            'status_date'  => $now,
             'note'         => $note,
             'created_by'   => get_current_user_id(),
         ],
@@ -1097,6 +1140,42 @@ add_action('wp_ajax_crm_toggle_foerderung', function () {
         ? sprintf(__('%s-Förderung aktiviert (Angebot & KB als Standard).', 'custom-crm'), $label)
         : sprintf(__('%s-Förderung deaktiviert.', 'custom-crm'), $label);
 
+    if ($active) {
+        $draft = function_exists('crm_friedelin_get_entry_draft') ? crm_friedelin_get_entry_draft($entry_id) : get_option('crm_friedelin_draft_' . $entry_id);
+        if (!empty($draft) && is_array($draft)) {
+            if (!isset($draft['selected_docs']) || !is_array($draft['selected_docs'])) {
+                $draft['selected_docs'] = [];
+            }
+            $draft['selected_docs']['kb'] = true;
+            $cid = $course_id ?: ($draft['course_id'] ?? 0);
+            if (!$cid && function_exists('crm_get_entry_status')) {
+                $st = crm_get_entry_status($entry_id);
+                $cid = $st['course_id'] ?? 0;
+            }
+            // Ensure KB PDF URL exists in draft pdf_urls
+            $has_kb_url = false;
+            if (!empty($draft['pdf_urls']) && is_array($draft['pdf_urls'])) {
+                foreach ($draft['pdf_urls'] as $u) {
+                    if (stripos($u, 'kurszeiten') !== false || stripos($u, 'kb_') !== false) {
+                        $has_kb_url = true;
+                        break;
+                    }
+                }
+            }
+            if (!$has_kb_url && $cid && function_exists('xsieben_kurszeitenbestaetigung_pdf')) {
+                $kb_url = xsieben_kurszeitenbestaetigung_pdf($entry_id, $cid, false);
+                if ($kb_url) {
+                    if (!isset($draft['pdf_urls']) || !is_array($draft['pdf_urls'])) {
+                        $draft['pdf_urls'] = [];
+                    }
+                    $draft['pdf_urls'][] = $kb_url;
+                    $draft['all_pdf_param'] = implode(',', $draft['pdf_urls']);
+                }
+            }
+            update_option('crm_friedelin_draft_' . $entry_id, $draft);
+        }
+    }
+
     wp_send_json_success([
         'message'       => $msg,
         'entry_id'      => $entry_id,
@@ -1151,10 +1230,11 @@ add_action('wp_ajax_crm_get_wizard_data', function () {
     }
 
     $dates_text = 'Termine n. V.';
-    if (!empty($start_date_raw) && !empty($end_date_raw)) {
+    if (!empty($start_date_raw) && !empty($end_date_raw) && $start_date_raw !== $end_date_raw) {
         $dates_text = date_i18n('d.m.Y', strtotime($start_date_raw)) . ' – ' . date_i18n('d.m.Y', strtotime($end_date_raw));
     } elseif (!empty($start_date_raw)) {
-        $dates_text = 'Ab ' . date_i18n('d.m.Y', strtotime($start_date_raw));
+        $is_agreed = (!empty($status_key) && in_array($status_key, ['angemeldet', 'folgekommunikation'], true));
+        $dates_text = 'Ab ' . date_i18n('d.m.Y', strtotime($start_date_raw)) . ($is_agreed ? ' (vereinbarter Einstieg)' : '');
     }
 
     $default_test_email = get_option('crm_test_email') ?: (get_option('crm_general_settings', [])['test_email'] ?? get_option('crm_test_email_address', get_option('admin_email', 'gajo@x-sieben.at')));
@@ -1186,7 +1266,7 @@ add_action('wp_ajax_crm_get_wizard_data', function () {
     $stage = 'offer';
     if (in_array($status_key, ['versand_vorbereitet', 'ki_vorbereitet', 'ai_prepared', 'neu', 'in_bearbeitung', 'angebot_erstellt'], true)) {
         $stage = 'offer';
-    } elseif (in_array($status_key, ['angebot_gesendet', 'angebot_und_kurszeiten_gesendet', 'kurszeitenbestaetigung_gesendet', 'nachfassen'], true)) {
+    } elseif (in_array($status_key, ['angebot_gesendet', 'angebot_und_kurszeiten_gesendet', 'kurszeitenbestaetigung_gesendet', 'nachfassen', 'folgekommunikation'], true)) {
         $stage = 'followup';
     } elseif ($status_key === 'angemeldet') {
         $stage = 'enrolled';
@@ -1207,27 +1287,47 @@ add_action('wp_ajax_crm_get_wizard_data', function () {
         $agb_url = 'https://x-sieben.at/wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf';
     }
 
-    // Ensure draft always contains the authoritative, standardized X-SIEBEN offer email
-    $is_ams = !empty($foerderung['ams']) || !empty($foerderung['waff']);
+    // Ensure draft always contains the authoritative, standardized X-SIEBEN offer email (oder Delta-Antwort bei Folgekommunikation)
+    $is_ams = !empty($foerderung['ams']) || !empty($foerderung['waff']) || !empty($analysis['is_ams_funding']);
     $draft_body = !empty($draft['body']) ? $draft['body'] : '';
-    $is_corrupt_body = (empty($draft_body) || strpos($draft_body, 'Vorgang:') === 0 || strpos($draft_body, '<table') === false);
+    $is_delta_draft = (!empty($draft['process_type']) && $draft['process_type'] === 'folgekommunikation')
+                   || (!empty($draft['type']) && $draft['type'] === 'delta_response')
+                   || $status_key === 'folgekommunikation';
+    $is_corrupt_body = (empty($draft_body) || strpos($draft_body, 'Vorgang:') === 0 || (!$is_delta_draft && strpos($draft_body, '<table') === false));
 
-    if (empty($draft) || $is_corrupt_body) {
+    $sel_docs = (!empty($draft['selected_docs']) && is_array($draft['selected_docs']))
+        ? $draft['selected_docs']
+        : [
+            'offer_1' => true,
+            'offer_2' => $has_cert_option,
+            'offer_3' => $has_offer_3,
+            'kb'      => (bool)$is_ams,
+            'agb'     => true,
+        ];
+
+    // Bei AMS / WAFF Förderung ist die Kurszeitenbestätigung (KB) obligatorisch
+    if ($is_ams) {
+        $sel_docs['kb'] = true;
+    }
+
+    if ($is_delta_draft) {
+        $sel_docs = (!empty($draft['selected_docs']) && is_array($draft['selected_docs']))
+            ? $draft['selected_docs']
+            : [
+                'offer_1' => false,
+                'offer_2' => false,
+                'offer_3' => false,
+                'kb'      => false,
+                'agb'     => false,
+            ];
+    }
+
+    if (!$is_delta_draft && (empty($draft) || $is_corrupt_body || ($is_ams && empty($draft['selected_docs']['kb'])))) {
         if ($course_id && function_exists('crm_build_standard_offer_email')) {
             require_once __DIR__ . '/crm-email-sections.php';
             $terminplan_url = function_exists('crm_get_course_terminplan_url') ? crm_get_course_terminplan_url($course_id) : '';
             $backend_dates  = function_exists('crm_get_course_terminplan_entries') ? crm_get_course_terminplan_entries($course_id) : [];
             $has_backend_termine = !empty($terminplan_url) || !empty($backend_dates);
-
-            $sel_docs = (!empty($draft['selected_docs']) && is_array($draft['selected_docs']))
-                ? $draft['selected_docs']
-                : [
-                    'offer_1' => true,
-                    'offer_2' => $has_cert_option,
-                    'offer_3' => $has_offer_3,
-                    'kb'      => (bool)$is_ams,
-                    'agb'     => true,
-                ];
 
             $std_mail = crm_build_standard_offer_email($entry_id, $course_id, [
                 'is_ams_funding'  => $is_ams,
@@ -1260,31 +1360,105 @@ add_action('wp_ajax_crm_get_wizard_data', function () {
         }
     }
 
-    // Fallback: Bereits generierte PDFs im Upload-Ordner einlesen, falls draft pdf_urls noch leer sind
-    if (empty($draft['pdf_urls']) && function_exists('crm_get_pdf_storage_dir')) {
+    // PDF-Dokumente synchronisieren: Nur bei Neuanfragen / regulären Angeboten erzwingen
+    if (!$is_delta_draft && function_exists('crm_get_pdf_storage_dir')) {
         $pdf_dir = crm_get_pdf_storage_dir();
         $baseurl = function_exists('crm_get_pdf_storage_url') ? crm_get_pdf_storage_url() : '';
-        $found_pdfs = [];
-        $offer_files = glob($pdf_dir . 'A_' . $entry_id . '-*.pdf');
-        if (!empty($offer_files)) {
-            foreach ($offer_files as $f) {
-                $found_pdfs[] = $baseurl . rawurlencode(basename($f));
+        if (!is_array($draft)) {
+            $draft = [];
+        }
+        if (!isset($draft['pdf_urls']) || !is_array($draft['pdf_urls'])) {
+            $draft['pdf_urls'] = [];
+        }
+        $updated_draft_pdfs = false;
+
+        // 1. Basis-Angebot prüfen
+        $has_offer_1 = false;
+        foreach ($draft['pdf_urls'] as $u) {
+            $l = strtolower($u);
+            if (strpos($l, 'basis') !== false || strpos($l, 'angebot_1') !== false || (strpos($l, 'angebot') !== false && strpos($l, 'angebot_2') === false && strpos($l, 'angebot_3') === false && strpos($l, 'zert') === false && strpos($l, 'ipma') === false)) {
+                $has_offer_1 = true;
+                break;
             }
         }
-        $kb_files = glob($pdf_dir . 'Kurszeitenbestaetigung_*' . $entry_id . '*.pdf');
-        if (!empty($kb_files)) {
-            foreach ($kb_files as $f) {
-                $found_pdfs[] = $baseurl . rawurlencode(basename($f));
+        if (!$has_offer_1 && $course_id) {
+            $matching_a1 = $pdf_dir ? glob($pdf_dir . 'A_' . $entry_id . '-*Basis*.pdf') : [];
+            if (empty($matching_a1) && $pdf_dir) {
+                $all_a = glob($pdf_dir . 'A_' . $entry_id . '-*.pdf');
+                $matching_a1 = array_filter($all_a, function ($f) {
+                    $bn = strtolower(basename($f));
+                    return strpos($bn, 'angebot_2') === false && strpos($bn, 'angebot_3') === false && strpos($bn, 'zert') === false && strpos($bn, 'ipma') === false;
+                });
+            }
+            if (!empty($matching_a1)) {
+                $draft['pdf_urls'][] = $baseurl . rawurlencode(basename(end($matching_a1)));
+                $updated_draft_pdfs = true;
+            } elseif (function_exists('xsieben_offer_pdf')) {
+                $a1_url = xsieben_offer_pdf($entry_id, $course_id, false, null, 'basis');
+                if ($a1_url) {
+                    $draft['pdf_urls'][] = $a1_url;
+                    $updated_draft_pdfs = true;
+                }
             }
         }
-        if (!empty($found_pdfs)) {
-            if (!is_array($draft)) {
-                $draft = [];
+
+        // 2. Angebot 2 (inkl. Zertifizierung) prüfen
+        if ($has_cert_option && !empty($sel_docs['offer_2'])) {
+            $has_offer_2 = false;
+            foreach ($draft['pdf_urls'] as $u) {
+                $l = strtolower($u);
+                if (strpos($l, 'angebot_2') !== false || (strpos($l, 'zert') !== false && strpos($l, 'angebot_3') === false && strpos($l, 'ipma') === false)) {
+                    $has_offer_2 = true;
+                    break;
+                }
             }
-            $draft['pdf_urls'] = $found_pdfs;
-            $draft['primary_pdf_url'] = $found_pdfs[0];
-            $draft['all_pdf_param'] = implode(',', $found_pdfs);
-            $is_prepared = true;
+            if (!$has_offer_2 && $course_id) {
+                $matching_a2 = $pdf_dir ? glob($pdf_dir . 'A_' . $entry_id . '-*Angebot_2*.pdf') : [];
+                if (!empty($matching_a2)) {
+                    $draft['pdf_urls'][] = $baseurl . rawurlencode(basename(end($matching_a2)));
+                    $updated_draft_pdfs = true;
+                } elseif (function_exists('xsieben_offer_pdf')) {
+                    $a2_url = xsieben_offer_pdf($entry_id, $course_id, false, null, 'mit_zertifikat', $resolved_cert);
+                    if ($a2_url) {
+                        $draft['pdf_urls'][] = $a2_url;
+                        $updated_draft_pdfs = true;
+                    }
+                }
+            }
+        }
+
+        // 3. Kurszeitenbestätigung (KB) prüfen
+        if ($is_ams || !empty($sel_docs['kb'])) {
+            $has_kb = false;
+            foreach ($draft['pdf_urls'] as $u) {
+                $l = strtolower($u);
+                if (strpos($l, 'kurszeiten') !== false || strpos($l, 'kb_') !== false) {
+                    $has_kb = true;
+                    break;
+                }
+            }
+            if (!$has_kb && $course_id) {
+                $kb_token = function_exists('crm_generate_pdf_token') ? crm_generate_pdf_token($entry_id, 'kb') : '';
+                $matching_kb = (!empty($kb_token) && $pdf_dir) ? glob($pdf_dir . 'Kurszeitenbestaetigung_*' . $kb_token . '*.pdf') : [];
+                if (!empty($matching_kb)) {
+                    $draft['pdf_urls'][] = $baseurl . rawurlencode(basename(end($matching_kb)));
+                    $updated_draft_pdfs = true;
+                } elseif (function_exists('xsieben_kurszeitenbestaetigung_pdf')) {
+                    $kb_url = xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, false);
+                    if ($kb_url) {
+                        $draft['pdf_urls'][] = $kb_url;
+                        $updated_draft_pdfs = true;
+                    }
+                }
+            }
+        }
+
+        if ($updated_draft_pdfs || !empty($draft['pdf_urls'])) {
+            $draft['primary_pdf_url'] = !empty($draft['pdf_urls']) ? $draft['pdf_urls'][0] : '';
+            $draft['all_pdf_param']   = implode(',', $draft['pdf_urls']);
+            $draft['selected_docs']   = $sel_docs;
+            $is_prepared              = true;
+            update_option('crm_friedelin_draft_' . $entry_id, $draft);
         }
     }
 
@@ -1307,6 +1481,7 @@ add_action('wp_ajax_crm_get_wizard_data', function () {
         'course_title'        => $analysis['course_title'] ?? 'Kein Kurs zugeordnet',
         'dates_text'          => $dates_text,
         'foerderung'          => $foerderung,
+        'is_ams_funding'      => !empty($foerderung['ams']) || !empty($foerderung['waff']) || !empty($analysis['is_ams_funding']),
         'status_key'          => $status_key,
         'status_label'        => $status_label,
         'stage'               => $stage,
@@ -1334,15 +1509,32 @@ add_action('wp_ajax_crm_get_wizard_email_preview', function () {
 
     require_once __DIR__ . '/crm-email-sections.php';
     $foerderung = function_exists('crm_get_entry_foerderung') ? crm_get_entry_foerderung($entry_id) : ['ams' => false, 'waff' => false];
-    $is_ams = !empty($foerderung['ams']) || !empty($foerderung['waff']) || !empty($selected_docs['kb']);
+    $analysis = function_exists('crm_friedelin_analyze_entry') ? crm_friedelin_analyze_entry($entry_id) : [];
+    $is_funding_detected = !empty($foerderung['ams']) || !empty($foerderung['waff']) || !empty($analysis['is_ams_funding']);
+    $want_kb = isset($selected_docs['kb']) ? (bool)$selected_docs['kb'] : $is_funding_detected;
 
     $resolved_cert = ($course_id && function_exists('crm_resolve_course_certification')) ? crm_resolve_course_certification($entry_id, $course_id) : [];
     $has_cert_option = !empty($resolved_cert);
     $cert_name = $has_cert_option ? $resolved_cert[0]['name'] : '';
     $has_offer_3 = ($course_id && function_exists('crm_course_has_offer_3')) ? crm_course_has_offer_3($course_id) : false;
 
+    $draft = function_exists('crm_friedelin_get_entry_draft') ? crm_friedelin_get_entry_draft($entry_id) : null;
+    $is_delta_draft = (!empty($draft['process_type']) && $draft['process_type'] === 'folgekommunikation')
+                   || (!empty($draft['type']) && $draft['type'] === 'delta_response');
+
+    $has_any_offer_selected = !empty($selected_docs['offer_1']) || !empty($selected_docs['offer_2']) || !empty($selected_docs['offer_3']);
+    if ($is_delta_draft && !$has_any_offer_selected && !empty($draft['body'])) {
+        wp_send_json_success([
+            'subject' => $draft['subject'],
+            'body'    => $draft['body'],
+        ]);
+        return;
+    }
+
     $mail_data = crm_build_standard_offer_email($entry_id, $course_id, [
-        'is_ams_funding'  => $is_ams,
+        'is_ams_funding'  => $want_kb,
+        'want_kb'         => $want_kb,
+        'selected_docs'   => $selected_docs,
         'has_cert_option' => $has_cert_option,
         'has_offer_3'     => $has_offer_3,
         'cert_name'       => $cert_name,
