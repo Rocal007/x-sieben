@@ -19,7 +19,7 @@
 
 // --- Core Setup & Helpers ---
 if (!defined('CRM_VERSION')) {
-    define('CRM_VERSION', '2.18.96');
+    define('CRM_VERSION', '2.19.1');
 }
 
 require_once __DIR__ . '/helpers/crm-cache.php';
@@ -88,6 +88,16 @@ add_action('admin_menu', function () {
             'render_crm_settings_page'
         );
 
+        // Submenu: E-Mail & IMAP Abgleich (Unterpunkt von Einstellungen)
+        add_submenu_page(
+            'crm',
+            __('E-Mail & IMAP Abgleich', 'custom-crm'),
+            __('— E-Mail & IMAP', 'custom-crm'),
+            'manage_options',
+            'crm-imap',
+            'render_crm_settings_page'
+        );
+
         // Submenu: Elemente & Bausteine (Unterpunkt von Einstellungen)
         add_submenu_page(
             'crm',
@@ -124,7 +134,7 @@ add_action('admin_menu', function () {
  * Fallback enqueue: ensures CRM CSS and JS are always loaded even if deploying ONLY the crm folder.
  */
 add_action('admin_enqueue_scripts', function ($hook) {
-    $crm_pages = ['crm', 'crm-settings', 'crm-elements', 'crm-emails', 'crm-pdf'];
+    $crm_pages = ['crm', 'crm-settings', 'crm-imap', 'crm-elements', 'crm-emails', 'crm-pdf'];
     if (isset($_GET['page']) && in_array($_GET['page'], $crm_pages, true)) {
         // 1. Isolate CRM pages from conflicting / failing 3rd-party scripts
         // a) auto-focus-keyword-for-seo throws 'Uncaught ReferenceError: php_vars is not defined'
@@ -191,7 +201,7 @@ add_action('admin_enqueue_scripts', function ($hook) {
             $asset_ver
         );
 
-        if (in_array($_GET['page'], ['crm-settings', 'crm-elements', 'crm-emails', 'crm-pdf'], true)) {
+        if (in_array($_GET['page'], ['crm-settings', 'crm-imap', 'crm-elements', 'crm-emails', 'crm-pdf'], true)) {
             $all_fields  = get_option('crm_custom_fields', []);
             $field_count = !empty($all_fields) && is_array($all_fields) ? max(array_keys($all_fields)) + 1 : 100;
             $curr_user   = wp_get_current_user();
@@ -251,7 +261,7 @@ add_action('admin_enqueue_scripts', function ($hook) {
 
 // Late cleanup to prevent late enqueues from overriding isolation
 add_action('admin_print_scripts', function () {
-    $crm_pages = ['crm', 'crm-settings', 'crm-elements', 'crm-emails', 'crm-pdf'];
+    $crm_pages = ['crm', 'crm-settings', 'crm-imap', 'crm-elements', 'crm-emails', 'crm-pdf'];
     if (isset($_GET['page']) && in_array($_GET['page'], $crm_pages, true)) {
         wp_dequeue_script('afkw__metabox-script');
         wp_deregister_script('afkw__metabox-script');
@@ -270,12 +280,13 @@ add_action('admin_print_scripts', function () {
 
 // Safeguard against missing global variables on CRM pages and style indented submenu items
 add_action('admin_head', function () {
-    $crm_pages = ['crm', 'crm-settings', 'crm-elements', 'crm-emails', 'crm-pdf'];
+    $crm_pages = ['crm', 'crm-settings', 'crm-imap', 'crm-elements', 'crm-emails', 'crm-pdf'];
     if (isset($_GET['page']) && in_array($_GET['page'], $crm_pages, true)) {
         echo '<script>window.php_vars = window.php_vars || { disable_afk: "0", disable_auto_sync: "0", blacklist: "0" };</script>' . "\n";
     }
     ?>
     <style id="crm-admin-menu-subitems">
+        #adminmenu #toplevel_page_crm .wp-submenu a[href*="page=crm-imap"],
         #adminmenu #toplevel_page_crm .wp-submenu a[href*="page=crm-elements"],
         #adminmenu #toplevel_page_crm .wp-submenu a[href*="page=crm-emails"],
         #adminmenu #toplevel_page_crm .wp-submenu a[href*="page=crm-pdf"] {
@@ -283,6 +294,7 @@ add_action('admin_head', function () {
             font-size: 12px;
             opacity: 0.9;
         }
+        #adminmenu #toplevel_page_crm .wp-submenu a[href*="page=crm-imap"]:hover,
         #adminmenu #toplevel_page_crm .wp-submenu a[href*="page=crm-elements"]:hover,
         #adminmenu #toplevel_page_crm .wp-submenu a[href*="page=crm-emails"]:hover,
         #adminmenu #toplevel_page_crm .wp-submenu a[href*="page=crm-pdf"]:hover {
@@ -303,7 +315,7 @@ add_action('admin_head', function () {
  */
 function crm_filter_tinymce_settings($mceInit, $editor_id = '')
 {
-    $crm_pages = ['crm', 'crm-settings', 'crm-elements', 'crm-emails', 'crm-pdf'];
+    $crm_pages = ['crm', 'crm-settings', 'crm-imap', 'crm-elements', 'crm-emails', 'crm-pdf'];
     $is_crm = (isset($_GET['page']) && in_array($_GET['page'], $crm_pages, true))
         || (is_string($editor_id) && strpos($editor_id, 'crm_fields_') === 0);
 

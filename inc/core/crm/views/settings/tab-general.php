@@ -347,6 +347,23 @@ if (!defined('ABSPATH')) exit;
                                 <p class="crm-form-help"><?php esc_html_e('Wird im CRM-Mailer automatisch bei jedem Testversand vorausgewählt.', 'custom-crm'); ?></p>
                             </div>
                         </div>
+
+                        <!-- IMAP Sync Teaser / Quick Link -->
+                        <div style="margin-top: 18px; padding: 14px 18px; background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                            <div>
+                                <strong style="color: #15803d; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+                                    <span class="dashicons dashicons-email-alt" style="font-size: 18px;"></span>
+                                    <?php esc_html_e('E-Mail-Postfach & IMAP-Synchronisation', 'custom-crm'); ?>
+                                </strong>
+                                <p style="margin: 4px 0 0 0; color: #334155; font-size: 13px;">
+                                    <?php esc_html_e('Richten Sie Ihr Postfach (z. B. office@x-sieben.at) per IMAP ein, um eingehende Mails und Kursanfragen vollautomatisch abzugleichen.', 'custom-crm'); ?>
+                                </p>
+                            </div>
+                            <a href="<?php echo esc_url(admin_url('admin.php?page=crm-imap')); ?>" class="button button-secondary" style="border-color: #16a34a; color: #15803d; font-weight: 600; background: #ffffff;">
+                                <span class="dashicons dashicons-admin-settings" style="vertical-align: text-top; font-size: 15px;"></span>
+                                <?php esc_html_e('IMAP-Einstellungen öffnen ➔', 'custom-crm'); ?>
+                            </a>
+                        </div>
                     </div>
 
                     <!-- CARD 6: Performance & Cache-Busting (NEXUS Cache Operator C) -->

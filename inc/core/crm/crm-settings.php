@@ -15,6 +15,7 @@ if (!defined('ABSPATH')) {
 
 require_once __DIR__ . '/helpers/crm-pdf-sections.php';
 require_once __DIR__ . '/helpers/crm-email-sections.php';
+require_once __DIR__ . '/helpers/crm-imap-client.php';
 require_once __DIR__ . '/controler/settings-controler.php';
 require_once __DIR__ . '/views/settings/components/cheat-sheet.php';
 require_once __DIR__ . '/views/settings/components/field-editor.php';
@@ -823,8 +824,10 @@ function render_crm_settings_page()
         $active_tab = 'emails';
     } elseif ($current_page === 'crm-pdf') {
         $active_tab = 'pdf';
+    } elseif ($current_page === 'crm-imap' || $current_page === 'crm-mail-sync') {
+        $active_tab = 'imap';
     } elseif ($tab_param !== '') {
-        $active_tab = in_array($tab_param, ['general', 'elements', 'emails', 'pdf'], true) ? $tab_param : 'general';
+        $active_tab = in_array($tab_param, ['general', 'imap', 'elements', 'emails', 'pdf'], true) ? $tab_param : 'general';
     } else {
         // Default tab for crm-settings
         $active_tab = 'general';
@@ -884,6 +887,15 @@ function render_crm_settings_page()
                 crm_on_partial_cache_update('general_settings');
             }
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('Allgemeine CRM-Einstellungen, Demographie & CI-Stammdaten erfolgreich gespeichert.', 'custom-crm') . '</p></div>';
+        }
+
+        // 1b. IMAP & E-Mail Postfach Settings Save
+        if ($saved_tab === 'imap' || isset($_POST['submit_imap']) || isset($_POST['crm_imap'])) {
+            $imap_input = isset($_POST['crm_imap']) && is_array($_POST['crm_imap']) ? $_POST['crm_imap'] : [];
+            if (function_exists('crm_save_imap_settings')) {
+                crm_save_imap_settings($imap_input);
+            }
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html__('E-Mail-Postfach & IMAP-Einstellungen erfolgreich gespeichert.', 'custom-crm') . '</p></div>';
         }
 
         // 2. Sync / Initialize Default PDF Fields
@@ -1077,6 +1089,13 @@ function render_crm_settings_page()
                 <?php esc_html_e('Allgemeine Einstellungen', 'custom-crm'); ?>
             </a>
 
+            <a href="<?php echo esc_url(admin_url('admin.php?page=crm-imap')); ?>"
+               class="nav-tab <?php echo ($active_tab === 'imap') ? 'nav-tab-active' : ''; ?>">
+                <span class="dashicons dashicons-email-alt" style="margin-right: 4px; vertical-align: text-bottom;"></span>
+                <?php esc_html_e('E-Mail & IMAP Abgleich', 'custom-crm'); ?>
+                <span class="crm-tab-count" style="background:#007C90; color:#fff;">SYNC</span>
+            </a>
+
             <a href="<?php echo esc_url(admin_url('admin.php?page=crm-elements')); ?>"
                class="nav-tab <?php echo ($active_tab === 'elements') ? 'nav-tab-active' : ''; ?>">
                 <span class="dashicons dashicons-screenoptions" style="margin-right: 4px; vertical-align: text-bottom;"></span>
@@ -1105,6 +1124,8 @@ function render_crm_settings_page()
 
             <?php if ($active_tab === 'general') : ?>
                 <?php require __DIR__ . '/views/settings/tab-general.php'; ?>
+            <?php elseif ($active_tab === 'imap') : ?>
+                <?php require __DIR__ . '/views/settings/tab-imap.php'; ?>
             <?php elseif ($active_tab === 'elements') : ?>
                 <?php require __DIR__ . '/views/settings/tab-elements.php'; ?>
             <?php elseif ($active_tab === 'emails') : ?>

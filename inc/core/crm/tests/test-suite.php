@@ -291,6 +291,10 @@ class CrmSeniorDevTestSuite
         $this->testSuite43_Version21894BegleitmailKbSyncAndTerminplanRefinement();
         $this->testSuite44_Version21895WizardAutoEnsureKbAndOfferRobustness();
         $this->testSuite45_Version21896FollowupDeltaResponseAndDeduplication();
+        $this->testSuite46_Version21897KombinationsausbildungAndDataEnrichment();
+        $this->testSuite47_Version21898StrictKbAttachmentSynchronization();
+        $this->testSuite48_Version21899OfferPage1FooterOverlapFix();
+        $this->testSuite49_Version21900EmailAndImapSynchronization();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -3180,6 +3184,211 @@ Firma: DRK Gifhorn Service und Pflegeteam gGmbH";
         // 5. crm_get_wizard_data beachtet is_delta_draft
         $this->assert("crm_get_wizard_data beachtet is_delta_draft", strpos($statusPhp, '$is_delta_draft =') !== false);
         $this->assert("crm_get_wizard_email_preview respektiert Delta-Drafts", strpos($statusPhp, 'if ($is_delta_draft && !$has_any_offer_selected && !empty($draft[\'body\']))') !== false);
+    }
+
+    private function testSuite46_Version21897KombinationsausbildungAndDataEnrichment(): void
+    {
+        echo "\n\033[1;33m[SUITE 46] Kombinationsausbildung (#703) Lead-Automatisierung & Datenanreicherung (v2.18.97)\033[0m\n";
+
+        // 1. Version Check
+        $this->assert("CRM_VERSION ist >= 2.18.97", version_compare(CRM_VERSION, '2.18.97', '>='));
+
+        // 2. Kurs-Zuordnung Kombinationsausbildung
+        $courseMatch1 = crm_match_course_by_inquiry('Geht um diesen Lehrgang hier -> FachtrainerIn + DaF/DaZ-TrainerIn – Kombinationsausbildung');
+        $this->assert("Kombinationsausbildung wird Kurs #703 zugeordnet", ($courseMatch1['course_id'] ?? 0) === 703);
+
+        $courseMatch2 = crm_match_course_by_inquiry('Können Sie mir ein Angebot für diese Kombinationsausbildung machen?');
+        $this->assert("Kombinationsausbildung Keyword wird Kurs #703 zugeordnet", ($courseMatch2['course_id'] ?? 0) === 703);
+
+        // 3. Parser Support für Von: ohne spitze Klammern
+        $sampleMail = "Von: max.mustermann@gmx.at\nBetreff: Kombinationsausbildung\n\nBesten Dank,\nMax Mustermann\n\n--\n06991234567";
+        $parsed = crm_parse_email_inquiry_text($sampleMail);
+        $this->assert("Parser erkennt E-Mail ohne spitze Klammern", $parsed['email'] === 'max.mustermann@gmx.at');
+        $this->assert("Parser erkennt Besten Dank Signatur", $parsed['vorname'] === 'Max' && $parsed['nachname'] === 'Mustermann');
+        $this->assert("Parser erkennt freistehende Mobilnummer", str_contains($parsed['telefon'], '06991234567'));
+        $this->assert("Parser ordnet Kombinationsausbildung Kurs #703 zu", $parsed['kurs_id'] === 703);
+
+        // 4. Folgebearbeitung: Ausdrücklicher Angebotswunsch triggert Angebotserstellung
+        $friedelinPhp = file_get_contents(dirname(__DIR__) . '/helpers/crm-friedelin.php');
+        $this->assert("crm_friedelin_process_followup erkennt kombinationsausbildung & anderes angebot", strpos($friedelinPhp, 'kombinationsausbildung') !== false && strpos($friedelinPhp, 'anderes') !== false);
+
+        // 5. Zertifizierungsauflösung für Kurs #703
+        $cert703 = crm_resolve_course_certification(1024, 703, 'angebot_2');
+        $this->assert("Kurs #703 liefert SystemCERT ISO 17024", !empty($cert703) && strpos($cert703[0]['name'], 'ISO 17024') !== false);
+        $this->assert("Kurs #703 Zertifizierungsgebühr ist 324,00", !empty($cert703) && $cert703[0]['price'] === '324,00');
+    }
+
+    private function testSuite47_Version21898StrictKbAttachmentSynchronization(): void
+    {
+        echo "\n\033[1;33m[SUITE 47] Feedback 05.10.2026: Strikte KB-Anhang-Synchronisation & Safety-Net Circuit-Breaker (v2.18.98)\033[0m\n";
+
+        // 1. Version Check
+        $this->assert("CRM_VERSION ist >= 2.18.98", version_compare(CRM_VERSION, '2.18.98', '>='));
+
+        // 2. crm-status.php prüft AMS im Kurstitel
+        $statusPhp = file_get_contents(dirname(__DIR__) . '/helpers/crm-status.php');
+        $this->assert("crm_get_entry_foerderung erkennt Kurse mit AMS im Titel", strpos($statusPhp, "stripos(\$c_title, 'ams') !== false") !== false);
+
+        // 3. crm-email-sections.php generiert fehlende KB im Attachment-Selector autark
+        $emailSectionsPhp = file_get_contents(dirname(__DIR__) . '/helpers/crm-email-sections.php');
+        $this->assert("crm_render_email_attachments_selector generiert fehlende KB on-the-fly", strpos($emailSectionsPhp, "\$gen_kb_url = xsieben_kurszeitenbestaetigung_pdf(\$entry_id, \$course_id, false);") !== false);
+        $this->assert("crm_render_email_attachments_selector wählt KB standardmäßig als Anhang aus", strpos($emailSectionsPhp, "\$candidates['kb']['is_checked'] = true;") !== false);
+        $this->assert("crm_build_standard_offer_email erkennt AMS-Aktion Kurse für is_ams_funding", strpos($emailSectionsPhp, "\$is_ams_aktion_course = (stripos(\$course_title, 'AMS') !== false") !== false);
+
+        // 4. output-controler.php: x_sieben_pdf_viewer generiert KB bei Bedarf
+        $outputCtrlPhp = file_get_contents(dirname(__DIR__) . '/controler/output-controler.php');
+        $this->assert("x_sieben_pdf_viewer generiert fehlende KB bei AMS-Kursen", strpos($outputCtrlPhp, "\$kb_url = xsieben_kurszeitenbestaetigung_pdf(\$entry_id, \$cid_check, false);") !== false);
+
+        // 5. output-controler.php: x_sieben_pdf_mailer synchronisiert pdf_url mit KB
+        $this->assert("x_sieben_pdf_mailer synchronisiert KB in pdf_url wenn im Anschreiben angekündigt", strpos($outputCtrlPhp, "\$body_has_kb = (stripos(\$body, 'Kurszeitenbestätigung') !== false") !== false);
+
+        // 6. output-controler.php: Circuit-Breaker in x_sieben_send_mail
+        $this->assert("x_sieben_send_mail besitzt Circuit-Breaker für KB im Anschreiben", strpos($outputCtrlPhp, "\$body_promises_kb = (") !== false);
+        $this->assert("x_sieben_send_mail prüft ob KB tatsächlich in attachments liegt", strpos($outputCtrlPhp, "\$has_kb_in_attachments = false;") !== false);
+        $this->assert("x_sieben_send_mail hängt fehlende KB vor wp_mail automatisch an", strpos($outputCtrlPhp, "\$attachments[] = \$kb_resolved_path;") !== false);
+        $this->assert("x_sieben_send_mail entfernt Förderhinweis falls KB nicht generiert werden kann", strpos($outputCtrlPhp, "preg_replace('/<p[^>]*>.*?Für Ihre Förderstelle.*?<\\/p>/is', '', \$body)") !== false);
+
+        // 7. crm-admin.js synchronisiert Attachments sofort beim Laden des Mailers
+        $crmAdminJs = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
+        $this->assert("crm-admin.js ruft crmSyncAttachmentsState() sofort beim Laden des Mailers auf", strpos($crmAdminJs, "// Initialen Anhänge-Status sofort synchronisieren (Badge, Hidden-Input & Sidebar)\n                crmSyncAttachmentsState();") !== false);
+    }
+
+    // 48. Feedback 05.10.2026: Behebung Textüberschneidung Angebots-PDF Seite 1 Fußzeile (v2.18.99)
+    private function testSuite48_Version21899OfferPage1FooterOverlapFix(): void
+    {
+        echo "\n\033[1;33m[SUITE 48] Feedback 05.10.2026: Behebung Textüberschneidung Angebots-PDF Seite 1 Fußzeile (v2.18.99)\033[0m\n";
+
+        // 1. Versions-Check
+        $this->assert("CRM_VERSION ist >= 2.18.99", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.18.99', '>='));
+
+        // 2. crm-pdf-presenter.php: render_ps bereinigt aria-live und position:absolute Screen-Reader DIVs
+        $presenterPhp = file_get_contents(dirname(__DIR__) . '/helpers/crm-pdf-presenter.php');
+        $this->assert("render_ps bereinigt position:absolute DIVs", strpos($presenterPhp, "position:\\s*absolute") !== false);
+        $this->assert("render_ps bereinigt role status/alert DIVs", strpos($presenterPhp, "(?:status|alert)") !== false);
+        $this->assert("render_ps bereinigt aria-live DIVs", strpos($presenterPhp, "aria-live=") !== false);
+
+        // 3. offer.php: clean_pdf_text und full_page_html bereinigen unsichtbare Screen-Reader DIVs
+        $offerPhp = file_get_contents(dirname(__DIR__) . '/pdf/offer.php');
+        $this->assert("clean_pdf_text bereinigt position:absolute DIVs", strpos($offerPhp, "position:\\s*absolute") !== false);
+        $this->assert("offer.php schützt full_page_html vor unsichtbaren DIVs", strpos($offerPhp, "Globaler Sanitize-Schutz gegen unsichtbare Screen-Reader/Aria-DIVs") !== false);
+
+        // 4. Funktionale Verifikation: PS-Text mit 14 injizierten Screen-Reader DIVs wird sauber bereinigt
+        $dirtyPs = '<table border="0" width="100%"><tr><td>PS: Test</td></tr></table>';
+        for ($i = 0; $i < 14; $i++) {
+            $dirtyPs .= '<div style="position: absolute;width: 1px;height: 1px;margin: -1px;padding: 0px;border: 0px;overflow: hidden;white-space: nowrap" role="status" aria-live="polite"></div>';
+        }
+        $cleanedPs = CRM_Pdf_Presenter::render_ps($dirtyPs);
+        $this->assert("render_ps entfernt alle 14 unsichtbaren DIVs", strpos($cleanedPs, 'position: absolute') === false && strpos($cleanedPs, 'aria-live') === false);
+        $this->assert("render_ps behält den eigentlichen Tabelleninhalt bei", strpos($cleanedPs, 'PS: Test') !== false);
+    }
+
+    // 49. E-Mail Einstellungen & IMAP Postfach-Synchronisation (v2.19.0)
+    private function testSuite49_Version21900EmailAndImapSynchronization(): void
+    {
+        echo "\n\033[1;33m[SUITE 49] E-Mail Einstellungen & IMAP Postfach-Synchronisation (v2.19.0)\033[0m\n";
+
+        // 1. Versions-Check
+        $this->assert("CRM_VERSION ist >= 2.19.1", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.19.1', '>='));
+
+        // 2. crm-imap-client.php existiert und ist geladen
+        $imapHelper = dirname(__DIR__) . '/helpers/crm-imap-client.php';
+        $this->assert("crm-imap-client.php existiert", file_exists($imapHelper));
+        $this->assert("Funktion crm_get_imap_defaults existiert", function_exists('crm_get_imap_defaults'));
+        $this->assert("Funktion crm_get_imap_settings existiert", function_exists('crm_get_imap_settings'));
+        $this->assert("Funktion crm_save_imap_settings existiert", function_exists('crm_save_imap_settings'));
+        $this->assert("Funktion crm_test_imap_connection existiert", function_exists('crm_test_imap_connection'));
+        $this->assert("Funktion crm_run_imap_sync existiert", function_exists('crm_run_imap_sync'));
+        $this->assert("Klasse CrmImapClient existiert", class_exists('CrmImapClient'));
+
+        // 3. Defaults Plausibilitätsprüfung
+        $defaults = crm_get_imap_defaults();
+        $this->assert("IMAP Default Host ist mail.x-sieben.at", ($defaults['host'] ?? '') === 'mail.x-sieben.at');
+        $this->assert("IMAP Default Port ist 993", ($defaults['port'] ?? 0) === 993);
+        $this->assert("IMAP Default Verschlüsselung ist ssl", ($defaults['encryption'] ?? '') === 'ssl');
+        $this->assert("IMAP Default Mailbox ist INBOX", ($defaults['mailbox'] ?? '') === 'INBOX');
+        $this->assert("IMAP Default Filter Unseen ist aktiv", ($defaults['filter_unseen'] ?? 0) === 1);
+        $this->assert("IMAP Default Auto Create Leads ist aktiv", ($defaults['auto_create_leads'] ?? 0) === 1);
+        $this->assert("IMAP Default Run Friedelin ist aktiv", ($defaults['run_friedelin'] ?? 0) === 1);
+
+        // 4. Einstellungen Speichern & Passwortschutz
+        $oldSettings = crm_get_imap_settings();
+        $testPass = 'SecretP@ssw0rd!2026';
+        crm_save_imap_settings([
+            'enabled'       => 1,
+            'host'          => 'imap.x-sieben.at',
+            'port'          => 993,
+            'encryption'    => 'ssl',
+            'username'      => 'anfragen@x-sieben.at',
+            'password'      => $testPass,
+            'mailbox'       => 'INBOX',
+            'sync_interval' => 'every15min',
+        ]);
+        $savedWithPass = crm_get_imap_settings();
+        $this->assert("Passwort wird korrekt gespeichert", ($savedWithPass['password'] ?? '') === $testPass);
+
+        // Leeres Passwort belässt bestehendes Passwort unberührt
+        crm_save_imap_settings([
+            'enabled'       => 1,
+            'host'          => 'imap.x-sieben.at',
+            'port'          => 993,
+            'encryption'    => 'ssl',
+            'username'      => 'anfragen@x-sieben.at',
+            'password'      => '', // leer lassen
+            'mailbox'       => 'INBOX',
+            'sync_interval' => 'hourly',
+        ]);
+        $savedPreserved = crm_get_imap_settings();
+        $this->assert("Leeres Passwort überschreibt bestehendes Passwort nicht", ($savedPreserved['password'] ?? '') === $testPass);
+
+        // 5. Cron-Intervall Registrierung
+        $schedules = wp_get_schedules();
+        $this->assert("Cron-Intervall every15min ist registriert", isset($schedules['every15min']) && $schedules['every15min']['interval'] === 900);
+        $this->assert("Cronhook crm_imap_sync_cron ist eingeplant", wp_next_scheduled('crm_imap_sync_cron') !== false);
+
+        // 6. UI Views und Tab-Integration
+        $tabImapPath = dirname(__DIR__) . '/views/settings/tab-imap.php';
+        $this->assert("tab-imap.php existiert", file_exists($tabImapPath));
+
+        $crmSettingsCode = file_get_contents(dirname(__DIR__) . '/crm-settings.php');
+        $this->assert("crm-settings.php bindet crm-imap-client.php ein", strpos($crmSettingsCode, 'helpers/crm-imap-client.php') !== false);
+        $this->assert("crm-settings.php unterstützt active_tab imap", strpos($crmSettingsCode, "'imap'") !== false);
+        $this->assert("crm-settings.php rendert tab-imap.php", strpos($crmSettingsCode, "views/settings/tab-imap.php") !== false);
+        $this->assert("crm-settings.php speichert crm_imap Einstellungen", strpos($crmSettingsCode, "crm_save_imap_settings") !== false);
+
+        $crmAdminCode = file_get_contents(dirname(__DIR__) . '/crm-admin.php');
+        $this->assert("crm-admin.php registriert Submenu crm-imap", strpos($crmAdminCode, "'crm-imap'") !== false);
+        $this->assert("crm-admin.php enqueuet Skripte für crm-imap", strpos($crmAdminCode, "'crm-imap'") !== false);
+
+        $tabGeneralCode = file_get_contents(dirname(__DIR__) . '/views/settings/tab-general.php');
+        $this->assert("tab-general.php verlinkt auf crm-imap", strpos($tabGeneralCode, 'admin.php?page=crm-imap') !== false);
+
+        // 7. CrmImapClient Methoden-Check
+        $client = new CrmImapClient('localhost', 993, 'ssl', 'test', 'test');
+        $this->assert("CrmImapClient besitzt Methode connect", method_exists($client, 'connect'));
+        $this->assert("CrmImapClient besitzt Methode selectMailbox", method_exists($client, 'selectMailbox'));
+        $this->assert("CrmImapClient besitzt Methode search", method_exists($client, 'search'));
+        $this->assert("CrmImapClient besitzt Methode fetchMessage", method_exists($client, 'fetchMessage'));
+        $this->assert("CrmImapClient besitzt Methode markAsSeen", method_exists($client, 'markAsSeen'));
+        $this->assert("CrmImapClient besitzt Methode disconnect", method_exists($client, 'disconnect'));
+
+        // 8. Verbindungstest Validierung
+        $testResult = crm_test_imap_connection(['password' => '']);
+        $this->assert("Verbindungstest ohne Passwort liefert Fehler", $testResult['success'] === false);
+
+        // 9. Test-Simulation (Dry-Run / Trockenlauf) Check
+        $tabImapContent = file_get_contents($tabImapPath);
+        $this->assert("tab-imap.php besitzt Test-Simulations-Button crm-btn-simulate-imap", strpos($tabImapContent, 'crm-btn-simulate-imap') !== false);
+        $this->assert("tab-imap.php besitzt Simulations-Ergebnisbox crm-imap-simulation-box", strpos($tabImapContent, 'crm-imap-simulation-box') !== false);
+        $this->assert("tab-imap.php besitzt Simulations-Kartenliste crm-simulation-items-list", strpos($tabImapContent, 'crm-simulation-items-list') !== false);
+
+        // crm_run_imap_sync mit dry_run = true aufrufen (ohne echte Verbindung)
+        $simResult = crm_run_imap_sync(['host' => 'invalid.local.test', 'password' => 'test'], true);
+        $this->assert("crm_run_imap_sync unterstützt dry_run Parameter", isset($simResult['dry_run']) && $simResult['dry_run'] === true);
+        $this->assert("crm_run_imap_sync liefert strukturierte Items im Schema", array_key_exists('items', $simResult));
+        $this->assert("crm_run_imap_sync liefert qualified Metrik", array_key_exists('qualified', $simResult));
+
+        // Aufräumen: Ursprüngliche Einstellungen wiederherstellen
+        update_option('crm_imap_settings', $oldSettings);
     }
 }
 
