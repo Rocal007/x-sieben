@@ -2262,8 +2262,8 @@ function crm_build_standard_offer_email(int $entry_id, int $course_id, array $op
         : sprintf('Angebot: %s | X SIEBEN Wirtschaftstraining', $course_title);
 
     // Zertifizierungsauflösung
-    $resolved_cert = ($entry_id && $course_id && function_exists('crm_resolve_course_certification'))
-        ? crm_resolve_course_certification($entry_id, $course_id)
+    $resolved_cert = ($course_id && function_exists('crm_resolve_course_certification'))
+        ? crm_resolve_course_certification((int)$entry_id, $course_id)
         : [];
     $has_cert_option = !empty($resolved_cert) || !empty($options['has_cert_option']);
     $cert_name = !empty($resolved_cert[0]['name']) ? $resolved_cert[0]['name'] : ($options['cert_name'] ?? '');
@@ -2460,15 +2460,18 @@ function crm_build_standard_offer_email(int $entry_id, int $course_id, array $op
     if ($want_offer_1 || $want_offer_2 || $want_offer_3) {
         // Hannes Feedback 29.09.2026: 'findet sich im Anhang:' statt 'findet sich ebenfalls im Anhang:'
         $body_html .= '<p>Ihr persönliches Angebot zur Ausbildung findet sich im Anhang:<br>';
+        $cert_label = (strpos($cert_name, '+') !== false || stripos($cert_name, ' und ') !== false || count($resolved_cert) > 1) 
+            ? 'Zertifizierungen' 
+            : 'Zertifizierung';
         if ($want_offer_1 && $want_offer_2 && $want_offer_3 && $has_cert_option) {
             $body_html .= '• <strong>Angebot 1:</strong> Ein Angebot ohne Zertifizierung (ausschließlich Lehrgangs-/Seminargebühr)<br>';
-            $body_html .= '• <strong>Angebot 2:</strong> Ein weiteres Angebot inklusive der optional möglichen Zertifizierung: <strong>' . esc_html($cert_name) . '</strong><br>';
+            $body_html .= '• <strong>Angebot 2:</strong> Ein weiteres Angebot inklusive der optional möglichen ' . $cert_label . ': <strong>' . esc_html($cert_name) . '</strong><br>';
             $body_html .= '• <strong>Angebot 3:</strong> Ein zusätzliches Angebot inklusive der optionalen <strong>IPMA / pma - Level D Zertifizierung</strong>';
         } elseif ($want_offer_1 && $want_offer_2 && $has_cert_option) {
             $body_html .= '• <strong>Angebot 1:</strong> Ein Angebot ohne Zertifizierung (ausschließlich Lehrgangs-/Seminargebühr)<br>';
-            $body_html .= '• <strong>Angebot 2:</strong> Ein weiteres Angebot inklusive der optional möglichen Zertifizierung: <strong>' . esc_html($cert_name) . '</strong>';
+            $body_html .= '• <strong>Angebot 2:</strong> Ein weiteres Angebot inklusive der optional möglichen ' . $cert_label . ': <strong>' . esc_html($cert_name) . '</strong>';
         } elseif ($want_offer_2 && $has_cert_option) {
-            $body_html .= '• <strong>Angebot:</strong> Ihr Kursangebot inklusive der Zertifizierung: <strong>' . esc_html($cert_name) . '</strong>';
+            $body_html .= '• <strong>Angebot:</strong> Ihr Kursangebot inklusive der ' . $cert_label . ': <strong>' . esc_html($cert_name) . '</strong>';
         } else {
             $body_html .= '• Ein detailliertes und unverbindliches Angebot mit allen Veranstaltungsinformationen';
         }

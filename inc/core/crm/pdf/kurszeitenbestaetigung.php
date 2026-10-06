@@ -368,6 +368,9 @@ function xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, $output_to_br
 
     // Neue Seite
     $pdf->AddPage();
+    if (function_exists('crm_clean_pdf_html')) {
+        $html = crm_clean_pdf_html($html);
+    }
     $pdf->writeHTML($html, true, false, true, false, '');
 
     // Ordner sicherstellen & PDF speichern

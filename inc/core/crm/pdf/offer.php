@@ -672,10 +672,16 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser = true, $cu
                     } else {
                         // Fließtext & Abschnitte innerhalb des normalen Seitenrands (15mm)
                         $chunk_html = (strpos($part, '<style') === false) ? ($styles . $part) : $part;
+                        if (function_exists('crm_clean_pdf_html')) {
+                            $chunk_html = crm_clean_pdf_html($chunk_html);
+                        }
                         $pdf->writeHTML($chunk_html, true, false, true, false, '');
                     }
                 }
             } else {
+                if (function_exists('crm_clean_pdf_html')) {
+                    $full_page_html = crm_clean_pdf_html($full_page_html);
+                }
                 $pdf->writeHTML($full_page_html, true, false, true, false, '');
             }
 

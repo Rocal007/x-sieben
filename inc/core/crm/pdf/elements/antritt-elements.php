@@ -7,7 +7,7 @@
  * Adressat/Datum, Titelzeile, Stammdaten-Matrix und Firmenstampiglie/Signatur.
  *
  * @package X_SIEBEN_CRM
- * @version 2.19.3
+ * @version 2.19.5
  */
 
 if (!defined('ABSPATH')) {
@@ -32,19 +32,14 @@ class CRM_Pdf_Antritt_Elements
             $ams_logo = crm_resolve_asset_path('ams.png');
         }
 
-        return '
-        <!-- Top Header: X-SIEBEN Logo (links) & AMS Logo (rechts) -->
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px;">
-            <tr>
-                <td width="50%" align="left" style="vertical-align: middle;">
-                    <img src="' . esc_attr($logo_x7) . '" height="38" />
-                </td>
-                <td width="50%" align="right" style="vertical-align: middle;">
-                    <img src="' . esc_attr($ams_logo) . '" height="38" />
-                </td>
-            </tr>
-        </table>
-        <div style="font-size: 8pt;">&nbsp;</div>';
+        return '<!-- Top Header: X-SIEBEN Logo (links) & AMS Logo (rechts) -->' .
+            '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px;">' .
+            '<tr>' .
+            '<td width="50%" align="left" style="vertical-align: middle;"><img src="' . esc_attr($logo_x7) . '" height="38" /></td>' .
+            '<td width="50%" align="right" style="vertical-align: middle;"><img src="' . esc_attr($ams_logo) . '" height="38" /></td>' .
+            '</tr>' .
+            '</table>' .
+            '<div style="font-size: 8pt;">&nbsp;</div>';
     }
 
     /**
@@ -60,20 +55,14 @@ class CRM_Pdf_Antritt_Elements
             $current_date_str = date('d.m.Y');
         }
 
-        return '
-        <!-- Adressat AMS links & Datum rechts -->
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.4; color: #0f172a; margin-bottom: 22px;">
-            <tr>
-                <td width="50%" align="left" style="vertical-align: top;">
-                    An das<br>
-                    <strong>AMS</strong>
-                </td>
-                <td width="50%" align="right" style="vertical-align: top;">
-                    ' . esc_html($ort) . ', am ' . esc_html($current_date_str) . '
-                </td>
-            </tr>
-        </table>
-        <div style="font-size: 12pt;">&nbsp;</div>';
+        return '<!-- Adressat AMS links & Datum rechts -->' .
+            '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.4; color: #0f172a; margin-bottom: 22px;">' .
+            '<tr>' .
+            '<td width="50%" align="left" style="vertical-align: top;">An das<br><strong>AMS</strong></td>' .
+            '<td width="50%" align="right" style="vertical-align: top;">' . esc_html($ort) . ', am ' . esc_html($current_date_str) . '</td>' .
+            '</tr>' .
+            '</table>' .
+            '<div style="font-size: 12pt;">&nbsp;</div>';
     }
 
     /**
@@ -84,12 +73,11 @@ class CRM_Pdf_Antritt_Elements
      */
     public static function render_titel(string $clean_course_title): string
     {
-        return '
-        <!-- Titel -->
-        <div style="font-size: 11pt; font-weight: bold; color: #0f172a; margin-bottom: 20px;">
-            ANTRITTSMELDUNG: „' . esc_html($clean_course_title) . '“
-        </div>
-        <div style="font-size: 10pt;">&nbsp;</div>';
+        return '<!-- Titel -->' .
+            '<div style="font-size: 11pt; font-weight: bold; color: #0f172a; margin-bottom: 20px;">' .
+            'ANTRITTSMELDUNG: „' . esc_html($clean_course_title) . '“' .
+            '</div>' .
+            '<div style="font-size: 10pt;">&nbsp;</div>';
     }
 
     /**
@@ -115,75 +103,18 @@ class CRM_Pdf_Antritt_Elements
         string $institut_adresse = 'Kurzegasse 7, 2493 Lichtenwörth (Tel: 0800 / 700 170)',
         string $uid = 'ATU76624137'
     ): string {
-        return '
-        <!-- 2-Spalten Stammdaten-Matrix an einheitlicher linker Grundlinie -->
-        <table width="100%" cellpadding="4" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.5; color: #0f172a;">
-            <tr>
-                <td width="38%" style="vertical-align: top; color: #334155;">
-                    Name des / der TeilnehmerIn:
-                </td>
-                <td width="62%" style="vertical-align: top; font-weight: bold;">
-                    ' . esc_html($tn_name) . '
-                </td>
-            </tr>
-            <tr>
-                <td width="38%" style="vertical-align: top; color: #334155;">
-                    Adresse des / der TeilnehmerIn:
-                </td>
-                <td width="62%" style="vertical-align: top;">
-                    ' . esc_html($tn_adresse) . '
-                </td>
-            </tr>
-            <tr>
-                <td width="38%" style="vertical-align: top; color: #334155;">
-                    Sozialversicherungsnummer:
-                </td>
-                <td width="62%" style="vertical-align: top; font-weight: bold;">
-                    ' . esc_html($tn_svr) . '
-                </td>
-            </tr>
-            <tr>
-                <td width="38%" style="vertical-align: top; color: #334155;">
-                    hat den Lehrgang am:
-                </td>
-                <td width="62%" style="vertical-align: top; font-weight: bold;">
-                    ' . esc_html($start_datum) . ', um 09.00 Uhr
-                </td>
-            </tr>
-            <tr>
-                <td width="38%" style="vertical-align: top; color: #334155;">
-                    beim Kursinstitut:
-                </td>
-                <td width="62%" style="vertical-align: top; font-weight: bold;">
-                    ' . esc_html($institut_name) . ' angetreten.
-                </td>
-            </tr>
-            <tr>
-                <td width="38%" style="vertical-align: top; color: #334155;">
-                    Adresse des Kursinstituts:
-                </td>
-                <td width="62%" style="vertical-align: top;">
-                    ' . esc_html($institut_adresse) . '
-                </td>
-            </tr>
-            <tr>
-                <td width="38%" style="vertical-align: top; color: #334155;">
-                    Schulungsort:
-                </td>
-                <td width="62%" style="vertical-align: top;">
-                    ' . $schulungsort . '
-                </td>
-            </tr>
-            <tr>
-                <td width="38%" style="vertical-align: top; color: #334155;">
-                    UID des Kursinstituts:
-                </td>
-                <td width="62%" style="vertical-align: top;">
-                    ' . esc_html($uid) . '
-                </td>
-            </tr>
-        </table>
-        <div style="font-size: 20pt;">&nbsp;</div>';
+        return '<!-- 2-Spalten Stammdaten-Matrix an einheitlicher linker Grundlinie -->' .
+            '<table width="100%" cellpadding="4" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.5; color: #0f172a;">' .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">Name des / der TeilnehmerIn:</td><td width="62%" style="vertical-align: top; font-weight: bold;">' . esc_html($tn_name) . '</td></tr>' .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">Adresse des / der TeilnehmerIn:</td><td width="62%" style="vertical-align: top;">' . esc_html($tn_adresse) . '</td></tr>' .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">Sozialversicherungsnummer:</td><td width="62%" style="vertical-align: top; font-weight: bold;">' . esc_html($tn_svr) . '</td></tr>' .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">hat den Lehrgang am:</td><td width="62%" style="vertical-align: top; font-weight: bold;">' . esc_html($start_datum) . ', um 09.00 Uhr</td></tr>' .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">beim Kursinstitut:</td><td width="62%" style="vertical-align: top; font-weight: bold;">' . esc_html($institut_name) . ' angetreten.</td></tr>' .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">Adresse des Kursinstituts:</td><td width="62%" style="vertical-align: top;">' . esc_html($institut_adresse) . '</td></tr>' .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">Schulungsort:</td><td width="62%" style="vertical-align: top;">' . $schulungsort . '</td></tr>' .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">UID des Kursinstituts:</td><td width="62%" style="vertical-align: top;">' . esc_html($uid) . '</td></tr>' .
+            '</table>' .
+            '<div style="font-size: 20pt;">&nbsp;</div>';
     }
 
     /**
@@ -198,22 +129,16 @@ class CRM_Pdf_Antritt_Elements
             $stempel = crm_resolve_asset_path('stempel.png');
         }
 
-        return '
-        <!-- Unterschrift und Firmenstampiglie -->
-        <table width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr>
-                <td width="60%">
-                    <div style="margin-bottom: 6px;">
-                        <img src="' . esc_attr($stempel) . '" height="74" />
-                    </div>
-                    <div style="font-size: 8.5pt; color: #475569; line-height: 1.3;">
-                        ........................................................................<br>
-                        Unterschrift und Firmenstampiglie
-                    </div>
-                </td>
-                <td width="40%">&nbsp;</td>
-            </tr>
-        </table>';
+        return '<!-- Unterschrift und Firmenstampiglie -->' .
+            '<table width="100%" cellpadding="0" cellspacing="0" border="0">' .
+            '<tr>' .
+            '<td width="60%">' .
+            '<div style="margin-bottom: 6px;"><img src="' . esc_attr($stempel) . '" height="74" /></div>' .
+            '<div style="font-size: 8.5pt; color: #475569; line-height: 1.3;">........................................................................<br>Unterschrift und Firmenstampiglie</div>' .
+            '</td>' .
+            '<td width="40%">&nbsp;</td>' .
+            '</tr>' .
+            '</table>';
     }
 
     /**
@@ -278,4 +203,93 @@ class CRM_Pdf_Antritt_Elements
             ],
         ];
     }
+
+    /**
+     * Liefert HTML-Templates mit dynamischen Platzhaltern für den Abschnitts-Editor der Antrittsmeldung.
+     * Verhindert das Einfügen statisch evaluierter Formulardaten in wiederverwendbare Vorlagen.
+     *
+     * @return array
+     */
+    public static function get_subsections_templates(): array
+    {
+        return [
+            'antrittsmeldung' => [
+                'header'         => self::get_header_template(),
+                'adressat_datum' => self::get_adressat_datum_template(),
+                'titel'          => self::get_titel_template(),
+                'stammdaten'     => self::get_stammdaten_template(),
+                'signatur'       => self::get_signatur_template(),
+                'antritt_daten'  => self::get_antritt_daten_template(),
+            ],
+        ];
+    }
+
+    public static function get_header_template(): string
+    {
+        return '<!-- Top Header: X-SIEBEN Logo (links) & AMS Logo (rechts) -->' . "\n" .
+            '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px;">' . "\n" .
+            '<tr>' . "\n" .
+            '<td width="50%" align="left" style="vertical-align: middle;"><img src="{logo_url}" height="38" /></td>' . "\n" .
+            '<td width="50%" align="right" style="vertical-align: middle;"><img src="{ams_logo}" height="38" /></td>' . "\n" .
+            '</tr>' . "\n" .
+            '</table>' . "\n" .
+            '<div style="font-size: 8pt;">&nbsp;</div>';
+    }
+
+    public static function get_adressat_datum_template(): string
+    {
+        return '<!-- Adressat AMS links & Datum rechts -->' . "\n" .
+            '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.4; color: #0f172a; margin-bottom: 22px;">' . "\n" .
+            '<tr>' . "\n" .
+            '<td width="50%" align="left" style="vertical-align: top;">An das<br><strong>AMS</strong></td>' . "\n" .
+            '<td width="50%" align="right" style="vertical-align: top;">{ausstellungsort}, am {datum}</td>' . "\n" .
+            '</tr>' . "\n" .
+            '</table>' . "\n" .
+            '<div style="font-size: 12pt;">&nbsp;</div>';
+    }
+
+    public static function get_titel_template(): string
+    {
+        return '<!-- Titel -->' . "\n" .
+            '<div style="font-size: 11pt; font-weight: bold; color: #0f172a; margin-bottom: 20px;">' . "\n" .
+            'ANTRITTSMELDUNG: „{kurstitel}“' . "\n" .
+            '</div>' . "\n" .
+            '<div style="font-size: 10pt;">&nbsp;</div>';
+    }
+
+    public static function get_stammdaten_template(): string
+    {
+        return '<!-- 2-Spalten Stammdaten-Matrix an einheitlicher linker Grundlinie -->' . "\n" .
+            '<table width="100%" cellpadding="4" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.5; color: #0f172a;">' . "\n" .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">Name des / der TeilnehmerIn:</td><td width="62%" style="vertical-align: top; font-weight: bold;">{teilnehmer_name}</td></tr>' . "\n" .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">Adresse des / der TeilnehmerIn:</td><td width="62%" style="vertical-align: top;">{teilnehmer_adresse}</td></tr>' . "\n" .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">Sozialversicherungsnummer:</td><td width="62%" style="vertical-align: top; font-weight: bold;">{svr}</td></tr>' . "\n" .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">hat den Lehrgang am:</td><td width="62%" style="vertical-align: top; font-weight: bold;">{startdatum}, um 09.00 Uhr</td></tr>' . "\n" .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">beim Kursinstitut:</td><td width="62%" style="vertical-align: top; font-weight: bold;">{institut} angetreten.</td></tr>' . "\n" .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">Adresse des Kursinstituts:</td><td width="62%" style="vertical-align: top;">{institut_adresse}</td></tr>' . "\n" .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">Schulungsort:</td><td width="62%" style="vertical-align: top;">{schulungsort}</td></tr>' . "\n" .
+            '<tr><td width="38%" style="vertical-align: top; color: #334155;">UID des Kursinstituts:</td><td width="62%" style="vertical-align: top;">{company_uid}</td></tr>' . "\n" .
+            '</table>' . "\n" .
+            '<div style="font-size: 20pt;">&nbsp;</div>';
+    }
+
+    public static function get_signatur_template(): string
+    {
+        return '<!-- Unterschrift und Firmenstampiglie -->' . "\n" .
+            '<table width="100%" cellpadding="0" cellspacing="0" border="0">' . "\n" .
+            '<tr>' . "\n" .
+            '<td width="60%">' . "\n" .
+            '<div style="margin-bottom: 6px;"><img src="{stempel}" height="74" /></div>' . "\n" .
+            '<div style="font-size: 8.5pt; color: #475569; line-height: 1.3;">........................................................................<br>Unterschrift und Firmenstampiglie</div>' . "\n" .
+            '</td>' . "\n" .
+            '<td width="40%">&nbsp;</td>' . "\n" .
+            '</tr>' . "\n" .
+            '</table>';
+    }
+
+    public static function get_antritt_daten_template(): string
+    {
+        return self::get_stammdaten_template() . self::get_signatur_template();
+    }
 }
+

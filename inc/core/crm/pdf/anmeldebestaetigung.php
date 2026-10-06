@@ -8,7 +8,7 @@
  * Entspricht exakt der Vorlage Anmeldebestätigung.pdf von Hannes Gajo.
  *
  * @package X_SIEBEN_CRM
- * @version 2.19.3
+ * @version 2.19.5
  */
 
 if (!defined('ABSPATH')) {
@@ -311,7 +311,11 @@ function xsieben_anmeldebestaetigung_pdf($entry_id, $course_id, $output_to_brows
 
         if (!empty(trim(strip_tags($page_html, '<img>')))) {
             $pdf->AddPage();
-            $pdf->writeHTML($sec_prefix . $page_html . $sec_suffix, true, false, true, false, '');
+            $full_chunk = $sec_prefix . $page_html . $sec_suffix;
+            if (function_exists('crm_clean_pdf_html')) {
+                $full_chunk = crm_clean_pdf_html($full_chunk);
+            }
+            $pdf->writeHTML($full_chunk, true, false, true, false, '');
         }
     }
 

@@ -407,9 +407,9 @@ $this->le_single = $this->anzahl_le > 0 ? number_format($this->preis_brutto / $t
     private function load_related_courses(): array
     {
         $related = [];
-        $i = 1;
 
-        while ($rel_id = (int) trim(get_post_meta($this->post_id, "related{$i}", true))) {
+        for ($i = 1; $i <= 10; $i++) {
+            $rel_id = (int) trim((string) get_post_meta($this->post_id, "related{$i}", true));
             if ($rel_id > 0) {
                 $related_title = get_the_title($rel_id);
                 $short_title = get_field('title_im_slider', $rel_id);
@@ -423,7 +423,6 @@ $this->le_single = $this->anzahl_le > 0 ? number_format($this->preis_brutto / $t
                     'mobile_image'  => get_the_post_thumbnail_url($rel_id, 'mobile-top'),
                 ];
             }
-            $i++;
         }
 
         return array_unique($related, SORT_REGULAR);

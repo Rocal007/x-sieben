@@ -152,6 +152,32 @@ function crm_save_pdf_elements_spacing(array $data): bool
 }
 
 /**
+ * Normalisiert HTML für TCPDF: Entfernt störende Zeilenumbrüche und Whitespaces
+ * nach öffnenden Block-Tags und <br>, die von TCPDF (Zeile 16637) fälschlicherweise
+ * in &nbsp; umgewandelt werden und zu ungewollten Absatzeinrückungen des ersten Satzes führen.
+ *
+ * @param string $html
+ * @return string
+ */
+if (!function_exists('crm_clean_pdf_html')) {
+    function crm_clean_pdf_html(string $html): string
+    {
+        if (empty($html)) {
+            return '';
+        }
+        // 1. Whitespace zwischen aufeinanderfolgenden HTML-Tags entfernen
+        $html = preg_replace('/>[\r\n\t ]+</u', '><', $html);
+        // 2. Whitespace/Newlines direkt nach öffnenden Block-Tags und <br> entfernen
+        $html = preg_replace('/(<(?:div|p|td|th|tr|table|li|ul|ol|h[1-6]|br)\b[^>]*>)[\r\n\t ]+/iu', '$1', $html);
+        // 3. Whitespace vor schließenden Block-Tags entfernen
+        $html = preg_replace('/[\r\n\t ]+(<\/(?:div|p|td|th|tr|table|li|ul|ol|h[1-6])>)/iu', '$1', $html);
+        // 4. Whitespace nach eventuellen <br> Bereinigungen nachschärfen
+        $html = preg_replace('/(<br\s*\/?>)[\r\n\t ]+/iu', '$1', $html);
+        return trim($html);
+    }
+}
+
+/**
  * Erzeugt ein TCPDF-konformes Spacer-HTML für einen vertikalen Abstand in pt.
  *
  * @param float $pt
@@ -1323,6 +1349,79 @@ function crm_replace_pdf_placeholders(string $content, $course = null): string
         $bic_val = trim($bc_m[1]);
     }
 
+    // Dynamische Anmelde- und Referenzleisten-Daten
+    $anmeldedatum_val = date('d.m.Y');
+    if (!empty($course->entry_id) && function_exists('wpforms')) {
+        $entry_obj = wpforms()->entry->get($course->entry_id);
+        if ($entry_obj && !empty($entry_obj->date)) {
+            $anmeldedatum_val = date('d.m.Y', strtotime($entry_obj->date));
+        }
+    } elseif (!empty($course->anmeldedatum)) {
+        $anmeldedatum_val = $course->anmeldedatum;
+    }
+
+    $unser_zeichen_val = 'X7 – ' . (!empty($course->backoffice_name) ? $course->backoffice_name : 'Anna Brauer');
+    $bo_phone = !empty($course->backoffice_phone) ? $course->backoffice_phone : (!empty($course->company_phone) ? $course->company_phone : '0800 / 700 170');
+    $co_short = !empty($course->company_short_name) ? $course->company_short_name : 'X SIEBEN';
+    $kontakt_telefon_val = $bo_phone . ', ' . $co_short . ' Team';
+    $hotline_nr_val = $bo_phone;
+    $backoffice_name_val = !empty($course->backoffice_name) ? $course->backoffice_name : 'Anna Brauer';
+    $backoffice_phone_val = !empty($course->backoffice_phone) ? $course->backoffice_phone : '0800 700 170';
+    $backoffice_email_val = !empty($course->backoffice_email) ? $course->backoffice_email : 'abrauer@x-sieben.at';
+
+    $is_seminar = (stripos($clean_title, 'Seminar') !== false || stripos($clean_title, 'Workshop') !== false);
+    $kategorie_val = $is_seminar ? 'Seminar' : 'Lehrgang';
+
+    $salutation_greeting_val = ($course->anrede === 'Frau')
+        ? ('Sehr geehrte Frau ' . ($course->nachname ?? ''))
+        : ((strcasecmp($course->anrede ?? '', 'Herr') === 0 || strcasecmp($course->anrede ?? '', 'Herrn') === 0)
+            ? ('Sehr geehrter Herr ' . ($course->nachname ?? ''))
+            : 'Sehr geehrte Damen und Herren');
+
+    $start_datum_raw = $course->start_datum ?: date('d.m.Y');
+    $end_datum_raw   = $course->end_datum ?: '';
+    $start_wochentag = 'Dienstag';
+    if (!empty($start_datum_raw)) {
+        $ts = strtotime(str_replace('.', '-', $start_datum_raw));
+        if ($ts) {
+            $wt_map = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+            $start_wochentag = $wt_map[date('w', $ts)] ?? 'Dienstag';
+        }
+    }
+    $kurszeit_info = 'ab 09.00 bis 17.00';
+    if (!empty($course->kurszeiten)) {
+        if (is_array($course->kurszeiten)) {
+            foreach ($course->kurszeiten as $kz) {
+                if (!empty($kz)) {
+                    $kurszeit_info = 'ab ' . $kz;
+                    break;
+                }
+            }
+        } elseif (is_string($course->kurszeiten)) {
+            $kurszeit_info = 'ab ' . $course->kurszeiten;
+        }
+    }
+    $beginn_text_val = $start_wochentag . ', ' . $start_datum_raw . ', ' . $kurszeit_info . ($end_datum_raw ? ' (Dauer bis zum ' . $end_datum_raw . ')' : '');
+
+    $ort_text_val = !empty($course->durchfuehrung) ? $course->durchfuehrung : 'Live-Online - Zoom.';
+    if (stripos($ort_text_val, 'zoom') === false && (stripos($ort_text_val, 'live') !== false || stripos($ort_text_val, 'online') !== false)) {
+        $ort_text_val = 'Live-Online - Zoom.';
+    }
+
+    $signatur_name_val = (!empty($course->company_management) ? $course->company_management : 'Mag. Dr. Johannes Gasberger') . ' | ' . (!empty($course->company_name) ? $course->company_name : 'X SIEBEN Wirtschaftstraining GmbH');
+    $geschaeftsfuehrung_val = !empty($course->company_management) ? $course->company_management : 'Mag. Dr. Johannes Gasberger';
+
+    $teilnehmer_name_val = trim(($course->vorname ?? '') . ' ' . ($course->nachname ?? ''));
+    $teilnehmer_adresse_val = trim(($course->street ?? '') . ', ' . trim(($course->zip_code ?: ($course->postcode ?? '')) . ' ' . ($course->city ?: '')));
+    $strasse_val = $course->street ?? '';
+    $plz_ort_val = trim(($course->zip_code ?: ($course->postcode ?? '')) . ' ' . ($course->city ?: ''));
+    $ausstellungsort_val = 'Wien';
+    $institut_adresse_val = !empty($course->company_address)
+        ? ($course->company_address . ' (Tel: ' . (!empty($course->company_phone) ? $course->company_phone : '0800 / 700 170') . ')')
+        : 'Kurzegasse 7, 2493 Lichtenwörth (Tel: 0800 / 700 170)';
+    $agb_url_val = !empty($course->agb_url) ? $course->agb_url : 'https://x-sieben.at/wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf';
+    $privacy_url_val = !empty($course->privacy_url) ? $course->privacy_url : 'https://www.xsieben.at/datenschutzerklaerung/';
+
     $map = [
         'HAT DEN {kurstyp}'       => $kurstyp_phrase,
         'HAT DEN {kurstyp_upper}' => $kurstyp_phrase,
@@ -1336,6 +1435,10 @@ function crm_replace_pdf_placeholders(string $content, $course = null): string
         '{kurstyp}'               => $kurstyp_val,
         '{vorname}'            => $course->vorname ?? '',
         '{nachname}'           => $course->nachname ?? '',
+        '{teilnehmer_name}'    => $teilnehmer_name_val,
+        '{teilnehmer_adresse}' => $teilnehmer_adresse_val,
+        '{strasse}'            => $strasse_val,
+        '{plz_ort}'            => $plz_ort_val,
         '{anrede}'             => $course->anrede ?? '',
         '{anrede_brief}'       => (strcasecmp($course->anrede ?? '', 'Herr') === 0 || strcasecmp($course->anrede ?? '', 'Herrn') === 0) ? 'Herrn' : ($course->anrede ?? ''),
         '{kunden_firma}'       => $course->customer_company ?? '',
@@ -1355,12 +1458,30 @@ function crm_replace_pdf_placeholders(string $content, $course = null): string
         '{le_single}'          => number_format($single_val, 2, ',', '.'),
         '{location_wien}'      => $course->location_wien ?? 'Rochusgasse 6, 1030 Wien',
         '{salutation}'         => (strcasecmp($course->anrede ?? '', 'Herr') === 0 || strcasecmp($course->anrede ?? '', 'Herrn') === 0) ? 'Sehr geehrter Herr' : ((strcasecmp($course->anrede ?? '', 'Frau') === 0) ? 'Sehr geehrte Frau' : 'Sehr geehrte Damen und Herren'),
+        '{salutation_greeting}'=> $salutation_greeting_val,
+        '{kategorie}'          => $kategorie_val,
+        '{beginn_text}'        => $beginn_text_val,
+        '{ort_text}'           => $ort_text_val,
+        '{hotline_nr}'         => $hotline_nr_val,
+        '{signatur_name}'      => $signatur_name_val,
+        '{geschaeftsfuehrung}' => $geschaeftsfuehrung_val,
+        '{ausstellungsort}'    => $ausstellungsort_val,
+        '{institut_adresse}'   => $institut_adresse_val,
+        '{agb_url}'            => $agb_url_val,
+        '{privacy_url}'        => $privacy_url_val,
         '{ort}'                => !empty($course->street) ? trim(($course->street ?? '') . ' ' . ($course->house_number ?? '') . ', ' . ($course->zip_code ?? '') . ' ' . ($course->city ?? '')) : ($course->location_wien ?? 'Rochusgasse 6, 1030 Wien bzw. online'),
         '{schulungsort}'       => $course->location_wien ?? 'Rochusgasse 6, 1030 Wien bzw. online',
         '{le}'                 => $course->anzahl_le ?? '',
         '{institut}'           => $course->company_name ?? 'X SIEBEN Wirtschaftstraining GmbH',
         '{datum}'              => date('d.m.Y'),
         '{current_date}'       => date('d.m.Y'),
+        '{anmeldedatum}'       => $anmeldedatum_val,
+        '{entry_date}'         => $anmeldedatum_val,
+        '{unser_zeichen}'      => $unser_zeichen_val,
+        '{kontakt_telefon}'    => $kontakt_telefon_val,
+        '{backoffice_name}'    => $backoffice_name_val,
+        '{backoffice_phone}'   => $backoffice_phone_val,
+        '{backoffice_email}'   => $backoffice_email_val,
         '{expire}'             => $expire_val,
         '[Datum]'              => $expire_val,
         '{angebotsnummer}'     => $course->angebotsnummer ?? '',
@@ -1392,7 +1513,16 @@ function crm_replace_pdf_placeholders(string $content, $course = null): string
         '{ams_logo}'           => function_exists('crm_resolve_asset_path') ? crm_resolve_asset_path('ams.png') : '',
         '{wba_logo}'           => function_exists('crm_resolve_asset_path') ? crm_resolve_asset_path('wba-1.png') : '',
     ];
-    return str_replace(array_keys($map), array_values($map), $content);
+
+    $content = str_replace(array_keys($map), array_values($map), $content);
+
+    // Heuristische Normalisierung falls in der DB noch veraltetes statisches Referenz-HTML gespeichert war
+    if (strpos($content, '<!-- 4-Spalten Referenzleiste -->') !== false || (strpos($content, 'Ihre Zeichen / Nachricht vom') !== false && strpos($content, 'Unser Zeichen') !== false)) {
+        $content = preg_replace('/Anmeldung\s+vom\s+\d{2}\.\d{2}\.\d{4}/u', 'Anmeldung vom ' . $anmeldedatum_val, $content);
+        $content = preg_replace('/<td[^>]*align=["\']right["\'][^>]*>\s*\d{2}\.\d{2}\.\d{4}\s*<\/td>/iu', '<td width="16%" align="right">' . date('d.m.Y') . '</td>', $content);
+    }
+
+    return $content;
 }
 
 /**
@@ -1516,6 +1646,23 @@ function crm_is_legacy_default_pdf_content(string $sec_key, string $sub_key, str
             ],
             'garantien' => [
                 '3-fach sicher mit unserer Durchführungsgarantie, Zufriedenheitsgarantie und Zertifizierungsbegleitung.',
+            ],
+        ],
+        'anschreiben' => [
+            'referenz' => [
+                'Ihre Zeichen / Nachricht vom Unser Zeichen Telefon, Name Datum',
+            ],
+            'eckdaten' => [
+                'Veranstaltungstitel: Veranstaltungsbeginn: Veranstaltungsort:',
+            ],
+            'hotline' => [
+                'Sollten Sie zu Ihrer Anmeldung noch Fragen haben, helfe ich Ihnen telefonisch und kostenfrei gerne unter der 0800 / 700 170 weiter.',
+                'Sollten Sie zu Ihrer Anmeldung noch Fragen haben, helfe ich Ihnen telefonisch und kostenfrei gerne unter der 0800 700 170 weiter.',
+            ],
+        ],
+        'antrittsmeldung' => [
+            'stammdaten' => [
+                'Name des / der TeilnehmerIn: Adresse des / der TeilnehmerIn: Sozialversicherungsnummer: hat den Lehrgang am: beim Kursinstitut: Adresse des Kursinstituts: Schulungsort: UID des Kursinstituts:',
             ],
         ],
     ];
@@ -2514,25 +2661,13 @@ function crm_get_subsection_default_html(string $doc_type, string $sec_key, stri
         case 'ab':
         case 'anmeldebestaetigung':
             require_once dirname(__DIR__) . '/pdf/elements/ab-elements.php';
-            $entry_date_str = date('d.m.Y');
-            if ($entry_id && function_exists('wpforms')) {
-                $entry_obj = wpforms()->entry->get($entry_id);
-                if ($entry_obj && !empty($entry_obj->date)) {
-                    $entry_date_str = date('d.m.Y', strtotime($entry_obj->date));
-                }
-            }
-            $gens = CRM_Pdf_Ab_Elements::get_subsections_generators($course, [
-                'entry_date_str'   => $entry_date_str,
-                'current_date_str' => date('d.m.Y'),
-            ]);
+            $gens = CRM_Pdf_Ab_Elements::get_subsections_templates();
             break;
 
         case 'antritt':
         case 'antrittsbestaetigung':
             require_once dirname(__DIR__) . '/pdf/elements/antritt-elements.php';
-            $gens = CRM_Pdf_Antritt_Elements::get_subsections_generators($course, [
-                'current_date_str' => date('d.m.Y'),
-            ]);
+            $gens = CRM_Pdf_Antritt_Elements::get_subsections_templates();
             break;
     }
 
@@ -3061,23 +3196,28 @@ function crm_render_pdf_sections_manager(string $doc_type = 'angebot', $entry_id
                                             <textarea class="crm-sub-input-content" rows="<?php echo $textarea_rows; ?>" style="width:100%; font-size:11.5px; font-family:monospace; line-height:1.4;" placeholder="<?php esc_attr_e('Standardinhalt bearbeiten oder eigenen Text eingeben...', 'custom-crm'); ?>"><?php echo esc_textarea($sub_content_display); ?></textarea>
                                         </div>
 
-                                        <!-- Placeholder Chips -->
-                                        <div class="crm-sub-chips-bar" style="margin-bottom:8px; display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
-                                            <span style="font-size:9.5px; color:#475569; font-weight:600;"><?php esc_html_e('Platzhalter:', 'custom-crm'); ?></span>
-                                            <button type="button" class="button-link crm-chip-btn" data-tag="{vorname}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{vorname}</button>
-                                            <button type="button" class="button-link crm-chip-btn" data-tag="{nachname}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{nachname}</button>
-                                            <button type="button" class="button-link crm-chip-btn" data-tag="{kurstitel}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{kurstitel}</button>
-                                            <button type="button" class="button-link crm-chip-btn" data-tag="{kurstyp}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{kurstyp}</button>
-                                            <button type="button" class="button-link crm-chip-btn" data-tag="{startdatum}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{startdatum}</button>
-                                            <button type="button" class="button-link crm-chip-btn" data-tag="{preis}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{preis}</button>
-                                            <button type="button" class="button-link crm-chip-btn" data-tag="{datum}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{datum}</button>
-                                            <button type="button" class="button-link crm-chip-btn" data-tag="{expire}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{expire}</button>
-                                            <button type="button" class="button-link crm-chip-btn" data-tag="{anrede_brief}" title="<?php esc_attr_e('Postalisches Herrn / Frau', 'custom-crm'); ?>" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{anrede_brief}</button>
-                                            <button type="button" class="button-link crm-chip-btn" data-tag="{kunden_firma}" title="<?php esc_attr_e('Firmenname des Kunden', 'custom-crm'); ?>" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{kunden_firma}</button>
-                                            <button type="button" class="button-link crm-chip-btn" data-tag="{empfaenger_adresse}" title="<?php esc_attr_e('Kompletter normgerechter Adressblock', 'custom-crm'); ?>" style="font-size:9.5px; padding:1px 5px; background:#ecfdf5; color:#065f46; border-radius:3px; text-decoration:none; border:1px solid #a7f3d0; font-weight:600;">{empfaenger_adresse}</button>
-                                            <?php if (!$sub_custom) : ?>
-                                                <button type="button" class="button-link crm-chip-btn" data-tag="{standard}" title="<?php esc_attr_e('Dynamische Standard-Tabelle / Standard-Inhalt', 'custom-crm'); ?>" style="font-size:9.5px; padding:1px 5px; background:#fef3c7; color:#92400e; border-radius:3px; text-decoration:none; border:1px solid #fde68a; font-weight:600;">{standard}</button>
-                                            <?php endif; ?>
+                                            <!-- Placeholder Chips -->
+                                            <div class="crm-sub-chips-bar" style="margin-bottom:8px; display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
+                                                <span style="font-size:9.5px; color:#475569; font-weight:600;"><?php esc_html_e('Platzhalter:', 'custom-crm'); ?></span>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{vorname}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{vorname}</button>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{nachname}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{nachname}</button>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{teilnehmer_name}" title="<?php esc_attr_e('Vollständiger Name des Teilnehmers', 'custom-crm'); ?>" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{teilnehmer_name}</button>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{kurstitel}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{kurstitel}</button>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{kurstyp}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{kurstyp}</button>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{kategorie}" title="<?php esc_attr_e('Seminar oder Lehrgang', 'custom-crm'); ?>" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{kategorie}</button>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{startdatum}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{startdatum}</button>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{preis}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{preis}</button>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{datum}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{datum}</button>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{anmeldedatum}" title="<?php esc_attr_e('Datum der Kursanmeldung', 'custom-crm'); ?>" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{anmeldedatum}</button>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{unser_zeichen}" title="<?php esc_attr_e('Unser Zeichen / Bearbeiter', 'custom-crm'); ?>" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{unser_zeichen}</button>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{kontakt_telefon}" title="<?php esc_attr_e('Telefon & Team-Kontakt', 'custom-crm'); ?>" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{kontakt_telefon}</button>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{expire}" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{expire}</button>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{anrede_brief}" title="<?php esc_attr_e('Postalisches Herrn / Frau', 'custom-crm'); ?>" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{anrede_brief}</button>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{kunden_firma}" title="<?php esc_attr_e('Firmenname des Kunden', 'custom-crm'); ?>" style="font-size:9.5px; padding:1px 5px; background:#e0f2fe; color:#0369a1; border-radius:3px; text-decoration:none; border:1px solid #bae6fd;">{kunden_firma}</button>
+                                                <button type="button" class="button-link crm-chip-btn" data-tag="{empfaenger_adresse}" title="<?php esc_attr_e('Kompletter normgerechter Adressblock', 'custom-crm'); ?>" style="font-size:9.5px; padding:1px 5px; background:#ecfdf5; color:#065f46; border-radius:3px; text-decoration:none; border:1px solid #a7f3d0; font-weight:600;">{empfaenger_adresse}</button>
+                                                <?php if (!$sub_custom) : ?>
+                                                    <button type="button" class="button-link crm-chip-btn" data-tag="{standard}" title="<?php esc_attr_e('Dynamische Standard-Tabelle / Standard-Inhalt', 'custom-crm'); ?>" style="font-size:9.5px; padding:1px 5px; background:#fef3c7; color:#92400e; border-radius:3px; text-decoration:none; border:1px solid #fde68a; font-weight:600;">{standard}</button>
+                                                <?php endif; ?>
                                         </div>
 
                                         <!-- Drawer Action Buttons -->

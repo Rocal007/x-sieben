@@ -379,6 +379,9 @@ function xsieben_invoice_pdf($entry_id, $course_id, $output_to_browser = true, $
     $pdf->SetCellPadding(0);
 
     $pdf->AddPage();
+    if (function_exists('crm_clean_pdf_html')) {
+        $full_html = crm_clean_pdf_html($full_html);
+    }
     $pdf->writeHTML($full_html, true, false, true, false, '');
 
     // Speicherordner vorbereiten

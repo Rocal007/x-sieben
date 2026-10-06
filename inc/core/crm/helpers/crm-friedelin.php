@@ -1234,6 +1234,25 @@ function crm_resolve_course_certification(int $entry_id, int $course_id, string 
         ]];
     }
 
+    // 1.5e Professional Scrum Master & Product Owner Kombi / Prüfungsvorbereitung (Kurs 22184, 22324 & Kombi-Kurse mit PSM & PSPO)
+    // Verbindlich nach Geschäftsführungs-Vorgabe (Hannes Feedback 06.10.2026 zu Lead #1109):
+    // Angebot 2 = Immer beide Scrum.org Zertifizierungen (PSPO I + PSM I zu je USD 200,- / netto € 343,00 / 0% USt)
+    $is_scrum_kombi_pruefung = (
+        $course_id == 22184 ||
+        $course_id == 22324 ||
+        (strpos($course_title_lower, 'psm') !== false && strpos($course_title_lower, 'pspo') !== false) ||
+        ((strpos($course_title_lower, 'scrum') !== false || strpos($course_title_lower, 'product owner') !== false) && strpos($course_title_lower, 'kombi') !== false)
+    );
+    if ($is_scrum_kombi_pruefung) {
+        return [[
+            'name'       => 'Scrum.org Zertifizierung - PSPO I (USD 200,-) + PSM I (USD 200,-)',
+            'price'      => '343,00',
+            'price_raw'  => 343.00,
+            'percentage' => '0%',
+            'ust'        => 0
+        ]];
+    }
+
     // 1.6 ACF repeater am Kurs (explizit am Kurs gepflegte Zertifizierungen für sonstige Lehrgänge)
     $course_acf_certs = [];
     if (function_exists('have_rows') && have_rows('zertifizierungen', $course_id)) {
@@ -1298,6 +1317,14 @@ function crm_resolve_course_certification(int $entry_id, int $course_id, string 
             }
             if (count($course_acf_certs) > 1) {
                 return [$course_acf_certs[1]];
+            }
+        }
+        // Wenn es sich um einen Scrum-Kombi Kurs handelt, bevorzuge die Kombi-Zertifizierung
+        if ($target_offer === 'angebot_2' && (strpos($course_title_lower, 'psm') !== false && strpos($course_title_lower, 'pspo') !== false)) {
+            foreach ($course_acf_certs as $cac) {
+                if ((stripos($cac['name'], 'psm') !== false && stripos($cac['name'], 'pspo') !== false) || stripos($cac['name'], '+') !== false) {
+                    return [$cac];
+                }
             }
         }
         return [$course_acf_certs[0]];

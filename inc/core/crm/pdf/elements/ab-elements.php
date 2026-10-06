@@ -7,7 +7,7 @@
  * Kurseckdaten, Hotline, Signatur und rechtliche Hinweise / AGB.
  *
  * @package X_SIEBEN_CRM
- * @version 2.19.3
+ * @version 2.19.5
  */
 
 if (!defined('ABSPATH')) {
@@ -33,19 +33,14 @@ class CRM_Pdf_Ab_Elements
             $logo_x7 = crm_resolve_asset_path('xsieben_logo.png');
         }
 
-        return '
-        <!-- Top Header: wba (links) & X-SIEBEN Logo (rechts) -->
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: ' . intval($margin_bottom) . 'px;">
-            <tr>
-                <td width="30%" align="left">
-                    <img src="' . esc_attr($wba_logo) . '" height="48" />
-                </td>
-                <td width="70%" align="right">
-                    <img src="' . esc_attr($logo_x7) . '" height="38" />
-                </td>
-            </tr>
-        </table>
-        <div style="font-size: 16pt;">&nbsp;</div>';
+        return '<!-- Top Header: wba (links) & X-SIEBEN Logo (rechts) -->' .
+            '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: ' . intval($margin_bottom) . 'px;">' .
+            '<tr>' .
+            '<td width="30%" align="left"><img src="' . esc_attr($wba_logo) . '" height="48" /></td>' .
+            '<td width="70%" align="right"><img src="' . esc_attr($logo_x7) . '" height="38" /></td>' .
+            '</tr>' .
+            '</table>' .
+            '<div style="font-size: 16pt;">&nbsp;</div>';
     }
 
     /**
@@ -59,15 +54,14 @@ class CRM_Pdf_Ab_Elements
      */
     public static function render_empfaenger(string $anrede_prefix, string $tn_name, string $tn_strasse, string $tn_plz_ort): string
     {
-        return '
-        <!-- Adressfenster -->
-        <div style="font-size: 10pt; line-height: 1.45; color: #0f172a; margin-bottom: 22px;">
-            An ' . esc_html($anrede_prefix) . '<br>
-            <strong>' . esc_html($tn_name) . '</strong><br>
-            ' . esc_html($tn_strasse) . '<br>
-            ' . esc_html($tn_plz_ort) . '
-        </div>
-        <div style="font-size: 12pt;">&nbsp;</div>';
+        return '<!-- Adressfenster -->' .
+            '<div style="font-size: 10pt; line-height: 1.45; color: #0f172a; margin-bottom: 22px;">' .
+            'An ' . esc_html($anrede_prefix) . '<br>' .
+            '<strong>' . esc_html($tn_name) . '</strong><br>' .
+            esc_html($tn_strasse) . '<br>' .
+            esc_html($tn_plz_ort) .
+            '</div>' .
+            '<div style="font-size: 12pt;">&nbsp;</div>';
     }
 
     /**
@@ -85,23 +79,22 @@ class CRM_Pdf_Ab_Elements
             $current_date_str = date('d.m.Y');
         }
 
-        return '
-        <!-- 4-Spalten Referenzleiste -->
-        <table width="100%" cellpadding="2" cellspacing="0" border="0" style="font-size: 8.5pt; color: #334155; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding-top: 4px; padding-bottom: 4px; margin-bottom: 20px;">
-            <tr>
-                <td width="28%" style="font-weight: bold; color: #64748b;">Ihre Zeichen / Nachricht vom</td>
-                <td width="24%" style="font-weight: bold; color: #64748b;">Unser Zeichen</td>
-                <td width="32%" style="font-weight: bold; color: #64748b;">Telefon, Name</td>
-                <td width="16%" align="right" style="font-weight: bold; color: #64748b;">Datum</td>
-            </tr>
-            <tr>
-                <td width="28%">Anmeldung vom ' . esc_html($entry_date_str) . '</td>
-                <td width="24%">' . esc_html($unser_zeichen) . '</td>
-                <td width="32%">' . esc_html($kontakt_telefon) . '</td>
-                <td width="16%" align="right">' . esc_html($current_date_str) . '</td>
-            </tr>
-        </table>
-        <div style="font-size: 14pt;">&nbsp;</div>';
+        return '<!-- 4-Spalten Referenzleiste -->' .
+            '<table width="100%" cellpadding="2" cellspacing="0" border="0" style="font-size: 8.5pt; color: #334155; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding-top: 4px; padding-bottom: 4px; margin-bottom: 20px;">' .
+            '<tr>' .
+            '<td width="28%" style="font-weight: bold; color: #64748b;">Ihre Zeichen / Nachricht vom</td>' .
+            '<td width="24%" style="font-weight: bold; color: #64748b;">Unser Zeichen</td>' .
+            '<td width="32%" style="font-weight: bold; color: #64748b;">Telefon, Name</td>' .
+            '<td width="16%" align="right" style="font-weight: bold; color: #64748b;">Datum</td>' .
+            '</tr>' .
+            '<tr>' .
+            '<td width="28%">Anmeldung vom ' . esc_html($entry_date_str) . '</td>' .
+            '<td width="24%">' . esc_html($unser_zeichen) . '</td>' .
+            '<td width="32%">' . esc_html($kontakt_telefon) . '</td>' .
+            '<td width="16%" align="right">' . esc_html($current_date_str) . '</td>' .
+            '</tr>' .
+            '</table>' .
+            '<div style="font-size: 14pt;">&nbsp;</div>';
     }
 
     /**
@@ -113,11 +106,10 @@ class CRM_Pdf_Ab_Elements
      */
     public static function render_betreff(string $kategorie_label, string $clean_course_title): string
     {
-        return '
-        <!-- Betreffzeile -->
-        <div style="font-size: 11.5pt; font-weight: bold; color: #0f172a; margin-bottom: 14px;">
-            Ihre Anmeldebestätigung zum ' . esc_html($kategorie_label) . ' „' . esc_html($clean_course_title) . '“
-        </div>';
+        return '<!-- Betreffzeile -->' .
+            '<div style="font-size: 11.5pt; font-weight: bold; color: #0f172a; margin-bottom: 14px;">' .
+            'Ihre Anmeldebestätigung zum ' . esc_html($kategorie_label) . ' „' . esc_html($clean_course_title) . '“' .
+            '</div>';
     }
 
     /**
@@ -129,12 +121,11 @@ class CRM_Pdf_Ab_Elements
      */
     public static function render_anrede_text(string $salutation_greeting, string $kategorie_label): string
     {
-        return '
-        <!-- Persönliche Anrede & Bestätigung -->
-        <div style="font-size: 10pt; line-height: 1.5; color: #1e293b; margin-bottom: 14px;">
-            ' . esc_html($salutation_greeting) . ',<br><br>
-            vielen Dank für Ihre Anmeldung zur Schulung. Wir bestätigen diese hiermit zum unten angeführten ' . esc_html($kategorie_label) . ':
-        </div>';
+        return '<!-- Persönliche Anrede & Bestätigung -->' .
+            '<div style="font-size: 10pt; line-height: 1.5; color: #1e293b; margin-bottom: 14px;">' .
+            esc_html($salutation_greeting) . ',<br><br>' .
+            'vielen Dank für Ihre Anmeldung zur Schulung. Wir bestätigen diese hiermit zum unten angeführten ' . esc_html($kategorie_label) . ':' .
+            '</div>';
     }
 
     /**
@@ -147,22 +138,21 @@ class CRM_Pdf_Ab_Elements
      */
     public static function render_eckdaten(string $clean_course_title, string $beginn_text, string $ort_text): string
     {
-        return '
-        <!-- Eckdaten an einheitlicher linker Grundlinie -->
-        <table width="100%" cellpadding="3" cellspacing="0" border="0" style="margin-bottom: 18px; font-size: 10pt; line-height: 1.6;">
-            <tr>
-                <td width="30%" style="font-weight: bold; color: #0f172a; vertical-align: top;">Veranstaltungstitel:</td>
-                <td width="70%" style="color: #007c8c; font-weight: bold; vertical-align: top;">' . esc_html($clean_course_title) . '</td>
-            </tr>
-            <tr>
-                <td width="30%" style="font-weight: bold; color: #0f172a; vertical-align: top;">Veranstaltungsbeginn:</td>
-                <td width="70%" style="color: #007c8c; font-weight: bold; vertical-align: top;">' . esc_html($beginn_text) . '</td>
-            </tr>
-            <tr>
-                <td width="30%" style="font-weight: bold; color: #0f172a; vertical-align: top;">Veranstaltungsort:</td>
-                <td width="70%" style="color: #007c8c; font-weight: bold; vertical-align: top;">' . esc_html($ort_text) . '</td>
-            </tr>
-        </table>';
+        return '<!-- Eckdaten an einheitlicher linker Grundlinie -->' .
+            '<table width="100%" cellpadding="3" cellspacing="0" border="0" style="margin-bottom: 18px; font-size: 10pt; line-height: 1.6;">' .
+            '<tr>' .
+            '<td width="30%" style="font-weight: bold; color: #0f172a; vertical-align: top;">Veranstaltungstitel:</td>' .
+            '<td width="70%" style="color: #007c8c; font-weight: bold; vertical-align: top;">' . esc_html($clean_course_title) . '</td>' .
+            '</tr>' .
+            '<tr>' .
+            '<td width="30%" style="font-weight: bold; color: #0f172a; vertical-align: top;">Veranstaltungsbeginn:</td>' .
+            '<td width="70%" style="color: #007c8c; font-weight: bold; vertical-align: top;">' . esc_html($beginn_text) . '</td>' .
+            '</tr>' .
+            '<tr>' .
+            '<td width="30%" style="font-weight: bold; color: #0f172a; vertical-align: top;">Veranstaltungsort:</td>' .
+            '<td width="70%" style="color: #007c8c; font-weight: bold; vertical-align: top;">' . esc_html($ort_text) . '</td>' .
+            '</tr>' .
+            '</table>';
     }
 
     /**
@@ -173,11 +163,10 @@ class CRM_Pdf_Ab_Elements
      */
     public static function render_hotline(string $hotline_nr = '0800 / 700 170'): string
     {
-        return '
-        <!-- Hotline-Hinweis -->
-        <div style="font-size: 10pt; line-height: 1.5; color: #1e293b; margin-bottom: 18px;">
-            Sollten Sie zu Ihrer Anmeldung noch Fragen haben, helfe ich Ihnen telefonisch und kostenfrei gerne unter der <strong>' . esc_html($hotline_nr) . '</strong> weiter.
-        </div>';
+        return '<!-- Hotline-Hinweis -->' .
+            '<div style="font-size: 10pt; line-height: 1.5; color: #1e293b; margin-bottom: 18px;">' .
+            'Sollten Sie zu Ihrer Anmeldung noch Fragen haben, helfe ich Ihnen telefonisch und kostenfrei gerne unter der <strong>' . esc_html($hotline_nr) . '</strong> weiter.' .
+            '</div>';
     }
 
     /**
@@ -193,19 +182,10 @@ class CRM_Pdf_Ab_Elements
             $stempel = crm_resolve_asset_path('stempel.png');
         }
 
-        return '
-        <!-- Grußformel & Signatur -->
-        <div style="font-size: 10pt; line-height: 1.4; color: #1e293b; margin-bottom: 8px;">
-            Mit freundlichen Grüßen
-        </div>
-
-        <div style="margin-bottom: 6px;">
-            <img src="' . esc_attr($stempel) . '" height="74" />
-        </div>
-
-        <div style="font-size: 9.5pt; font-weight: bold; color: #0f172a;">
-            ' . esc_html($signatur_name) . '
-        </div>';
+        return '<!-- Grußformel & Signatur -->' .
+            '<div style="font-size: 10pt; line-height: 1.4; color: #1e293b; margin-bottom: 8px;">Mit freundlichen Grüßen</div>' .
+            '<div style="margin-bottom: 6px;"><img src="' . esc_attr($stempel) . '" height="74" /></div>' .
+            '<div style="font-size: 9.5pt; font-weight: bold; color: #0f172a;">' . esc_html($signatur_name) . '</div>';
     }
 
     /**
@@ -224,22 +204,10 @@ class CRM_Pdf_Ab_Elements
             $privacy_url = 'https://www.xsieben.at/datenschutzerklaerung/';
         }
 
-        return '
-        <div style="font-size: 11pt; font-weight: bold; color: #0f172a; margin-bottom: 14px;">
-            Hinweis:
-        </div>
-
-        <div style="font-size: 10pt; line-height: 1.6; color: #1e293b; margin-bottom: 14px;">
-            Mit Ihrer Buchung bestätigen Sie die Allgemeinen Geschäftsbedingungen (AGB) sowie die darin enthaltene Widerrufsbelehrung von X SIEBEN gelesen und akzeptiert zu haben.
-        </div>
-
-        <div style="font-size: 10pt; line-height: 1.6; color: #1e293b; margin-bottom: 14px;">
-            Die AGB mit der darin enthaltenen Widerrufsbelehrung finden Sie auf unserer Homepage unter <a href="' . esc_url($agb_url) . '" style="color: #0284c7; text-decoration: underline;">' . esc_html($agb_url) . '</a>, auf Ersuchen können Ihnen die AGB aber auch via E-Mail zugesandt werden.
-        </div>
-
-        <div style="font-size: 10pt; line-height: 1.6; color: #1e293b; margin-bottom: 14px;">
-            Unsere Datenschutzerklärung finden Sie unter <a href="' . esc_url($privacy_url) . '" style="color: #0284c7; text-decoration: underline;">' . esc_html($privacy_url) . '</a>.
-        </div>';
+        return '<div style="font-size: 11pt; font-weight: bold; color: #0f172a; margin-bottom: 14px;">Hinweis:</div>' .
+            '<div style="font-size: 10pt; line-height: 1.6; color: #1e293b; margin-bottom: 14px;">Mit Ihrer Buchung bestätigen Sie die Allgemeinen Geschäftsbedingungen (AGB) sowie die darin enthaltene Widerrufsbelehrung von X SIEBEN gelesen und akzeptiert zu haben.</div>' .
+            '<div style="font-size: 10pt; line-height: 1.6; color: #1e293b; margin-bottom: 14px;">Die AGB mit der darin enthaltenen Widerrufsbelehrung finden Sie auf unserer Homepage unter <a href="' . esc_url($agb_url) . '" style="color: #0284c7; text-decoration: underline;">' . esc_html($agb_url) . '</a>, auf Ersuchen können Ihnen die AGB aber auch via E-Mail zugesandt werden.</div>' .
+            '<div style="font-size: 10pt; line-height: 1.6; color: #1e293b; margin-bottom: 14px;">Unsere Datenschutzerklärung finden Sie unter <a href="' . esc_url($privacy_url) . '" style="color: #0284c7; text-decoration: underline;">' . esc_html($privacy_url) . '</a>.</div>';
     }
 
     /**
@@ -313,15 +281,23 @@ class CRM_Pdf_Ab_Elements
         $agb_url = !empty($course->agb_url) ? $course->agb_url : 'https://x-sieben.at/wp-content/uploads/2025/09/AGB_X_SIEBEN_2025.pdf';
         $privacy_url = !empty($course->privacy_url) ? $course->privacy_url : 'https://www.xsieben.at/datenschutzerklaerung/';
 
+        $unser_zeichen   = !empty($course->backoffice_name) ? ('X7 – ' . $course->backoffice_name) : 'X7 – Anna Brauer';
+        $company_phone   = !empty($course->company_phone) ? $course->company_phone : '0800 / 700 170';
+        $backoffice_phone= !empty($course->backoffice_phone) ? $course->backoffice_phone : $company_phone;
+        $company_short   = !empty($course->company_short_name) ? $course->company_short_name : 'X SIEBEN';
+        $kontakt_telefon = $backoffice_phone . ', ' . $company_short . ' Team';
+        $hotline_nr      = $backoffice_phone;
+        $signatur_name   = (!empty($course->company_management) ? $course->company_management : 'Mag. Dr. Johannes Gasberger') . ' | ' . (!empty($course->company_name) ? $course->company_name : 'X SIEBEN Wirtschaftstraining GmbH');
+
         $header_html     = self::render_header($logo_x7, $wba_logo, 25);
         $header_p2_html  = self::render_header($logo_x7, $wba_logo, 35);
         $empfaenger_html = self::render_empfaenger($anrede_prefix, $tn_name, $tn_strasse, $tn_plz_ort);
-        $referenz_html   = self::render_referenz($entry_date_str, $current_date_str);
+        $referenz_html   = self::render_referenz($entry_date_str, $current_date_str, $unser_zeichen, $kontakt_telefon);
         $betreff_html    = self::render_betreff($kategorie_label, $clean_course_title);
         $anrede_html     = self::render_anrede_text($salutation_greeting, $kategorie_label);
         $eckdaten_html   = self::render_eckdaten($clean_course_title, $beginn_text, $ort_text);
-        $hotline_html    = self::render_hotline();
-        $signatur_html   = self::render_signatur($stempel);
+        $hotline_html    = self::render_hotline($hotline_nr);
+        $signatur_html   = self::render_signatur($stempel, $signatur_name);
         $agb_html        = self::render_agb_hinweis($agb_url, $privacy_url);
 
         // Zusammengesetzte Bestätigung für ältere Konfigurationen
@@ -345,4 +321,147 @@ class CRM_Pdf_Ab_Elements
             ],
         ];
     }
+
+    /**
+     * Liefert HTML-Templates mit dynamischen Platzhaltern für den Abschnitts-Editor.
+     * Verhindert das Einfügen statisch evaluierter Formulardaten in wiederverwendbare Vorlagen.
+     *
+     * @return array
+     */
+    public static function get_subsections_templates(): array
+    {
+        return [
+            'anschreiben' => [
+                'header'       => self::get_header_template(25),
+                'empfaenger'   => self::get_empfaenger_template(),
+                'referenz'     => self::get_referenz_template(),
+                'betreff'      => self::get_betreff_template(),
+                'anrede_text'  => self::get_anrede_template(),
+                'eckdaten'     => self::get_eckdaten_template(),
+                'hotline'      => self::get_hotline_template(),
+                'signatur'     => self::get_signatur_template(),
+                'bestaetigung' => self::get_bestaetigung_template(),
+            ],
+            'agb_hinweis' => [
+                'header'      => self::get_header_template(35),
+                'hinweistext' => self::get_agb_template(),
+            ],
+        ];
+    }
+
+    public static function get_header_template(int $margin_bottom = 25): string
+    {
+        return '<!-- Top Header: wba (links) & X-SIEBEN Logo (rechts) -->' . "\n" .
+            '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: ' . intval($margin_bottom) . 'px;">' . "\n" .
+            '<tr>' . "\n" .
+            '<td width="30%" align="left"><img src="{wba_logo}" height="48" /></td>' . "\n" .
+            '<td width="70%" align="right"><img src="{logo_url}" height="38" /></td>' . "\n" .
+            '</tr>' . "\n" .
+            '</table>' . "\n" .
+            '<div style="font-size: 16pt;">&nbsp;</div>';
+    }
+
+    public static function get_empfaenger_template(): string
+    {
+        return '<!-- Adressfenster -->' . "\n" .
+            '<div style="font-size: 10pt; line-height: 1.45; color: #0f172a; margin-bottom: 22px;">' . "\n" .
+            'An {anrede_brief}<br>' . "\n" .
+            '<strong>{teilnehmer_name}</strong><br>' . "\n" .
+            '{strasse}<br>' . "\n" .
+            '{plz_ort}' . "\n" .
+            '</div>' . "\n" .
+            '<div style="font-size: 12pt;">&nbsp;</div>';
+    }
+
+    public static function get_referenz_template(): string
+    {
+        return '<!-- 4-Spalten Referenzleiste -->' . "\n" .
+            '<table width="100%" cellpadding="2" cellspacing="0" border="0" style="font-size: 8.5pt; color: #334155; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding-top: 4px; padding-bottom: 4px; margin-bottom: 20px;">' . "\n" .
+            '<tr>' . "\n" .
+            '<td width="28%" style="font-weight: bold; color: #64748b;">Ihre Zeichen / Nachricht vom</td>' . "\n" .
+            '<td width="24%" style="font-weight: bold; color: #64748b;">Unser Zeichen</td>' . "\n" .
+            '<td width="32%" style="font-weight: bold; color: #64748b;">Telefon, Name</td>' . "\n" .
+            '<td width="16%" align="right" style="font-weight: bold; color: #64748b;">Datum</td>' . "\n" .
+            '</tr>' . "\n" .
+            '<tr>' . "\n" .
+            '<td width="28%">Anmeldung vom {anmeldedatum}</td>' . "\n" .
+            '<td width="24%">{unser_zeichen}</td>' . "\n" .
+            '<td width="32%">{kontakt_telefon}</td>' . "\n" .
+            '<td width="16%" align="right">{datum}</td>' . "\n" .
+            '</tr>' . "\n" .
+            '</table>' . "\n" .
+            '<div style="font-size: 14pt;">&nbsp;</div>';
+    }
+
+    public static function get_betreff_template(): string
+    {
+        return '<!-- Betreffzeile -->' . "\n" .
+            '<div style="font-size: 11.5pt; font-weight: bold; color: #0f172a; margin-bottom: 14px;">' . "\n" .
+            'Ihre Anmeldebestätigung zum {kategorie} „{kurstitel}“' . "\n" .
+            '</div>';
+    }
+
+    public static function get_anrede_template(): string
+    {
+        return '<!-- Persönliche Anrede & Bestätigung -->' . "\n" .
+            '<div style="font-size: 10pt; line-height: 1.5; color: #1e293b; margin-bottom: 14px;">' . "\n" .
+            '{salutation_greeting},<br><br>' . "\n" .
+            'vielen Dank für Ihre Anmeldung zur Schulung. Wir bestätigen diese hiermit zum unten angeführten {kategorie}:' . "\n" .
+            '</div>';
+    }
+
+    public static function get_eckdaten_template(): string
+    {
+        return '<!-- Eckdaten an einheitlicher linker Grundlinie -->' . "\n" .
+            '<table width="100%" cellpadding="3" cellspacing="0" border="0" style="margin-bottom: 18px; font-size: 10pt; line-height: 1.6;">' . "\n" .
+            '<tr>' . "\n" .
+            '<td width="30%" style="font-weight: bold; color: #0f172a; vertical-align: top;">Veranstaltungstitel:</td>' . "\n" .
+            '<td width="70%" style="color: #007c8c; font-weight: bold; vertical-align: top;">{kurstitel}</td>' . "\n" .
+            '</tr>' . "\n" .
+            '<tr>' . "\n" .
+            '<td width="30%" style="font-weight: bold; color: #0f172a; vertical-align: top;">Veranstaltungsbeginn:</td>' . "\n" .
+            '<td width="70%" style="color: #007c8c; font-weight: bold; vertical-align: top;">{beginn_text}</td>' . "\n" .
+            '</tr>' . "\n" .
+            '<tr>' . "\n" .
+            '<td width="30%" style="font-weight: bold; color: #0f172a; vertical-align: top;">Veranstaltungsort:</td>' . "\n" .
+            '<td width="70%" style="color: #007c8c; font-weight: bold; vertical-align: top;">{ort_text}</td>' . "\n" .
+            '</tr>' . "\n" .
+            '</table>';
+    }
+
+    public static function get_hotline_template(): string
+    {
+        return '<!-- Hotline-Hinweis -->' . "\n" .
+            '<div style="font-size: 10pt; line-height: 1.5; color: #1e293b; margin-bottom: 18px;">' . "\n" .
+            'Sollten Sie zu Ihrer Anmeldung noch Fragen haben, helfe ich Ihnen telefonisch und kostenfrei gerne unter der <strong>{hotline_nr}</strong> weiter.' . "\n" .
+            '</div>';
+    }
+
+    public static function get_signatur_template(): string
+    {
+        return '<!-- Grußformel & Signatur -->' . "\n" .
+            '<div style="font-size: 10pt; line-height: 1.4; color: #1e293b; margin-bottom: 8px;">Mit freundlichen Grüßen</div>' . "\n" .
+            '<div style="margin-bottom: 6px;"><img src="{stempel}" height="74" /></div>' . "\n" .
+            '<div style="font-size: 9.5pt; font-weight: bold; color: #0f172a;">{signatur_name}</div>';
+    }
+
+    public static function get_agb_template(): string
+    {
+        return '<div style="font-size: 11pt; font-weight: bold; color: #0f172a; margin-bottom: 14px;">Hinweis:</div>' . "\n" .
+            '<div style="font-size: 10pt; line-height: 1.6; color: #1e293b; margin-bottom: 14px;">Mit Ihrer Buchung bestätigen Sie die Allgemeinen Geschäftsbedingungen (AGB) sowie die darin enthaltene Widerrufsbelehrung von X SIEBEN gelesen und akzeptiert zu haben.</div>' . "\n" .
+            '<div style="font-size: 10pt; line-height: 1.6; color: #1e293b; margin-bottom: 14px;">Die AGB mit der darin enthaltenen Widerrufsbelehrung finden Sie auf unserer Homepage unter <a href="{agb_url}" style="color: #0284c7; text-decoration: underline;">{agb_url}</a>, auf Ersuchen können Ihnen die AGB aber auch via E-Mail zugesandt werden.</div>' . "\n" .
+            '<div style="font-size: 10pt; line-height: 1.6; color: #1e293b; margin-bottom: 14px;">Unsere Datenschutzerklärung finden Sie unter <a href="{privacy_url}" style="color: #0284c7; text-decoration: underline;">{privacy_url}</a>.</div>';
+    }
+
+    public static function get_bestaetigung_template(): string
+    {
+        return self::get_empfaenger_template() .
+            self::get_referenz_template() .
+            self::get_betreff_template() .
+            self::get_anrede_template() .
+            self::get_eckdaten_template() .
+            self::get_hotline_template() .
+            self::get_signatur_template();
+    }
 }
+

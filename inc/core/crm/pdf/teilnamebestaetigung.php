@@ -340,6 +340,9 @@ function xsieben_teilnahmebestaetigung_pdf($entry_id, $course_id, $output_to_bro
     $pdf->AddPage();
 
     // HTML ausgeben
+    if (function_exists('crm_clean_pdf_html')) {
+        $html = crm_clean_pdf_html($html);
+    }
     $pdf->writeHTML($html, true, false, true, false, '');
 
     // PDF speichern

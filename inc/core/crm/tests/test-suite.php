@@ -297,6 +297,9 @@ class CrmSeniorDevTestSuite
         $this->testSuite49_Version21900EmailAndImapSynchronization();
         $this->testSuite50_Version21902SectionManagerUnderPdfPreview();
         $this->testSuite51_Version21903AbAndAntrittSectionIntegrationAndStandardComponents();
+        $this->testSuite52_Version21904EliminateTcpdfParagraphIndentation();
+        $this->testSuite53_Version21905DynamicPlaceholdersAndTemplates();
+        $this->testSuite54_Version21906ScrumKombiCertAndEmailGrammar();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -3521,6 +3524,230 @@ Firma: DRK Gifhorn Service und Pflegeteam gGmbH";
         $settingsJs = file_get_contents(dirname(__DIR__) . '/assets/crm-settings.js');
         $this->assert("crm-settings.js enthält docTitle für ab", strpos($settingsJs, "'ab': 'Anmeldebestätigung (AB)'") !== false);
         $this->assert("crm-settings.js enthält docTitle für antritt", strpos($settingsJs, "'antritt': 'Antrittsmeldung (AMS)'") !== false);
+    }
+
+    public function testSuite52_Version21904EliminateTcpdfParagraphIndentation(): void
+    {
+        echo "\n\033[1;33m[SUITE 52] Feedback 06.10.2026: Behebung ungewollter Absatzeinrückungen in Anmeldebestätigung & Antrittsmeldung (v2.19.4)\033[0m\n";
+
+        // 1. Versionierung
+        $this->assert("CRM_VERSION ist >= 2.19.4", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.19.4', '>='));
+
+        // 2. Normalisierer-Funktion crm_clean_pdf_html existiert in crm-pdf-sections.php
+        require_once dirname(__DIR__) . '/helpers/crm-pdf-sections.php';
+        $this->assert("Funktion crm_clean_pdf_html existiert", function_exists('crm_clean_pdf_html'));
+
+        // 3. Normalisierer Tests: Entfernt führende Whitespaces nach Tags und <br>
+        $testRaw = "
+        <div style=\"font-size: 10pt; line-height: 1.5; color: #1e293b;\">
+            Sehr geehrte Frau Dr. Mustermann,<br><br>
+            vielen Dank für Ihre Anmeldung zur Schulung. Wir bestätigen diese hiermit:
+        </div>";
+        $testCleaned = crm_clean_pdf_html($testRaw);
+
+        // Simulation von TCPDF Zeile 16637: $html = preg_replace('/<([^\>\/]*)>[\s]/', '<\\1>&nbsp;', $html);
+        $tcpdfSim = preg_replace('/<([^\>\/]*)>[\s]/', '<\\1>&nbsp;', $testCleaned);
+        $this->assert("crm_clean_pdf_html eliminiert TCPDF &nbsp; Indentations nach <div", strpos($tcpdfSim, '<div style="font-size: 10pt; line-height: 1.5; color: #1e293b;">&nbsp;') === false);
+        $this->assert("crm_clean_pdf_html eliminiert TCPDF &nbsp; Indentations nach <br><br>", strpos($tcpdfSim, '<br>&nbsp;') === false);
+        $this->assert("crm_clean_pdf_html lässt Text direkt nach <div beginnen", strpos($testCleaned, '<div style="font-size: 10pt; line-height: 1.5; color: #1e293b;">Sehr geehrte') !== false);
+        $this->assert("crm_clean_pdf_html lässt Text direkt nach <br><br> beginnen", strpos($testCleaned, '<br><br>vielen Dank') !== false);
+
+        // 4. Element-Klasse CRM_Pdf_Ab_Elements: Null Indentation
+        require_once dirname(__DIR__) . '/pdf/elements/ab-elements.php';
+
+        $anredeHtml = CRM_Pdf_Ab_Elements::render_anrede_text('Sehr geehrte Frau Dr. Mustermann', 'Lehrgang');
+        $this->assert("render_anrede_text hat keinen Whitespace direkt nach <div", !preg_match('/<div[^>]*>[\s]/', $anredeHtml));
+        $this->assert("render_anrede_text hat keinen Whitespace direkt nach <br><br>", !preg_match('/<br\s*\/?>[\s]/', $anredeHtml));
+        $this->assert("render_anrede_text beginnt bündig mit Sehr geehrte", strpos($anredeHtml, '>Sehr geehrte') !== false);
+        $this->assert("render_anrede_text schließt an <br><br> bündig mit vielen Dank an", strpos($anredeHtml, '<br><br>vielen Dank') !== false);
+
+        $betreffHtml = CRM_Pdf_Ab_Elements::render_betreff('Seminar', 'Projektmanagement Grundlagen');
+        $this->assert("render_betreff hat keinen Whitespace direkt nach <div", !preg_match('/<div[^>]*>[\s]/', $betreffHtml));
+        $this->assert("render_betreff beginnt bündig mit Ihre Anmeldebestätigung", strpos($betreffHtml, '>Ihre Anmeldebestätigung') !== false);
+
+        $empfaengerHtml = CRM_Pdf_Ab_Elements::render_empfaenger('Frau', 'Maria Muster', 'Musterstraße 12', '1010 Wien');
+        $this->assert("render_empfaenger hat keinen Whitespace direkt nach <div", !preg_match('/<div[^>]*>[\s]/', $empfaengerHtml));
+        $this->assert("render_empfaenger beginnt bündig mit An Frau", strpos($empfaengerHtml, '>An Frau<br><strong>Maria Muster</strong>') !== false);
+
+        $agbHtml = CRM_Pdf_Ab_Elements::render_agb_hinweis('https://x-sieben.at/agb.pdf', 'https://x-sieben.at/datenschutz/');
+        $this->assert("render_agb_hinweis hat keinen Whitespace direkt nach <div", !preg_match('/<div[^>]*>[\s]/', $agbHtml));
+        $this->assert("render_agb_hinweis Absatz 1 beginnt bündig mit Hinweis:", strpos($agbHtml, '>Hinweis:</div>') !== false);
+        $this->assert("render_agb_hinweis Absatz 2 beginnt bündig mit Mit Ihrer Buchung", strpos($agbHtml, '>Mit Ihrer Buchung') !== false);
+
+        $hotlineHtml = CRM_Pdf_Ab_Elements::render_hotline('0800 / 700 170');
+        $this->assert("render_hotline hat keinen Whitespace direkt nach <div", !preg_match('/<div[^>]*>[\s]/', $hotlineHtml));
+        $this->assert("render_hotline beginnt bündig mit Sollten Sie", strpos($hotlineHtml, '>Sollten Sie zu Ihrer') !== false);
+
+        $signaturHtml = CRM_Pdf_Ab_Elements::render_signatur();
+        $this->assert("render_signatur hat keinen Whitespace direkt nach <div", !preg_match('/<div[^>]*>[\s]/', $signaturHtml));
+        $this->assert("render_signatur beginnt bündig mit Mit freundlichen Grüßen", strpos($signaturHtml, '>Mit freundlichen Grüßen</div>') !== false);
+
+        // 5. Antrittsmeldung CRM_Pdf_Antritt_Elements: Null Indentation
+        require_once dirname(__DIR__) . '/pdf/elements/antritt-elements.php';
+
+        $antrittTitelHtml = CRM_Pdf_Antritt_Elements::render_titel('Projektmanagement Lehrgang');
+        $this->assert("Antritt render_titel hat keinen Whitespace direkt nach <div", !preg_match('/<div[^>]*>[\s]/', $antrittTitelHtml));
+        $this->assert("Antritt render_titel beginnt bündig mit ANTRITTSMELDUNG:", strpos($antrittTitelHtml, '>ANTRITTSMELDUNG:') !== false);
+
+        $stammdatenHtml = CRM_Pdf_Antritt_Elements::render_stammdaten('Maria Muster', 'Musterstraße 12, 1010 Wien', '1234 010190', '01.10.2026');
+        $this->assert("Antritt render_stammdaten hat keinen Whitespace direkt nach <td", !preg_match('/<td[^>]*>[\s]/', $stammdatenHtml));
+
+        // 6. Alle 7 PDF-Generatoren nutzen den zentralen Normalisierer crm_clean_pdf_html vor writeHTML
+        $abPdfCode = file_get_contents(dirname(__DIR__) . '/pdf/anmeldebestaetigung.php');
+        $this->assert("anmeldebestaetigung.php ruft crm_clean_pdf_html vor writeHTML auf", strpos($abPdfCode, 'crm_clean_pdf_html($full_chunk)') !== false);
+
+        $antrittPdfCode = file_get_contents(dirname(__DIR__) . '/pdf/antrittsbestaetigung.php');
+        $this->assert("antrittsbestaetigung.php ruft crm_clean_pdf_html vor writeHTML auf", strpos($antrittPdfCode, 'crm_clean_pdf_html($full_chunk)') !== false);
+
+        $offerPdfCode = file_get_contents(dirname(__DIR__) . '/pdf/offer.php');
+        $this->assert("offer.php ruft crm_clean_pdf_html vor writeHTML auf", strpos($offerPdfCode, 'crm_clean_pdf_html($chunk_html)') !== false);
+
+        $kbPdfCode = file_get_contents(dirname(__DIR__) . '/pdf/kurszeitenbestaetigung.php');
+        $this->assert("kurszeitenbestaetigung.php ruft crm_clean_pdf_html vor writeHTML auf", strpos($kbPdfCode, 'crm_clean_pdf_html($html)') !== false);
+
+        $tbPdfCode = file_get_contents(dirname(__DIR__) . '/pdf/teilnamebestaetigung.php');
+        $this->assert("teilnamebestaetigung.php ruft crm_clean_pdf_html vor writeHTML auf", strpos($tbPdfCode, 'crm_clean_pdf_html($html)') !== false);
+
+        $diplomPdfCode = file_get_contents(dirname(__DIR__) . '/pdf/diplom.php');
+        $this->assert("diplom.php ruft crm_clean_pdf_html vor writeHTML auf", strpos($diplomPdfCode, 'crm_clean_pdf_html($html)') !== false);
+
+        $invoicePdfCode = file_get_contents(dirname(__DIR__) . '/pdf/invoice.php');
+        $this->assert("invoice.php ruft crm_clean_pdf_html vor writeHTML auf", strpos($invoicePdfCode, 'crm_clean_pdf_html($full_html)') !== false);
+    }
+
+    public function testSuite53_Version21905DynamicPlaceholdersAndTemplates(): void
+    {
+        echo "\n\033[1;33m[SUITE 53] Feedback 06.10.2026: Dynamische Platzhalter & Vorlagen-Generatoren für Anmeldebestätigung & Antritt (v2.19.5)\033[0m\n";
+
+        // 1. Version Check
+        $this->assert("CRM_VERSION ist >= 2.19.5", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.19.5', '>='));
+
+        // 2. Element-Klassen besitzen get_subsections_templates
+        $this->assert("CRM_Pdf_Ab_Elements besitzt get_subsections_templates", method_exists('CRM_Pdf_Ab_Elements', 'get_subsections_templates'));
+        $this->assert("CRM_Pdf_Antritt_Elements besitzt get_subsections_templates", method_exists('CRM_Pdf_Antritt_Elements', 'get_subsections_templates'));
+
+        // 3. crm_get_subsection_default_html liefert für AB Vorlagen mit Platzhaltern (keine hardcoded Daten)
+        $abRefHtml = crm_get_subsection_default_html('ab', 'anschreiben', 'referenz', 1096, 40914);
+        $this->assert("Default HTML Generator für AB referenz liefert {anmeldedatum}", strpos($abRefHtml, '{anmeldedatum}') !== false);
+        $this->assert("Default HTML Generator für AB referenz liefert {unser_zeichen}", strpos($abRefHtml, '{unser_zeichen}') !== false);
+        $this->assert("Default HTML Generator für AB referenz liefert {kontakt_telefon}", strpos($abRefHtml, '{kontakt_telefon}') !== false);
+        $this->assert("Default HTML Generator für AB referenz liefert {datum}", strpos($abRefHtml, '{datum}') !== false);
+        $this->assert("Default HTML Generator für AB referenz enthält KEINE hardcodierten Daten von Anna Brauer", strpos($abRefHtml, 'X7 – Anna Brauer') === false);
+
+        $abEmpfHtml = crm_get_subsection_default_html('ab', 'anschreiben', 'empfaenger', 1096, 40914);
+        $this->assert("Default HTML Generator für AB empfaenger liefert {teilnehmer_name}", strpos($abEmpfHtml, '{teilnehmer_name}') !== false);
+        $this->assert("Default HTML Generator für AB empfaenger liefert {strasse}", strpos($abEmpfHtml, '{strasse}') !== false);
+        $this->assert("Default HTML Generator für AB empfaenger liefert {plz_ort}", strpos($abEmpfHtml, '{plz_ort}') !== false);
+
+        $abBetreffHtml = crm_get_subsection_default_html('ab', 'anschreiben', 'betreff', 1096, 40914);
+        $this->assert("Default HTML Generator für AB betreff liefert {kategorie}", strpos($abBetreffHtml, '{kategorie}') !== false);
+        $this->assert("Default HTML Generator für AB betreff liefert {kurstitel}", strpos($abBetreffHtml, '{kurstitel}') !== false);
+
+        $abAnredeHtml = crm_get_subsection_default_html('ab', 'anschreiben', 'anrede_text', 1096, 40914);
+        $this->assert("Default HTML Generator für AB anrede_text liefert {salutation_greeting}", strpos($abAnredeHtml, '{salutation_greeting}') !== false);
+
+        $abEckdatenHtml = crm_get_subsection_default_html('ab', 'anschreiben', 'eckdaten', 1096, 40914);
+        $this->assert("Default HTML Generator für AB eckdaten liefert {beginn_text}", strpos($abEckdatenHtml, '{beginn_text}') !== false);
+        $this->assert("Default HTML Generator für AB eckdaten liefert {ort_text}", strpos($abEckdatenHtml, '{ort_text}') !== false);
+
+        $abHotlineHtml = crm_get_subsection_default_html('ab', 'anschreiben', 'hotline', 1096, 40914);
+        $this->assert("Default HTML Generator für AB hotline liefert {hotline_nr}", strpos($abHotlineHtml, '{hotline_nr}') !== false);
+
+        $abSignaturHtml = crm_get_subsection_default_html('ab', 'anschreiben', 'signatur', 1096, 40914);
+        $this->assert("Default HTML Generator für AB signatur liefert {signatur_name}", strpos($abSignaturHtml, '{signatur_name}') !== false);
+
+        // 4. crm_get_subsection_default_html liefert für Antritt Vorlagen mit Platzhaltern
+        $antrittAdrHtml = crm_get_subsection_default_html('antritt', 'antrittsmeldung', 'adressat_datum', 1096, 40914);
+        $this->assert("Default HTML Generator für Antritt adressat_datum liefert {ausstellungsort}", strpos($antrittAdrHtml, '{ausstellungsort}') !== false);
+        $this->assert("Default HTML Generator für Antritt adressat_datum liefert {datum}", strpos($antrittAdrHtml, '{datum}') !== false);
+
+        $antrittTitelHtml = crm_get_subsection_default_html('antritt', 'antrittsmeldung', 'titel', 1096, 40914);
+        $this->assert("Default HTML Generator für Antritt titel liefert {kurstitel}", strpos($antrittTitelHtml, '{kurstitel}') !== false);
+
+        $antrittStammHtml = crm_get_subsection_default_html('antritt', 'antrittsmeldung', 'stammdaten', 1096, 40914);
+        $this->assert("Default HTML Generator für Antritt stammdaten liefert {teilnehmer_name}", strpos($antrittStammHtml, '{teilnehmer_name}') !== false);
+        $this->assert("Default HTML Generator für Antritt stammdaten liefert {teilnehmer_adresse}", strpos($antrittStammHtml, '{teilnehmer_adresse}') !== false);
+        $this->assert("Default HTML Generator für Antritt stammdaten liefert {svr}", strpos($antrittStammHtml, '{svr}') !== false);
+        $this->assert("Default HTML Generator für Antritt stammdaten liefert {startdatum}", strpos($antrittStammHtml, '{startdatum}') !== false);
+        $this->assert("Default HTML Generator für Antritt stammdaten liefert {institut}", strpos($antrittStammHtml, '{institut}') !== false);
+        $this->assert("Default HTML Generator für Antritt stammdaten liefert {company_uid}", strpos($antrittStammHtml, '{company_uid}') !== false);
+
+        // 5. Platzhalter-Ersetzung crm_replace_pdf_placeholders
+        $mockCourse = (object)[
+            'title' => 'Projektmanagement Professional Seminar',
+            'titel_short' => 'PMP',
+            'anrede' => 'Frau',
+            'vorname' => 'Maria',
+            'nachname' => 'Musterfrau',
+            'street' => 'Mustergasse 10',
+            'zip_code' => '1010',
+            'city' => 'Wien',
+            'svr' => '9876 010190',
+            'start_datum' => '15.11.2026',
+            'end_datum' => '19.11.2026',
+            'kurszeiten' => ['09:00 - 17:00'],
+            'durchfuehrung' => 'Live-Online - Zoom',
+            'backoffice_name' => 'Claudia Leitner',
+            'backoffice_phone' => '0800 123 456',
+            'company_name' => 'X SIEBEN Wirtschaftstraining GmbH',
+            'company_management' => 'Mag. Dr. Johannes Gasberger',
+            'company_uid' => 'ATU76624137',
+            'anmeldedatum' => '05.10.2026',
+        ];
+
+        $renderedRef = crm_replace_pdf_placeholders($abRefHtml, $mockCourse);
+        $this->assert("crm_replace_pdf_placeholders ersetzt {anmeldedatum} dynamisch", strpos($renderedRef, '05.10.2026') !== false);
+        $this->assert("crm_replace_pdf_placeholders ersetzt {unser_zeichen} dynamisch mit Backoffice-Name", strpos($renderedRef, 'Claudia Leitner') !== false);
+        $this->assert("crm_replace_pdf_placeholders ersetzt {kontakt_telefon} dynamisch mit Backoffice-Phone", strpos($renderedRef, '0800 123 456') !== false);
+
+        $renderedBetreff = crm_replace_pdf_placeholders($abBetreffHtml, $mockCourse);
+        $this->assert("crm_replace_pdf_placeholders ermittelt {kategorie} als Seminar", strpos($renderedBetreff, 'Seminar') !== false);
+
+        $renderedAnrede = crm_replace_pdf_placeholders($abAnredeHtml, $mockCourse);
+        $this->assert("crm_replace_pdf_placeholders ersetzt {salutation_greeting} für Frau Musterfrau", strpos($renderedAnrede, 'Sehr geehrte Frau Musterfrau') !== false);
+
+        // 6. Heuristische Normalisierung von altem statischem HTML
+        $legacyRefTable = '<!-- 4-Spalten Referenzleiste --><table width="100%"><tr><td>Anmeldung vom 06.10.2026</td><td>X7 – Anna Brauer</td><td>0800 / 700 170, X SIEBEN Team</td><td align="right">06.10.2026</td></tr></table>';
+        $normalizedRef = crm_replace_pdf_placeholders($legacyRefTable, $mockCourse);
+        $this->assert("Altes hardcoded Referenz-HTML wird auf dynamisches Anmeldedatum normalisiert", strpos($normalizedRef, 'Anmeldung vom 05.10.2026') !== false);
+
+        // 7. Placeholder Chips im Drawer
+        $sectionsCode = file_get_contents(dirname(__DIR__) . '/helpers/crm-pdf-sections.php');
+        $this->assert("Chips-Bar enthält {anmeldedatum}", strpos($sectionsCode, 'data-tag="{anmeldedatum}"') !== false);
+        $this->assert("Chips-Bar enthält {unser_zeichen}", strpos($sectionsCode, 'data-tag="{unser_zeichen}"') !== false);
+        $this->assert("Chips-Bar enthält {kontakt_telefon}", strpos($sectionsCode, 'data-tag="{kontakt_telefon}"') !== false);
+        $this->assert("Chips-Bar enthält {kategorie}", strpos($sectionsCode, 'data-tag="{kategorie}"') !== false);
+    }
+
+    public function testSuite54_Version21906ScrumKombiCertAndEmailGrammar(): void
+    {
+        echo "\n\033[1;33m[SUITE 54] Feedback 06.10.2026: Scrum Kombi Doppelzertifizierung & E-Mail Plural-Grammatik (v2.19.6)\033[0m\n";
+
+        // 1. Version Check
+        $this->assert("CRM_VERSION ist >= 2.19.6", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.19.6', '>='));
+
+        // 2. Kurs 22184: PSM I & PSPO I – Prüfungsvorbereitung (Lead #1109)
+        $cert22184 = crm_resolve_course_certification(0, 22184, 'angebot_2');
+        $this->assert("Kurs 22184 liefert Zertifizierung", !empty($cert22184));
+        $this->assertEqual("Kurs 22184 liefert Scrum Kombi (PSPO I + PSM I)", 'Scrum.org Zertifizierung - PSPO I (USD 200,-) + PSM I (USD 200,-)', $cert22184[0]['name'] ?? '');
+        $this->assertEqual("Kurs 22184 Preis ist 343,00 €", '343,00', $cert22184[0]['price'] ?? '');
+        $this->assertEqual("Kurs 22184 USt ist 0%", '0%', $cert22184[0]['percentage'] ?? '');
+        $this->assertEqual("Kurs 22184 USt-Wert ist 0", 0, $cert22184[0]['ust'] ?? -1);
+
+        // 3. E-Mail Mailer: Dynamische Plural-Grammatik (Zertifizierungen vs. Zertifizierung)
+        $emailScrumKombi = crm_build_standard_offer_email(0, 22184);
+        $this->assert("Angebot 2 für Kombi enthält Plural 'Zertifizierungen:'", strpos($emailScrumKombi['body'], 'inklusive der optional möglichen Zertifizierungen:') !== false);
+        $this->assert("Angebot 2 für Kombi enthält nicht Singular 'Zertifizierung:'", strpos($emailScrumKombi['body'], 'inklusive der optional möglichen Zertifizierung:') === false);
+        $this->assert("Angebot 2 enthält beide Zertifizierungen im Namen", strpos($emailScrumKombi['body'], 'PSPO I (USD 200,-) + PSM I (USD 200,-)') !== false);
+
+        // 4. E-Mail Mailer: Singular-Grammatik bei Einzelzertifizierung (z.B. Kurs 36593 Digital Marketing / TÜV)
+        $emailSingleCert = crm_build_standard_offer_email(0, 36593);
+        $this->assert("Angebot 2 für Einzelzertifizierung enthält Singular 'Zertifizierung:'", strpos($emailSingleCert['body'], 'inklusive der optional möglichen Zertifizierung:') !== false);
+        $this->assert("Angebot 2 für Einzelzertifizierung enthält nicht Plural 'Zertifizierungen:'", strpos($emailSingleCert['body'], 'inklusive der optional möglichen Zertifizierungen:') === false);
+
+        // 5. Kanonischer Katalog & Disambiguierung
+        $canonKombi = crm_match_canonical_certification('Scrum.org Zertifizierung - PSM I (USD 200,-) + PSPO I (USD 200,-)');
+        $this->assert("crm_match_canonical_certification erkennt auch umgekehrte Reihenfolge (PSM I + PSPO I)", $canonKombi !== null && $canonKombi['short_name'] === 'Scrum.org PSPO I + PSM I');
     }
 }
 

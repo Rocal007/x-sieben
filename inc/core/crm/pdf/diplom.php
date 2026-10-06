@@ -609,6 +609,9 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
     $pdf->SetSubject('Diplom ' . esc_html($course->titel_short));
 
     $pdf->AddPage('P', 'A4');
+    if (function_exists('crm_clean_pdf_html')) {
+        $html = crm_clean_pdf_html($html);
+    }
     $pdf->writeHTML($html, true, false, true, false, '');
 
     // Zielordner sicherstellen

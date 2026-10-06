@@ -120,12 +120,11 @@ class CourseRepository
     public function get_related_courses(int $post_id): array
     {
         $related_ids = [];
-        $i = 1;
-        while ($rel_id = (int) trim(get_post_meta($post_id, "related{$i}", true))) {
+        for ($i = 1; $i <= 10; $i++) {
+            $rel_id = (int) trim((string) get_post_meta($post_id, "related{$i}", true));
             if ($rel_id > 0) {
                 $related_ids[] = $rel_id;
             }
-            $i++;
         }
         
         if (empty($related_ids)) {
