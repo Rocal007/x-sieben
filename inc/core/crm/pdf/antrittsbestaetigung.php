@@ -205,7 +205,7 @@ function xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, $output_to_brow
                     $sub_prefix = ($sub_sp_top > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_top) : '';
                     $sub_suffix = ($sub_sp_bottom > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_bottom) : '';
 
-                    $def_sub = $sec_subs_gens[$sk] ?? '';
+                    $def_sub = $sec_subs_gens[$sk] ?? ($sk === 'antrittsmeldung_titel' ? ($sec_subs_gens['titel'] ?? '') : ($sk === 'titel' ? ($sec_subs_gens['antrittsmeldung_titel'] ?? '') : ''));
                     $sub_html = '';
 
                     if (!empty($sub['is_custom'])) {
@@ -231,7 +231,7 @@ function xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, $output_to_brow
             } else {
                 // Keine Unterabschnitte definiert: Alle Standard-Generatoren dieses Abschnitts ausgeben
                 foreach ($sec_subs_gens as $sk => $def_sub) {
-                    if ($sk === 'antritt_daten') continue; // Redundantes kombiniertes Element auslassen
+                    if ($sk === 'antritt_daten' || ($sk === 'antrittsmeldung_titel' && isset($sec_subs_gens['titel']))) continue; // Redundantes Element auslassen
                     $page_html .= $def_sub;
                 }
             }

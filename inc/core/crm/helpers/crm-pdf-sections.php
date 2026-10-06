@@ -1256,10 +1256,16 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
                     'default'         => true,
                     'default_content' => "{standard}",
                 ],
-                'titel' => [
+                'antrittsmeldung_titel' => [
                     'title'           => __('Titelzeile', 'custom-crm'),
                     'desc'            => __('ANTRITTSMELDUNG: „Kurstitel“.', 'custom-crm'),
                     'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+                'titel' => [
+                    'title'           => __('Titelzeile', 'custom-crm'),
+                    'desc'            => __('ANTRITTSMELDUNG: „Kurstitel“.', 'custom-crm'),
+                    'default'         => false,
                     'default_content' => "{standard}",
                 ],
                 'stammdaten' => [
@@ -1807,6 +1813,55 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
         }
     }
 
+    // Auto-Migration & Normalisierung für Antrittsmeldung:
+    // Die Titelzeile (antrittsmeldung_titel oder titel) MUSS immer bündig nach Adressat/Datum und vor Stammdaten platziert sein!
+    if (in_array($doc_type, ['antritt', 'antrittsbestaetigung', 'antrittsmeldung'], true) && is_array($saved_order)) {
+        $need_antritt_migration = false;
+        foreach ($saved_order as &$sec_item) {
+            if (is_array($sec_item) && ($sec_item['key'] ?? '') === 'antrittsmeldung' && !empty($sec_item['subsections']) && is_array($sec_item['subsections'])) {
+                $titel_sub = null;
+                $titel_idx = -1;
+                $adressat_idx = -1;
+                $stammdaten_idx = -1;
+
+                foreach ($sec_item['subsections'] as $idx => $s) {
+                    $sk = is_array($s) ? ($s['key'] ?? '') : (string)$s;
+                    if ($sk === 'adressat_datum') {
+                        $adressat_idx = $idx;
+                    } elseif ($sk === 'antrittsmeldung_titel' || $sk === 'titel') {
+                        $titel_sub = $s;
+                        $titel_idx = $idx;
+                    } elseif ($sk === 'stammdaten') {
+                        $stammdaten_idx = $idx;
+                    }
+                }
+
+                if ($titel_sub !== null && $adressat_idx !== -1 && $stammdaten_idx !== -1 && $titel_idx > $stammdaten_idx) {
+                    array_splice($sec_item['subsections'], $titel_idx, 1);
+                    $new_subs = [];
+                    foreach ($sec_item['subsections'] as $s) {
+                        $new_subs[] = $s;
+                        $sk = is_array($s) ? ($s['key'] ?? '') : (string)$s;
+                        if ($sk === 'adressat_datum') {
+                            $new_subs[] = $titel_sub;
+                        }
+                    }
+                    $sec_item['subsections'] = $new_subs;
+                    $need_antritt_migration = true;
+                }
+            }
+        }
+        unset($sec_item);
+
+        if ($need_antritt_migration) {
+            if (!empty($entry_id) && isset($entry_opt_key)) {
+                update_option($entry_opt_key, $saved_order);
+            } elseif (isset($global_opt_key)) {
+                update_option($global_opt_key, $saved_order);
+            }
+        }
+    }
+
     $result    = [];
     $seen_keys = [];
 
@@ -1833,6 +1888,11 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
                     }
                     if (!empty($sk)) {
                         $saved_subs_global[$sk] = true;
+                        if ($sk === 'antrittsmeldung_titel') {
+                            $saved_subs_global['titel'] = true;
+                        } elseif ($sk === 'titel' && $item_sec_k === 'antrittsmeldung') {
+                            $saved_subs_global['antrittsmeldung_titel'] = true;
+                        }
                     }
                 }
             }
@@ -1914,6 +1974,13 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
                             ];
                             $seen_subs[$s_key] = true;
                             $globally_seen_subs[$s_key] = true;
+                            if ($s_key === 'antrittsmeldung_titel') {
+                                $seen_subs['titel'] = true;
+                                $globally_seen_subs['titel'] = true;
+                            } elseif ($s_key === 'titel' && $key === 'antrittsmeldung') {
+                                $seen_subs['antrittsmeldung_titel'] = true;
+                                $globally_seen_subs['antrittsmeldung_titel'] = true;
+                            }
                         } elseif ($s_custom) {
                             $sub_sp_top = isset($sub['spacing_top']) && is_numeric($sub['spacing_top']) ? max(0.0, floatval($sub['spacing_top'])) : 0.0;
                             $sub_sp_bottom = isset($sub['spacing_bottom']) && is_numeric($sub['spacing_bottom']) ? max(0.0, floatval($sub['spacing_bottom'])) : 0.0;
@@ -1932,6 +1999,13 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
                             ];
                             $seen_subs[$s_key] = true;
                             $globally_seen_subs[$s_key] = true;
+                            if ($s_key === 'antrittsmeldung_titel') {
+                                $seen_subs['titel'] = true;
+                                $globally_seen_subs['titel'] = true;
+                            } elseif ($s_key === 'titel' && $key === 'antrittsmeldung') {
+                                $seen_subs['antrittsmeldung_titel'] = true;
+                                $globally_seen_subs['antrittsmeldung_titel'] = true;
+                            }
                         }
                     }
                 }
@@ -1953,15 +2027,32 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
                                 'spacing_top'     => 0.0,
                                 'spacing_bottom'  => 0.0,
                             ];
-                            // Fehlende Kopf-/Titelzeilen gehören an die oberste Position (Index 0) der Seite
+                            // Fehlende Kopf-/Titelzeilen gehören an die passende Position:
                             $is_first_in_def = (array_key_first($def['subsections']) === $s_key);
-                            if ($is_first_in_def && str_ends_with($s_key, '_titel')) {
+                            // Bei antrittsmeldung gehört der Titel nach adressat_datum
+                            if (($s_key === 'antrittsmeldung_titel' || $s_key === 'titel') && $key === 'antrittsmeldung') {
+                                $ins_idx = count($subsections);
+                                foreach ($subsections as $i => $sb) {
+                                    if (($sb['key'] ?? '') === 'adressat_datum') {
+                                        $ins_idx = $i + 1;
+                                        break;
+                                    }
+                                }
+                                array_splice($subsections, $ins_idx, 0, [$new_sub]);
+                            } elseif ($is_first_in_def && str_ends_with($s_key, '_titel')) {
                                 array_unshift($subsections, $new_sub);
                             } else {
                                 $subsections[] = $new_sub;
                             }
                             $seen_subs[$s_key] = true;
                             $globally_seen_subs[$s_key] = true;
+                            if ($s_key === 'antrittsmeldung_titel') {
+                                $seen_subs['titel'] = true;
+                                $globally_seen_subs['titel'] = true;
+                            } elseif ($s_key === 'titel' && $key === 'antrittsmeldung') {
+                                $seen_subs['antrittsmeldung_titel'] = true;
+                                $globally_seen_subs['antrittsmeldung_titel'] = true;
+                            }
                         }
                     }
                 }
@@ -2135,6 +2226,42 @@ function crm_get_pdf_section_order(string $doc_type, $entry_id = null): array
             ];
             $seen_keys[$key] = true;
         }
+    }
+
+    // Finale Sicherheits-Sortierung für Antrittsmeldung:
+    // Garantiert absolut und ausnahmslos, dass der Titel direkt nach adressat_datum und vor stammdaten liegt!
+    if (in_array($doc_type, ['antritt', 'antrittsbestaetigung', 'antrittsmeldung'], true) && !empty($result)) {
+        foreach ($result as &$res_sec) {
+            if (($res_sec['key'] ?? '') === 'antrittsmeldung' && !empty($res_sec['subsections']) && is_array($res_sec['subsections'])) {
+                $titel_sub = null;
+                $titel_idx = -1;
+                $adressat_idx = -1;
+                $stammdaten_idx = -1;
+                foreach ($res_sec['subsections'] as $idx => $s) {
+                    $sk = $s['key'] ?? '';
+                    if ($sk === 'adressat_datum') {
+                        $adressat_idx = $idx;
+                    } elseif ($sk === 'antrittsmeldung_titel' || $sk === 'titel') {
+                        $titel_sub = $s;
+                        $titel_idx = $idx;
+                    } elseif ($sk === 'stammdaten') {
+                        $stammdaten_idx = $idx;
+                    }
+                }
+                if ($titel_sub !== null && $adressat_idx !== -1 && $stammdaten_idx !== -1 && $titel_idx > $stammdaten_idx) {
+                    array_splice($res_sec['subsections'], $titel_idx, 1);
+                    $new_subs = [];
+                    foreach ($res_sec['subsections'] as $s) {
+                        $new_subs[] = $s;
+                        if (($s['key'] ?? '') === 'adressat_datum') {
+                            $new_subs[] = $titel_sub;
+                        }
+                    }
+                    $res_sec['subsections'] = $new_subs;
+                }
+            }
+        }
+        unset($res_sec);
     }
 
     return $result;

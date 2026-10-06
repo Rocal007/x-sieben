@@ -3888,6 +3888,63 @@ Firma: DRK Gifhorn Service und Pflegeteam gGmbH";
 
         $settingsJs = file_get_contents(dirname(__DIR__) . '/assets/crm-settings.js');
         $this->assert("crm-settings.js enthält antritt in emailDocTitles", strpos($settingsJs, "'antritt': '\"Antrittsmeldung") !== false);
+
+        // 6. Antrittsmeldung: Titelplatzierung strikt nach Adressat/Datum und vor Stammdaten
+        if (function_exists('crm_get_pdf_sections_definitions')) {
+            $defs = crm_get_pdf_sections_definitions('antritt');
+            $this->assert("Antrittsmeldung Definition enthält antrittsmeldung_titel", isset($defs['antrittsmeldung']['subsections']['antrittsmeldung_titel']));
+        }
+
+        if (class_exists('CRM_Pdf_Antritt_Elements')) {
+            $templates = CRM_Pdf_Antritt_Elements::get_subsections_templates();
+            $this->assert("CRM_Pdf_Antritt_Elements Templates enthalten antrittsmeldung_titel", isset($templates['antrittsmeldung']['antrittsmeldung_titel']));
+        }
+
+        if (function_exists('crm_get_pdf_section_order')) {
+            // Test 1: Standardreihenfolge
+            $order = crm_get_pdf_section_order('antritt');
+            $subs = $order[0]['subsections'] ?? [];
+            $adressatIdx = -1;
+            $titelIdx = -1;
+            $stammdatenIdx = -1;
+            foreach ($subs as $idx => $s) {
+                if ($s['key'] === 'adressat_datum') $adressatIdx = $idx;
+                if ($s['key'] === 'antrittsmeldung_titel' || $s['key'] === 'titel') $titelIdx = $idx;
+                if ($s['key'] === 'stammdaten') $stammdatenIdx = $idx;
+            }
+            $this->assert("Titel liegt nach Adressat/Datum", $titelIdx > $adressatIdx && $adressatIdx !== -1);
+            $this->assert("Titel liegt vor Stammdaten-Matrix", $titelIdx < $stammdatenIdx && $stammdatenIdx !== -1);
+
+            // Test 2: Auto-Migration bei falscher gespeicherter Reihenfolge (Titel unten)
+            update_option('crm_pdf_section_order_antritt', [
+                [
+                    'key' => 'antrittsmeldung',
+                    'enabled' => true,
+                    'is_custom' => false,
+                    'title' => 'Antrittsmeldung für das AMS',
+                    'subsections' => [
+                        ['key' => 'header', 'enabled' => true, 'is_custom' => false, 'title' => 'Header & Logos', 'content' => '', 'spacing_top' => 0, 'spacing_bottom' => 15],
+                        ['key' => 'adressat_datum', 'enabled' => true, 'is_custom' => false, 'title' => 'Adressat AMS & Datum', 'content' => '', 'spacing_top' => 0, 'spacing_bottom' => 0],
+                        ['key' => 'stammdaten', 'enabled' => true, 'is_custom' => false, 'title' => 'Stammdaten-Matrix', 'content' => '', 'spacing_top' => 0, 'spacing_bottom' => 0],
+                        ['key' => 'signatur', 'enabled' => true, 'is_custom' => false, 'title' => 'Unterschrift & Stampiglie', 'content' => '', 'spacing_top' => 0, 'spacing_bottom' => 0],
+                        ['key' => 'antrittsmeldung_titel', 'enabled' => true, 'is_custom' => false, 'title' => 'Titelzeile', 'content' => '', 'spacing_top' => 0, 'spacing_bottom' => 0]
+                    ]
+                ]
+            ]);
+            $migratedOrder = crm_get_pdf_section_order('antritt');
+            $migratedSubs = $migratedOrder[0]['subsections'] ?? [];
+            $mAdressatIdx = -1;
+            $mTitelIdx = -1;
+            $mStammdatenIdx = -1;
+            foreach ($migratedSubs as $idx => $s) {
+                if ($s['key'] === 'adressat_datum') $mAdressatIdx = $idx;
+                if ($s['key'] === 'antrittsmeldung_titel' || $s['key'] === 'titel') $mTitelIdx = $idx;
+                if ($s['key'] === 'stammdaten') $mStammdatenIdx = $idx;
+            }
+            $this->assert("Auto-Migration rückt Titel nach Adressat/Datum", $mTitelIdx === $mAdressatIdx + 1);
+            $this->assert("Auto-Migration rückt Titel vor Stammdaten", $mTitelIdx < $mStammdatenIdx);
+            delete_option('crm_pdf_section_order_antritt');
+        }
     }
 }
 

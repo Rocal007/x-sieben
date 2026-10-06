@@ -194,12 +194,13 @@ class CRM_Pdf_Antritt_Elements
 
         return [
             'antrittsmeldung' => [
-                'header'         => $header_html,
-                'adressat_datum' => $adressat_html,
-                'titel'          => $titel_html,
-                'stammdaten'     => $stammdaten_html,
-                'signatur'       => $signatur_html,
-                'antritt_daten'  => $combined_antritt,
+                'header'                => $header_html,
+                'adressat_datum'        => $adressat_html,
+                'antrittsmeldung_titel' => $titel_html,
+                'titel'                 => $titel_html,
+                'stammdaten'            => $stammdaten_html,
+                'signatur'              => $signatur_html,
+                'antritt_daten'         => $combined_antritt,
             ],
         ];
     }
@@ -214,12 +215,13 @@ class CRM_Pdf_Antritt_Elements
     {
         return [
             'antrittsmeldung' => [
-                'header'         => self::get_header_template(),
-                'adressat_datum' => self::get_adressat_datum_template(),
-                'titel'          => self::get_titel_template(),
-                'stammdaten'     => self::get_stammdaten_template(),
-                'signatur'       => self::get_signatur_template(),
-                'antritt_daten'  => self::get_antritt_daten_template(),
+                'header'                => self::get_header_template(),
+                'adressat_datum'        => self::get_adressat_datum_template(),
+                'antrittsmeldung_titel' => self::get_titel_template(),
+                'titel'                 => self::get_titel_template(),
+                'stammdaten'            => self::get_stammdaten_template(),
+                'signatur'              => self::get_signatur_template(),
+                'antritt_daten'         => self::get_antritt_daten_template(),
             ],
         ];
     }
