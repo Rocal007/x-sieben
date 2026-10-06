@@ -22,8 +22,8 @@ $date    = $issue_date ?? '';
 $stempel = !empty($stempel_path) ? esc_attr($stempel_path) : '';
 
 $subs = [
-    'diplom_nr'               => '<div style="font-size: 8.5pt; font-weight: bold; color: #334155; letter-spacing: 0.5px;">DIPLOM-NUMMER ' . $nr . ' - WIEN, ' . $date . '</div><div style="font-size: 9pt;">&nbsp;</div>',
-    'stampiglie_unterschrift' => '<div style="font-size: 8.5pt; font-weight: bold; color: #0f172a;">X SIEBEN WIRTSCHAFTSTRAINING GmbH</div><div style="padding-top: 2px; padding-bottom: 2px;"><img src="' . $stempel . '" width="170"></div><div style="font-size: 10pt; font-weight: bold; color: #0f172a; line-height: 1.15;">Mag. Dr. Johannes Gasberger</div><div style="font-size: 8pt; color: #475569;">Institutsleiter</div>',
+    'diplom_nr'               => '<div style="font-size: 8.5pt; font-weight: bold; color: #334155; letter-spacing: 0.5px;">DIPLOM-NUMMER ' . $nr . ' - WIEN, ' . $date . '</div><div style="font-size: 8pt;">&nbsp;</div>',
+    'stampiglie_unterschrift' => '<div style="font-size: 8.5pt; font-weight: bold; color: #0f172a;">X SIEBEN WIRTSCHAFTSTRAINING GmbH</div><div style="padding-top: 2px; padding-bottom: 2px;"><img src="' . $stempel . '" width="265"></div><div style="font-size: 10pt; font-weight: bold; color: #0f172a; line-height: 1.15;">Mag. Dr. Johannes Gasberger</div><div style="font-size: 8pt; color: #475569;">Institutsleiter</div>',
 ];
 
 if (!empty($sub_key)) {

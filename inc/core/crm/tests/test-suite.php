@@ -302,6 +302,7 @@ class CrmSeniorDevTestSuite
         $this->testSuite54_Version21906ScrumKombiCertAndEmailGrammar();
         $this->testSuite55_Version21907DiplomAppleDesignAndQuickDocMailer();
         $this->testSuite56_Version21908MultiStepMailDifferentiationAndPreviewFix();
+        $this->testSuite57_Version22000DiplomFineTuning();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -3944,6 +3945,54 @@ Firma: DRK Gifhorn Service und Pflegeteam gGmbH";
             $this->assert("Auto-Migration rückt Titel nach Adressat/Datum", $mTitelIdx === $mAdressatIdx + 1);
             $this->assert("Auto-Migration rückt Titel vor Stammdaten", $mTitelIdx < $mStammdatenIdx);
             delete_option('crm_pdf_section_order_antritt');
+        }
+    }
+
+    public function testSuite57_Version22000DiplomFineTuning(): void
+    {
+        echo "\n\033[1;33m[SUITE 57] Feedback 06.10.2026: Diplom Feinschliff Stempel, Partnerlogos & Curriculum-Balancierung (v2.20.0)\033[0m\n";
+
+        // 1. Version Check
+        $this->assert("CRM_VERSION ist >= 2.20.0", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.20.0', '>='));
+
+        // 2. Stempel & Beglaubigung
+        $beglaubigungPath = dirname(__DIR__) . '/pdf/elements/diplom-beglaubigung.php';
+        $this->assert("diplom-beglaubigung.php existiert", file_exists($beglaubigungPath));
+        $beglaubigungContent = file_get_contents($beglaubigungPath);
+        $this->assert("diplom-beglaubigung.php enthält vergrößerten Stempel width='265'", strpos($beglaubigungContent, 'width="265"') !== false);
+
+        // 3. Partnerlogos & Gütesiegel
+        $guetesiegelPath = dirname(__DIR__) . '/pdf/elements/diplom-guetesiegel.php';
+        $this->assert("diplom-guetesiegel.php existiert", file_exists($guetesiegelPath));
+        $guetesiegelContent = file_get_contents($guetesiegelPath);
+        $this->assert("diplom-guetesiegel.php nutzt oecert-diplom.png Fallback", strpos($guetesiegelContent, 'oecert-diplom.png') !== false);
+        $this->assert("diplom-guetesiegel.php nutzt systemcert-diplom.png Fallback", strpos($guetesiegelContent, 'systemcert-diplom.png') !== false);
+        $this->assert("diplom-guetesiegel.php nutzt tuef-diplom.png Fallback", strpos($guetesiegelContent, 'tuef-diplom.png') !== false);
+        $this->assert("diplom-guetesiegel.php nutzt pma-diplom.png Fallback", strpos($guetesiegelContent, 'pma-diplom.png') !== false);
+        $this->assert("diplom-guetesiegel.php setzt balancierte Höhen", strpos($guetesiegelContent, 'height="30"') !== false && strpos($guetesiegelContent, 'height="44"') !== false);
+
+        // 4. Curriculum Parsing & Pfeil-Normalisierung
+        if (function_exists('crm_get_diplom_curriculum_html')) {
+            $currHtml = crm_get_diplom_curriculum_html(1061, 136);
+            $this->assert("crm_get_diplom_curriculum_html ist nicht leer für Kurs 1061", !empty($currHtml));
+            $this->assert("crm_get_diplom_curriculum_html enthält keine '->' Pfeile", strpos($currHtml, '->') === false && strpos($currHtml, '-&gt;') === false);
+            $this->assert("crm_get_diplom_curriculum_html enthält sauberen Listenpunkt 'Homepage'", strpos($currHtml, 'Homepage</li>') !== false);
+            $this->assert("crm_get_diplom_curriculum_html enthält sauberen Listenpunkt 'SocialMedia Marketing'", strpos($currHtml, 'SocialMedia Marketing</li>') !== false);
+            $this->assert("crm_get_diplom_curriculum_html enthält sauberen Listenpunkt 'Newsletter-Marketing'", strpos($currHtml, 'Newsletter-Marketing</li>') !== false);
+            $this->assert("crm_get_diplom_curriculum_html enthält Seitenumbruch für 50/50 Balancierung", strpos($currHtml, 'pagebreak="true"') !== false);
+        }
+
+        // 5. Typografie in diplom-inhalte.php
+        $inhaltePath = dirname(__DIR__) . '/pdf/elements/diplom-inhalte.php';
+        $this->assert("diplom-inhalte.php existiert", file_exists($inhaltePath));
+        $inhalteContent = file_get_contents($inhaltePath);
+        $this->assert("diplom-inhalte.php setzt Schriftgröße 10pt", strpos($inhalteContent, '10pt') !== false);
+        $this->assert("diplom-inhalte.php setzt Zeilenhöhe 1.55", strpos($inhalteContent, '1.55') !== false);
+
+        // 6. PDF Generierung & Seitenzahl
+        if (function_exists('xsieben_diplom_pdf')) {
+            $pdfUrl = xsieben_diplom_pdf(997, 1061, false);
+            $this->assert("xsieben_diplom_pdf liefert gültige PDF-URL", !empty($pdfUrl) && strpos($pdfUrl, '.pdf') !== false);
         }
     }
 }

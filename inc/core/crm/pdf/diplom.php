@@ -172,13 +172,47 @@ if (!function_exists('crm_get_diplom_curriculum_html')) {
                 $c = $m[1];
             }
 
-            $c = preg_replace_callback('/<ul>(.*?)<\/ul>/is', function ($m_ul) {
-                $items = $m_ul[1];
-                $items = preg_replace('/<li[^>]*>/is', '<li style="margin-bottom: 2px;">', $items);
-                return '<ul style="margin-top: 3px; margin-bottom: 9px; padding-left: 15px; list-style-type: disc;">' . $items . '</ul>';
+            // 1. Rohtext-Pfeile normalisieren & in saubere <li> Unterpunkte wandeln
+            $c = str_replace(['-&gt;', '&rarr;', '→'], '->', $c);
+            $c = preg_replace('/(?<!^)(?<!\n)\s*->\s*/u', "\n-> ", $c);
+            $c = preg_replace_callback('/(?:^|\n)\s*->\s*(.+?)(?=\n|$)/u', function($m) {
+                return "\n<ul><li>" . trim($m[1]) . "</li></ul>";
             }, $c);
+            $c = preg_replace('/<\/ul>\s*<ul>/is', '', $c);
+            $c = preg_replace('/<li[^>]*>\s*(?:->|→)\s*/iu', '<li>', $c);
 
-            return trim($c);
+            // 2. Modul-Überschriften und Absätze mit passenden Abständen versehen
+            $c = preg_replace('/<strong>(.*?)<\/strong>/is', '<strong style="color: #0f172a;">$1</strong>', $c);
+
+            // 3. Formatierungsfunktion für Listen mit großzügigen Abständen
+            $format_list = function ($str) {
+                return preg_replace_callback('/<ul>(.*?)<\/ul>/is', function ($m_ul) {
+                    $items = $m_ul[1];
+                    $items = preg_replace('/<li[^>]*>/is', '<li style="margin-bottom: 3.5px;">', $items);
+                    return '<ul style="margin-top: 4px; margin-bottom: 12px; padding-left: 15px; list-style-type: disc;">' . $items . '</ul>';
+                }, $str);
+            };
+
+            // 4. Intelligente Aufteilung auf Seiten 2 & 3 für ausgewogene Balancierung (~50/50)
+            preg_match_all('/<li[^>]*>/i', $c, $m_all, PREG_OFFSET_CAPTURE);
+            $total_items = count($m_all[0]);
+
+            if ($total_items >= 12) {
+                // Bei ca. 44% trennen, damit Seite 2 (inkl. Haupttitel + Intro) und Seite 3 visuell exakt balanciert sind
+                $target_idx = (int)floor($total_items * 0.44);
+                if ($target_idx > 0 && isset($m_all[0][$target_idx][1])) {
+                    $offset = $m_all[0][$target_idx][1];
+                    $part1 = substr($c, 0, $offset) . "</ul>";
+                    $part2 = "<ul style=\"margin-top: 4px; margin-bottom: 12px; padding-left: 15px; list-style-type: disc;\">" . substr($c, $offset);
+
+                    $part1 = $format_list($part1);
+                    $part2 = $format_list($part2);
+
+                    return $part1 . '</div><br pagebreak="true"/><div style="font-size: 10pt; color: #334155; line-height: 1.55; padding-top: 6px;">' . $part2;
+                }
+            }
+
+            return $format_list($c);
         }
 
         $module_count = absint(get_post_meta($course_id, 'module', true));
@@ -657,7 +691,7 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
             public function Footer()
             {
                 if (!empty($this->footer_certs_html)) {
-                    $this->SetY(-20);
+                    $this->SetY(-22);
                     $this->writeHTMLCell(0, 0, 16, '', $this->footer_certs_html, 0, 0, false, true, 'C', true);
                 }
             }
@@ -671,7 +705,7 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
     $pdf->footer_certs_html = $footer_certs_final;
     $pdf->SetMargins(16, 32, 16);
     $pdf->SetHeaderMargin(10);
-    $pdf->SetFooterMargin(20);
+    $pdf->SetFooterMargin(22);
     $pdf->SetAutoPageBreak(false);
     $pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
     $pdf->SetFont('dejavusans', '', 9);
@@ -691,6 +725,7 @@ function xsieben_diplom_pdf($entry_id, $course_id, $output_to_browser = true, $s
 
     // Seite 2+: Ausbildungsinhalte (wenn aktiv und Inhalte vorhanden)
     if (!empty($page2_html) && $inhalte_enabled) {
+        $pdf->SetMargins(16, 28, 16);
         $pdf->SetAutoPageBreak(true, 25);
         $pdf->AddPage('P', 'A4');
         if (function_exists('crm_clean_pdf_html')) {

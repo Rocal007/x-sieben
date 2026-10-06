@@ -24,11 +24,11 @@ if (empty($curriculum_body)) {
         $curriculum_body = '
         <table cellspacing="0" cellpadding="0" style="width: 100%;">
             <tr>
-                <td style="width: 48%; vertical-align: top; font-size: 9pt; line-height: 1.45; color: #1e293b;">
+                <td style="width: 48%; vertical-align: top; font-size: 10pt; line-height: 1.55; color: #1e293b;">
                     ' . $links . '
                 </td>
                 <td style="width: 4%;"></td>
-                <td style="width: 48%; vertical-align: top; font-size: 9pt; line-height: 1.45; color: #1e293b;">
+                <td style="width: 48%; vertical-align: top; font-size: 10pt; line-height: 1.55; color: #1e293b;">
                     ' . $rechts . '
                 </td>
             </tr>
@@ -38,7 +38,7 @@ if (empty($curriculum_body)) {
 
 $subs = [
     'inhalte_titel'  => '<div style="font-size: 15pt; font-weight: bold; color: #007C90; letter-spacing: 1.5px; margin-bottom: 14px;">INHALTE DER AUSBILDUNG</div>',
-    'inhalte_matrix' => '<div style="font-size: 9.5pt; color: #334155; line-height: 1.45;">' . $curriculum_body . '</div>',
+    'inhalte_matrix' => '<div style="font-size: 10pt; color: #334155; line-height: 1.55;">' . $curriculum_body . '</div>',
 ];
 
 if (!empty($sub_key)) {
