@@ -1260,6 +1260,7 @@
             'anmeldung': '"Anmeldebestätigung & Buchung"',
             'tb': '"Teilnahmebestätigung (TB)"',
             'diplom': '"Diplom / Zertifikat"',
+            'antritt': '"Antrittsmeldung (AMS)"',
             'invoice': '"Honorarnote / Rechnung"'
         };
 

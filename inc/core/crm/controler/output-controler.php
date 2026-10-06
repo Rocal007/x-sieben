@@ -838,11 +838,26 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
     'antritt'                        => 'antritt',
     'antrittsmeldung'                => 'antritt',
     'antrittsbestaetigung'           => 'antritt',
+    'xsieben_anmeldebestaetigung'    => 'anmeldung',
+    'diplom'                         => 'diplom',
+    'xsieben_diplom'                 => 'diplom',
+    'teilnahmebestaetigung'          => 'tb',
+    'xsieben_teilnahmebestaetigung'  => 'tb',
+    'tb'                             => 'tb',
+    'kurszeitenbestaetigung'         => 'kb',
+    'xsieben_kurszeitenbestaetigung' => 'kb',
+    'kb'                             => 'kb',
+    'xsieben_angebot_kurszeiten'     => 'angebot_kb',
+    'xsieben_angebot_und_kurszeiten' => 'angebot_kb',
+    'angebot_kb'                     => 'angebot_kb',
+    'antritt'                        => 'antritt',
+    'antrittsmeldung'                => 'antritt',
+    'antrittsbestaetigung'           => 'antritt',
     'xsieben_antrittsbestaetigung'   => 'antritt',
     'invoice'                        => 'invoice',
     'honorarnote'                    => 'invoice',
   ];
-  $doc_type = $context_doc_map[$context] ?? 'angebot';
+  $doc_type = $context_doc_map[$context] ?? (function_exists('crm_normalize_email_doc_type') ? crm_normalize_email_doc_type($context) : 'angebot');
 
   // Load customizable subject template from CRM settings
   require_once dirname(__DIR__) . '/helpers/crm-email-sections.php';
@@ -869,9 +884,14 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
       case 'antritt':
         $subject = !empty($data->title) ? 'Ihre Antrittsmeldung zur Ausbildung ' . $data->title : 'Ihre Antrittsmeldung zur Ausbildung';
         break;
-      case 'angebot_kb':
       case 'kb':
+        $subject = !empty($data->title) ? 'Kurszeitenbestätigung für: ' . $data->title : 'Kurszeitenbestätigung X SIEBEN';
+        break;
+      case 'angebot_kb':
         $subject = !empty($data->title) ? 'Angebot & Kurszeiten für: ' . $data->title : 'Angebot & Kurszeiten X SIEBEN';
+        break;
+      case 'invoice':
+        $subject = !empty($data->title) ? 'Honorarnote für: ' . $data->title : 'Honorarnote X SIEBEN';
         break;
       default:
         $subject = !empty($data->title) ? 'Anfrage zu: ' . $data->title : 'Ihre Anfrage';
@@ -879,12 +899,12 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
     }
   }
 
-  // Body switch
+  // Body switch: Jeder Dokumententyp baut seine eigene, passgenaue E-Mail
   switch ($doc_type) {
     case 'anmeldung':
     case 'ab':
       if (function_exists('crm_build_document_email')) {
-        $doc_email = crm_build_document_email('ab', (int)$entry_id, (int)$course_id, ['pdf_url' => $pdf_url, 'context' => $context]);
+        $doc_email = crm_build_document_email('anmeldung', (int)$entry_id, (int)$course_id, ['pdf_url' => $pdf_url, 'context' => $context]);
         $body = $doc_email['body'];
         if (empty($subject) && !empty($doc_email['subject'])) {
           $subject = $doc_email['subject'];
@@ -894,9 +914,31 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
       }
       break;
 
-    case 'angebot':
-    case 'angebot_kb':
     case 'kb':
+      if (function_exists('crm_build_document_email')) {
+        $doc_email = crm_build_document_email('kb', (int)$entry_id, (int)$course_id, ['pdf_url' => $pdf_url, 'context' => $context]);
+        $body = $doc_email['body'];
+        if (empty($subject) && !empty($doc_email['subject'])) {
+          $subject = $doc_email['subject'];
+        }
+      } else {
+        $body = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><tr><td>' . $data->kurszeitenbestaetigung_email . '</td></tr></table>';
+      }
+      break;
+
+    case 'angebot_kb':
+      if (function_exists('crm_build_document_email')) {
+        $doc_email = crm_build_document_email('angebot_kb', (int)$entry_id, (int)$course_id, ['pdf_url' => $pdf_url, 'context' => $context]);
+        $body = $doc_email['body'];
+        if (empty($subject) && !empty($doc_email['subject'])) {
+          $subject = $doc_email['subject'];
+        }
+      } else {
+        $body = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><tr><td>' . $data->angebot_email . '</td></tr></table>';
+      }
+      break;
+
+    case 'angebot':
       if (function_exists('crm_build_standard_offer_email')) {
         $std_offer = crm_build_standard_offer_email($entry_id, $course_id, ['context' => $context]);
         $body = $std_offer['body'];
@@ -941,6 +983,16 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
         }
       } else {
         $body = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><tr><td>' . $data->antritt_email . '</td></tr></table>';
+      }
+      break;
+
+    case 'invoice':
+      if (function_exists('crm_build_document_email')) {
+        $doc_email = crm_build_document_email('invoice', (int)$entry_id, (int)$course_id, ['pdf_url' => $pdf_url, 'context' => $context]);
+        $body = $doc_email['body'];
+        if (empty($subject) && !empty($doc_email['subject'])) {
+          $subject = $doc_email['subject'];
+        }
       }
       break;
 
@@ -1037,12 +1089,16 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
   // Left: Email form & Editor
   echo '<div id="x-sieben-email-editor" style="flex:2;">';
 
-  // Dokument-Status Banner für Schnellzugriff (TB, Diplom, Antritt, AB)
+  // Dokument-Status Banner für Schnellzugriff (TB, Diplom, Antritt, AB, KB etc.)
   $quick_doc_names = [
-    'tb'      => 'Teilnahmebestätigung (TB)',
-    'diplom'  => 'Diplom',
-    'antritt' => 'Antrittsmeldung',
-    'ab'      => 'Anmeldebestätigung (AB)',
+    'tb'        => 'Teilnahmebestätigung (TB)',
+    'diplom'    => 'Diplom',
+    'antritt'   => 'Antrittsmeldung',
+    'ab'        => 'Anmeldebestätigung (AB)',
+    'anmeldung' => 'Anmeldebestätigung (AB)',
+    'kb'        => 'Kurszeitenbestätigung (KB)',
+    'angebot_kb'=> 'Angebot & Kurszeiten',
+    'invoice'   => 'Honorarnote',
   ];
   if (isset($quick_doc_names[$doc_type])) {
     $first_pdf = !empty($pdf_url) ? explode(',', $pdf_url)[0] : '';

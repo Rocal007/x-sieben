@@ -1546,6 +1546,35 @@ add_action('wp_ajax_crm_get_wizard_email_preview', function () {
         return;
     }
 
+    // Wenn keine Angebote gewählt sind, aber spezifische Dokumente (TB, Diplom, Antritt, AB, KB)
+    if (!$has_any_offer_selected && function_exists('crm_build_document_email')) {
+        if (!empty($selected_docs['tb']) && !empty($selected_docs['diplom'])) {
+            $mail_data = crm_build_document_email('tb', $entry_id, $course_id, ['attached_docs' => ['tb', 'diplom']]);
+            wp_send_json_success(['subject' => $mail_data['subject'], 'body' => $mail_data['body']]);
+            return;
+        } elseif (!empty($selected_docs['tb'])) {
+            $mail_data = crm_build_document_email('tb', $entry_id, $course_id, ['attached_docs' => ['tb']]);
+            wp_send_json_success(['subject' => $mail_data['subject'], 'body' => $mail_data['body']]);
+            return;
+        } elseif (!empty($selected_docs['diplom'])) {
+            $mail_data = crm_build_document_email('diplom', $entry_id, $course_id, ['attached_docs' => ['diplom']]);
+            wp_send_json_success(['subject' => $mail_data['subject'], 'body' => $mail_data['body']]);
+            return;
+        } elseif (!empty($selected_docs['antritt'])) {
+            $mail_data = crm_build_document_email('antritt', $entry_id, $course_id, ['attached_docs' => ['antritt']]);
+            wp_send_json_success(['subject' => $mail_data['subject'], 'body' => $mail_data['body']]);
+            return;
+        } elseif (!empty($selected_docs['ab']) || !empty($selected_docs['anmeldung'])) {
+            $mail_data = crm_build_document_email('anmeldung', $entry_id, $course_id, ['attached_docs' => ['anmeldung']]);
+            wp_send_json_success(['subject' => $mail_data['subject'], 'body' => $mail_data['body']]);
+            return;
+        } elseif (!empty($selected_docs['kb'])) {
+            $mail_data = crm_build_document_email('kb', $entry_id, $course_id, ['attached_docs' => ['kb']]);
+            wp_send_json_success(['subject' => $mail_data['subject'], 'body' => $mail_data['body']]);
+            return;
+        }
+    }
+
     $mail_data = crm_build_standard_offer_email($entry_id, $course_id, [
         'is_ams_funding'  => $want_kb,
         'want_kb'         => $want_kb,

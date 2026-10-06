@@ -15,6 +15,41 @@ if (!defined('ABSPATH')) {
 }
 
 /**
+ * Normalisiert Alias-Dokumenttypen auf den einheitlichen Template-Schlüssel.
+ *
+ * @param string $doc_type
+ * @return string
+ */
+function crm_normalize_email_doc_type(string $doc_type): string
+{
+    $doc_type = strtolower(trim($doc_type));
+    $map = [
+        'ab'                             => 'anmeldung',
+        'xsieben_anmeldebestaetigung'    => 'anmeldung',
+        'xsieben_anmeldung'              => 'anmeldung',
+        'offer'                          => 'angebot',
+        'xsieben_offer'                  => 'angebot',
+        'xsieben_angebot'                => 'angebot',
+        'teilnahmebestaetigung'          => 'tb',
+        'xsieben_teilnahmebestaetigung'  => 'tb',
+        'kurszeitenbestaetigung'         => 'kb',
+        'xsieben_kurszeitenbestaetigung' => 'kb',
+        'xsieben_angebot_kurszeiten'     => 'angebot_kb',
+        'xsieben_angebot_und_kurszeiten' => 'angebot_kb',
+        'diplom'                         => 'diplom',
+        'xsieben_diplom'                 => 'diplom',
+        'antritt'                        => 'antritt',
+        'antrittsmeldung'                => 'antritt',
+        'antrittsbestaetigung'           => 'antritt',
+        'xsieben_antrittsbestaetigung'   => 'antritt',
+        'honorarnote'                    => 'invoice',
+        'xsieben_invoice'                => 'invoice',
+        'rechnung'                       => 'invoice',
+    ];
+    return $map[$doc_type] ?? $doc_type;
+}
+
+/**
  * Liefert die Master- und Standard-Definitionen aller modularen Abschnitte für E-Mail-Vorlagen.
  *
  * @param string|null $doc_type 'angebot', 'kb', 'angebot_kb', 'anmeldung', 'tb', 'diplom', 'invoice' oder null
@@ -559,7 +594,7 @@ function crm_get_email_sections_definitions($doc_type = null): array
     ];
 
     if ($doc_type !== null) {
-        $doc_type = strtolower(trim($doc_type));
+        $doc_type = function_exists('crm_normalize_email_doc_type') ? crm_normalize_email_doc_type($doc_type) : strtolower(trim($doc_type));
         return $definitions[$doc_type] ?? [];
     }
 
@@ -569,13 +604,13 @@ function crm_get_email_sections_definitions($doc_type = null): array
 /**
  * Liefert die aktuell gespeicherte oder standardmäßige Reihenfolge der E-Mail-Abschnitte.
  *
- * @param string $doc_type 'angebot', 'kb', 'angebot_kb', 'anmeldung', 'tb', 'diplom', 'invoice'
+ * @param string $doc_type 'angebot', 'kb', 'angebot_kb', 'anmeldung', 'tb', 'diplom', 'antritt', 'invoice'
  * @param int|null $entry_id Optionaler Eintrag
  * @return array
  */
 function crm_get_email_section_order(string $doc_type, $entry_id = null): array
 {
-    $doc_type    = strtolower(trim($doc_type));
+    $doc_type    = function_exists('crm_normalize_email_doc_type') ? crm_normalize_email_doc_type($doc_type) : strtolower(trim($doc_type));
     $definitions = crm_get_email_sections_definitions($doc_type);
 
     if (empty($definitions)) {
@@ -1066,6 +1101,7 @@ function crm_assemble_email_from_sections(string $doc_type, $entry_id = null, $c
     require_once dirname(__DIR__) . '/crm-model.php';
     $crm_model = new CRM_Model($course_id, $entry_id);
 
+    $doc_type = function_exists('crm_normalize_email_doc_type') ? crm_normalize_email_doc_type($doc_type) : strtolower(trim($doc_type));
     $sections = is_array($custom_sections) ? $custom_sections : crm_get_email_section_order($doc_type, $entry_id);
 
     $body_content = '';
@@ -1177,9 +1213,9 @@ function crm_assemble_email_from_sections(string $doc_type, $entry_id = null, $c
 }
 
 /**
- * Erzeugt eine passgenaue E-Mail (Betreff + Body) für TB, Diplom, Antritt etc.
+ * Erzeugt eine passgenaue E-Mail (Betreff + Body) für TB, Diplom, Antritt, AB etc.
  *
- * @param string $doc_type 'tb', 'diplom', 'antritt'
+ * @param string $doc_type 'tb', 'diplom', 'antritt', 'anmeldung', 'kb', 'invoice'
  * @param int $entry_id
  * @param int $course_id
  * @param array $options
@@ -1190,6 +1226,7 @@ function crm_build_document_email(string $doc_type, int $entry_id, int $course_i
     require_once dirname(__DIR__) . '/crm-model.php';
     $crm_model = new CRM_Model($course_id, $entry_id);
 
+    $doc_type = function_exists('crm_normalize_email_doc_type') ? crm_normalize_email_doc_type($doc_type) : strtolower(trim($doc_type));
     $body = crm_assemble_email_from_sections($doc_type, $entry_id, $course_id, null, $options);
     $subject_tpl = crm_get_email_subject_template($doc_type);
     $subject = $crm_model->parse_string_with_data($subject_tpl);
@@ -1210,6 +1247,7 @@ function crm_build_document_email(string $doc_type, int $entry_id, int $course_i
  */
 function crm_get_email_preview_html(string $doc_type, $entry_id = null, $course_id = null): string
 {
+    $doc_type = function_exists('crm_normalize_email_doc_type') ? crm_normalize_email_doc_type($doc_type) : strtolower(trim($doc_type));
     $email_body = crm_assemble_email_from_sections($doc_type, $entry_id, $course_id);
 
     $html = '<!DOCTYPE html>'
@@ -1235,7 +1273,7 @@ function crm_get_email_preview_html(string $doc_type, $entry_id = null, $course_
 }
 
 /**
- * Liefert die Standard-Betreffzeilen für die 7 E-Mail-Typen.
+ * Liefert die Standard-Betreffzeilen für alle E-Mail-Typen.
  *
  * @return array<string, string>
  */
@@ -1246,6 +1284,7 @@ function crm_get_default_email_subjects(): array
         'kb'         => __('Kurszeitenbestätigung für: {kurstitel}', 'custom-crm'),
         'angebot_kb' => __('Angebot & Kurszeiten für: {kurstitel}', 'custom-crm'),
         'anmeldung'  => __('Ihre Anfrage / Anmeldung für: {kurstitel}', 'custom-crm'),
+        'ab'         => __('Ihre Anfrage / Anmeldung für: {kurstitel}', 'custom-crm'),
         'tb'         => __('Ihre Abschlussdokumente zur Ausbildung {kurstitel}', 'custom-crm'),
         'diplom'     => __('Ihr Diplom zur Ausbildung {kurstitel}', 'custom-crm'),
         'antritt'    => __('Ihre Antrittsmeldung zur Ausbildung {kurstitel}', 'custom-crm'),
@@ -1262,6 +1301,7 @@ function crm_get_default_email_subjects(): array
  */
 function crm_get_email_subject_template(string $doc_type): string
 {
+    $doc_type = function_exists('crm_normalize_email_doc_type') ? crm_normalize_email_doc_type($doc_type) : strtolower(trim($doc_type));
     $defaults = crm_get_default_email_subjects();
     $saved = get_option('crm_email_subject_' . $doc_type, null);
     if ($saved !== null && trim((string)$saved) !== '') {

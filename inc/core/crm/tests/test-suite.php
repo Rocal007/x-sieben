@@ -301,6 +301,7 @@ class CrmSeniorDevTestSuite
         $this->testSuite53_Version21905DynamicPlaceholdersAndTemplates();
         $this->testSuite54_Version21906ScrumKombiCertAndEmailGrammar();
         $this->testSuite55_Version21907DiplomAppleDesignAndQuickDocMailer();
+        $this->testSuite56_Version21908MultiStepMailDifferentiationAndPreviewFix();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -3823,6 +3824,70 @@ Firma: DRK Gifhorn Service und Pflegeteam gGmbH";
         $this->assert("crm-admin.js initialisiert TinyMCE bei Mailer-Ausgabe", strpos($crmAdminJs, "if (document.getElementById('x_sieben_body'))") !== false);
         $this->assert("crm-admin.js enthält dynamische Phrasen-Aktualisierung in crmSyncAttachmentsState", strpos($crmAdminJs, "Im Anhang erhalten Sie Ihre Teilnahmebestätigung sowie die Honorarnote/Rechnung") !== false);
         $this->assert("crm-admin.js enthält Click-Handler für crm-switch-to-preview-btn", strpos($crmAdminJs, "crm-switch-to-preview-btn") !== false);
+    }
+
+    public function testSuite56_Version21908MultiStepMailDifferentiationAndPreviewFix(): void
+    {
+        echo "\n\033[1;33m[SUITE 56] Feedback 06.10.2026: Multi-Step E-Mail-Differenzierung & Vorschau-Fix (v2.19.8)\033[0m\n";
+
+        // 1. Version Check
+        $this->assert("CRM_VERSION ist >= 2.19.8", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.19.8', '>='));
+
+        // 2. Normalisierung der Dokumenttypen (crm_normalize_email_doc_type)
+        if (function_exists('crm_normalize_email_doc_type')) {
+            $this->assert("crm_normalize_email_doc_type('ab') -> 'anmeldung'", crm_normalize_email_doc_type('ab') === 'anmeldung');
+            $this->assert("crm_normalize_email_doc_type('kurszeitenbestaetigung') -> 'kb'", crm_normalize_email_doc_type('kurszeitenbestaetigung') === 'kb');
+            $this->assert("crm_normalize_email_doc_type('offer') -> 'angebot'", crm_normalize_email_doc_type('offer') === 'angebot');
+            $this->assert("crm_normalize_email_doc_type('antrittsmeldung') -> 'antritt'", crm_normalize_email_doc_type('antrittsmeldung') === 'antritt');
+            $this->assert("crm_normalize_email_doc_type('teilnahmebestaetigung') -> 'tb'", crm_normalize_email_doc_type('teilnahmebestaetigung') === 'tb');
+            $this->assert("crm_normalize_email_doc_type('honorarnote') -> 'invoice'", crm_normalize_email_doc_type('honorarnote') === 'invoice');
+        }
+
+        // 3. E-Mail Inhalte und Betreffe unterscheiden sich prozessual strikt
+        if (function_exists('crm_build_document_email')) {
+            $angebotMail = crm_build_document_email('angebot', 997, 1061);
+            $kbMail = crm_build_document_email('kb', 997, 1061);
+            $abMail = crm_build_document_email('ab', 997, 1061);
+            $antrittMail = crm_build_document_email('antritt', 997, 1061);
+            $tbMail = crm_build_document_email('tb', 997, 1061);
+            $diplomMail = crm_build_document_email('diplom', 997, 1061);
+
+            // Alle Betreffe müssen eindeutig sein
+            $subjects = [
+                'angebot' => $angebotMail['subject'],
+                'kb'      => $kbMail['subject'],
+                'ab'      => $abMail['subject'],
+                'antritt' => $antrittMail['subject'],
+                'tb'      => $tbMail['subject'],
+                'diplom'  => $diplomMail['subject'],
+            ];
+            $uniqueSubjects = array_unique($subjects);
+            $this->assert("Alle 6 E-Mail-Schritte besitzen unterschiedliche Betreffe", count($subjects) === count($uniqueSubjects));
+
+            // Inhaltliche Prüfungen
+            $this->assert("KB Mail enthält Kurszeiten-Referenz", strpos($kbMail['body'], 'Kurszeiten') !== false);
+            $this->assert("KB Mail ist nicht identisch mit Angebot", $kbMail['body'] !== $angebotMail['body']);
+            $this->assert("AB Mail enthält Willkommens-Meldung", strpos($abMail['body'], 'Ihre Anmeldung für die Weiterbildung') !== false);
+            $this->assert("AB Mail ist nicht identisch mit KB Mail", $abMail['body'] !== $kbMail['body']);
+            $this->assert("Antritt Mail enthält Antritts-Meldung", strpos($antrittMail['body'], 'Antrittsmeldung zur Ausbildung') !== false);
+            $this->assert("Antritt Mail ist nicht leer", !empty($antrittMail['body']));
+        }
+
+        // 4. Output-Controler: case 'kb' ist entkoppelt von case 'angebot'
+        $outputControlerCode = file_get_contents(dirname(__DIR__) . '/controler/output-controler.php');
+        $this->assert("output-controler.php entkoppelt case 'kb': eigenständig", strpos($outputControlerCode, "case 'kb':\n") !== false || strpos($outputControlerCode, "case 'kb':\r\n") !== false);
+        $this->assert("output-controler.php ruft crm_build_document_email('kb') auf", strpos($outputControlerCode, "crm_build_document_email('kb',") !== false);
+
+        // 5. Screen-2 & Settings UI Integrität
+        $crmAdminJs = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
+        $this->assert("crm-admin.js mappt mailContext für ab und antritt", strpos($crmAdminJs, "mailContext = 'xsieben_anmeldebestaetigung'") !== false && strpos($crmAdminJs, "mailContext = 'xsieben_antrittsbestaetigung'") !== false);
+
+        $tabEmails = file_get_contents(dirname(__DIR__) . '/views/settings/tab-emails.php');
+        $this->assert("tab-emails.php besitzt antritt Pane", strpos($tabEmails, 'crm-email-sec-pane-antritt') !== false);
+        $this->assert("tab-emails.php besitzt antritt Switcher Button", strpos($tabEmails, 'data-doc="antritt"') !== false);
+
+        $settingsJs = file_get_contents(dirname(__DIR__) . '/assets/crm-settings.js');
+        $this->assert("crm-settings.js enthält antritt in emailDocTitles", strpos($settingsJs, "'antritt': '\"Antrittsmeldung") !== false);
     }
 }
 

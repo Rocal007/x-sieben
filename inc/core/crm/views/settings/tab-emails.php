@@ -63,6 +63,9 @@ if (!defined('ABSPATH')) exit;
                                 <button type="button" class="button crm-email-sec-pill" data-doc="diplom" style="color:#b45309;">
                                     <span class="dashicons dashicons-awards" style="font-size:13px; vertical-align:text-top;"></span> Diplom (6)
                                 </button>
+                                <button type="button" class="button crm-email-sec-pill" data-doc="antritt" style="color:#0891b2;">
+                                    <span class="dashicons dashicons-clipboard" style="font-size:13px; vertical-align:text-top;"></span> Antritt (5)
+                                </button>
                                 <button type="button" class="button crm-email-sec-pill" data-doc="invoice" style="color:#be185d;">
                                     <span class="dashicons dashicons-money-alt" style="font-size:13px; vertical-align:text-top;"></span> Honorarnote (7)
                                 </button>
@@ -98,6 +101,11 @@ if (!defined('ABSPATH')) exit;
                             <?php if (function_exists('crm_render_email_subject_editor')) crm_render_email_subject_editor('diplom'); ?>
                             <?php if (function_exists('crm_render_email_type_attachments_info')) crm_render_email_type_attachments_info('diplom'); ?>
                             <?php crm_render_email_sections_manager('diplom', null, false); ?>
+                        </div>
+                        <div class="crm-email-sec-tab-pane" id="crm-email-sec-pane-antritt" style="display:none;">
+                            <?php if (function_exists('crm_render_email_subject_editor')) crm_render_email_subject_editor('antritt'); ?>
+                            <?php if (function_exists('crm_render_email_type_attachments_info')) crm_render_email_type_attachments_info('antritt'); ?>
+                            <?php crm_render_email_sections_manager('antritt', null, false); ?>
                         </div>
                         <div class="crm-email-sec-tab-pane" id="crm-email-sec-pane-invoice" style="display:none;">
                             <?php if (function_exists('crm_render_email_subject_editor')) crm_render_email_subject_editor('invoice'); ?>
@@ -222,6 +230,9 @@ if (!defined('ABSPATH')) exit;
                                 </button>
                                 <button type="button" class="button crm-email-preview-switch-btn" data-doc="diplom" title="<?php esc_attr_e('Diplom / Zertifikat', 'custom-crm'); ?>">
                                     <span class="dashicons dashicons-awards" style="font-size:13px; vertical-align:text-top;"></span> Diplom
+                                </button>
+                                <button type="button" class="button crm-email-preview-switch-btn" data-doc="antritt" title="<?php esc_attr_e('Antrittsmeldung (AMS)', 'custom-crm'); ?>">
+                                    <span class="dashicons dashicons-clipboard" style="font-size:13px; vertical-align:text-top;"></span> Antritt
                                 </button>
                                 <button type="button" class="button crm-email-preview-switch-btn" data-doc="invoice" title="<?php esc_attr_e('Honorarnote / Rechnung', 'custom-crm'); ?>">
                                     <span class="dashicons dashicons-money-alt" style="font-size:13px; vertical-align:text-top;"></span> Honorarnote

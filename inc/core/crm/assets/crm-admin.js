@@ -1218,7 +1218,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 button.innerHTML = '<span class="dashicons dashicons-update spin" style="font-size:14px; width:14px; height:14px; vertical-align:text-bottom; margin-right:3px;"></span>...';
             }
 
-            const isDirectMailer = button.dataset.directMailer === '1' || ['tb', 'diplom', 'antritt'].includes(docType);
+            const isDirectMailer = button.dataset.directMailer === '1' || ['tb', 'diplom', 'antritt'].includes(docType) || ['ab', 'anmeldung'].includes(docType);
 
             detailsContainer.innerHTML = isDirectMailer ?
                 '<div style="padding:40px 20px; text-align:center; color:#64748b;"><span class="dashicons dashicons-update spin" style="font-size:32px; width:32px; height:32px; margin-bottom:12px;"></span><br><strong style="font-size:15px; color:#1e293b;">PDF wird erzeugt & Begleitmail vorbereitet...</strong><p style="margin-top:6px; font-size:13px; color:#64748b;">PDF wird erstellt, als Anhang verknüpft und Vorlage geöffnet.</p></div>' :
@@ -3930,10 +3930,10 @@ jQuery(document).ready(function ($) {
     $('body').on('click', '.x-sieben-email-btn', function (e) {
         e.preventDefault();
 
-        const pdfUrl = $(this).data('pdf');
-        const courseId = $(this).data('course');
-        const entryId = $(this).data('entry');
-        const context = $(this).data('context');
+        const pdfUrl = $(this).attr('data-pdf') || $(this).data('pdf');
+        const courseId = $(this).attr('data-course') || $(this).data('course');
+        const entryId = $(this).attr('data-entry') || $(this).data('entry');
+        const context = $(this).attr('data-context') || $(this).data('context');
         const focusTest = $(this).data('focus-test');
 
         // Remove any existing editor instance before loading new content
@@ -6268,6 +6268,14 @@ jQuery(document).ready(function ($) {
                 mailContext = 'teilnahmebestaetigung';
             } else if (doc === 'diplom') {
                 mailContext = 'xsieben_diplom';
+            } else if (doc === 'ab' || doc === 'anmeldung') {
+                mailContext = 'xsieben_anmeldebestaetigung';
+            } else if (doc === 'antritt') {
+                mailContext = 'xsieben_antrittsbestaetigung';
+            } else if (doc === 'angebot_kb') {
+                mailContext = 'xsieben_angebot_und_kurszeiten';
+            } else if (doc === 'invoice') {
+                mailContext = 'invoice';
             }
             $emailBtn.attr('data-context', mailContext).data('context', mailContext);
         }
