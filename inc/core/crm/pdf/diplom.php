@@ -197,7 +197,7 @@ if (!function_exists('crm_get_diplom_curriculum_html')) {
             preg_match_all('/<li[^>]*>/i', $c, $m_all, PREG_OFFSET_CAPTURE);
             $total_items = count($m_all[0]);
 
-            if ($total_items >= 12) {
+            if ($total_items >= 16 && $total_items <= 32) {
                 // Bei ca. 44% trennen, damit Seite 2 (inkl. Haupttitel + Intro) und Seite 3 visuell exakt balanciert sind
                 $target_idx = (int)floor($total_items * 0.44);
                 if ($target_idx > 0 && isset($m_all[0][$target_idx][1])) {
