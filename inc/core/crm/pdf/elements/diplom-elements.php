@@ -43,7 +43,8 @@ class CRM_Pdf_Diplom_Elements
         int $anzahl_le,
         string $start_formatted,
         string $end_formatted,
-        ?string $sub_key = null
+        ?string $sub_key = null,
+        string $zeitraum_verb = 'BESUCHT UND'
     ): string {
         return require __DIR__ . '/diplom-lehrgang.php';
     }
@@ -54,7 +55,8 @@ class CRM_Pdf_Diplom_Elements
         string $subtitle_upper,
         int $anzahl_le,
         string $start_formatted,
-        string $end_formatted
+        string $end_formatted,
+        string $zeitraum_verb = 'BESUCHT UND'
     ): array {
         $return_subs_array = true;
         return require __DIR__ . '/diplom-lehrgang.php';
@@ -89,12 +91,12 @@ class CRM_Pdf_Diplom_Elements
         return require __DIR__ . '/diplom-beglaubigung.php';
     }
 
-    public static function render_inhalte(string $clean_links, string $clean_rechts, ?string $sub_key = null): string
+    public static function render_inhalte(string $clean_links, string $clean_rechts, ?string $sub_key = null, ?string $curriculum_html = null): string
     {
         return require __DIR__ . '/diplom-inhalte.php';
     }
 
-    public static function get_inhalte_subs(string $clean_links, string $clean_rechts): array
+    public static function get_inhalte_subs(string $clean_links, string $clean_rechts, ?string $curriculum_html = null): array
     {
         $return_subs_array = true;
         return require __DIR__ . '/diplom-inhalte.php';

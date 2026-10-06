@@ -471,11 +471,21 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
   }
 
   $default_email_docs = [];
-  if (!empty($offer_basis_url)) $default_email_docs[] = $offer_basis_url;
-  if ($has_cert_option && !empty($offer_zert_url)) $default_email_docs[] = $offer_zert_url;
-  if ($has_offer_3 && !empty($offer_3_url)) $default_email_docs[] = $offer_3_url;
-  if (!empty($kb_url)) $default_email_docs[] = $kb_url;
-  if (!empty($terminplan_url)) $default_email_docs[] = $terminplan_url;
+  if (in_array($active_doc, ['tb', 'teilnahmebestaetigung'], true)) {
+    if (!empty($tb_url)) $default_email_docs[] = $tb_url;
+  } elseif (in_array($active_doc, ['diplom', 'xsieben_diplom'], true)) {
+    if (!empty($diplom_url)) $default_email_docs[] = $diplom_url;
+  } elseif (in_array($active_doc, ['antritt', 'antrittsbestaetigung', 'antrittsmeldung'], true)) {
+    if (!empty($antritt_url)) $default_email_docs[] = $antritt_url;
+  } elseif (in_array($active_doc, ['ab', 'anmeldebestaetigung'], true)) {
+    if (!empty($ab_url)) $default_email_docs[] = $ab_url;
+  } else {
+    if (!empty($offer_basis_url)) $default_email_docs[] = $offer_basis_url;
+    if ($has_cert_option && !empty($offer_zert_url)) $default_email_docs[] = $offer_zert_url;
+    if ($has_offer_3 && !empty($offer_3_url)) $default_email_docs[] = $offer_3_url;
+    if (!empty($kb_url)) $default_email_docs[] = $kb_url;
+    if (!empty($terminplan_url)) $default_email_docs[] = $terminplan_url;
+  }
   $email_pdf_param = !empty($default_email_docs) ? implode(',', $default_email_docs) : $active_url;
 
   // Status-Badges für die 8 Dokumenten-Tabs (Birkenbihl: Erkennen statt Raten)
@@ -809,12 +819,26 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
   // Map context to document type
   $context_doc_map = [
     'anmeldung'                      => 'anmeldung',
+    'xsieben_anmeldebestaetigung'    => 'ab',
+    'anmeldebestaetigung'            => 'ab',
+    'ab'                             => 'ab',
     'xsieben_angebot'                => 'angebot',
+    'angebot'                        => 'angebot',
     'xsieben_diplom'                 => 'diplom',
+    'diplom'                         => 'diplom',
     'teilnahmebestaetigung'          => 'tb',
+    'xsieben_teilnahmebestaetigung'  => 'tb',
+    'tb'                             => 'tb',
     'kurszeitenbestaetigung'         => 'kb',
+    'xsieben_kurszeitenbestaetigung' => 'kb',
+    'kb'                             => 'kb',
     'xsieben_angebot_kurszeiten'     => 'angebot_kb',
     'xsieben_angebot_und_kurszeiten' => 'angebot_kb',
+    'angebot_kb'                     => 'angebot_kb',
+    'antritt'                        => 'antritt',
+    'antrittsmeldung'                => 'antritt',
+    'antrittsbestaetigung'           => 'antritt',
+    'xsieben_antrittsbestaetigung'   => 'antritt',
     'invoice'                        => 'invoice',
     'honorarnote'                    => 'invoice',
   ];
@@ -828,22 +852,25 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
 
   // Fallback for subject if template not defined or empty
   if (empty($subject)) {
-    switch ($context) {
+    switch ($doc_type) {
       case 'anmeldung':
-        $subject = !empty($data->title) ? 'Ihre Anfrage für: ' . $data->title : 'Anfrage für Ihren Kurs';
+      case 'ab':
+        $subject = !empty($data->title) ? 'Ihre Anmeldebestätigung für: ' . $data->title : 'Anmeldebestätigung X SIEBEN';
         break;
-      case 'xsieben_angebot':
+      case 'angebot':
         $subject = !empty($data->title) ? 'Angebot für: ' . $data->title : 'Angebot X SIEBEN';
         break;
-      case 'xsieben_diplom':
-        $subject = !empty($data->title) ? 'Diplom ' . $data->title : 'Diplom X SIEBEN';
+      case 'diplom':
+        $subject = !empty($data->title) ? 'Ihr Diplom zur Ausbildung ' . $data->title : 'Ihr Diplom zur Ausbildung';
         break;
-      case 'teilnahmebestaetigung':
-        $subject = !empty($data->title) ? 'Ihre Teilnahmebestätigung für: ' . $data->title : 'Teilnahmebestätigung';
+      case 'tb':
+        $subject = !empty($data->title) ? 'Ihre Abschlussdokumente zur Ausbildung ' . $data->title : 'Ihre Abschlussdokumente zur Ausbildung';
         break;
-      case 'xsieben_angebot_kurszeiten':
-      case 'xsieben_angebot_und_kurszeiten':
-      case 'kurszeitenbestaetigung':
+      case 'antritt':
+        $subject = !empty($data->title) ? 'Ihre Antrittsmeldung zur Ausbildung ' . $data->title : 'Ihre Antrittsmeldung zur Ausbildung';
+        break;
+      case 'angebot_kb':
+      case 'kb':
         $subject = !empty($data->title) ? 'Angebot & Kurszeiten für: ' . $data->title : 'Angebot & Kurszeiten X SIEBEN';
         break;
       default:
@@ -853,16 +880,23 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
   }
 
   // Body switch
-  switch ($context) {
+  switch ($doc_type) {
     case 'anmeldung':
-      $body = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><tr><td>' . $data->anmeldung_email . '</td></tr></table>';
+    case 'ab':
+      if (function_exists('crm_build_document_email')) {
+        $doc_email = crm_build_document_email('ab', (int)$entry_id, (int)$course_id, ['pdf_url' => $pdf_url, 'context' => $context]);
+        $body = $doc_email['body'];
+        if (empty($subject) && !empty($doc_email['subject'])) {
+          $subject = $doc_email['subject'];
+        }
+      } else {
+        $body = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><tr><td>' . $data->anmeldung_email . '</td></tr></table>';
+      }
       break;
 
-    case 'xsieben_angebot':
-    case 'xsieben_angebot_kurszeiten':
-    case 'xsieben_angebot_und_kurszeiten':
-    case 'kurszeitenbestaetigung':
-      require_once dirname(__DIR__) . '/helpers/crm-email-sections.php';
+    case 'angebot':
+    case 'angebot_kb':
+    case 'kb':
       if (function_exists('crm_build_standard_offer_email')) {
         $std_offer = crm_build_standard_offer_email($entry_id, $course_id, ['context' => $context]);
         $body = $std_offer['body'];
@@ -874,12 +908,40 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
       }
       break;
 
-    case 'xsieben_diplom':
-      $body = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><tr><td>' . $data->diplom_email . '</td></tr></table>';
+    case 'diplom':
+      if (function_exists('crm_build_document_email')) {
+        $doc_email = crm_build_document_email('diplom', (int)$entry_id, (int)$course_id, ['pdf_url' => $pdf_url, 'context' => $context]);
+        $body = $doc_email['body'];
+        if (empty($subject) && !empty($doc_email['subject'])) {
+          $subject = $doc_email['subject'];
+        }
+      } else {
+        $body = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><tr><td>' . $data->diplom_email . '</td></tr></table>';
+      }
       break;
 
-    case 'teilnahmebestaetigung':
-      $body = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><tr><td>' . $data->teilnahmebestaetigung_email . '</td></tr></table>';
+    case 'tb':
+      if (function_exists('crm_build_document_email')) {
+        $doc_email = crm_build_document_email('tb', (int)$entry_id, (int)$course_id, ['pdf_url' => $pdf_url, 'context' => $context]);
+        $body = $doc_email['body'];
+        if (empty($subject) && !empty($doc_email['subject'])) {
+          $subject = $doc_email['subject'];
+        }
+      } else {
+        $body = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><tr><td>' . $data->teilnahmebestaetigung_email . '</td></tr></table>';
+      }
+      break;
+
+    case 'antritt':
+      if (function_exists('crm_build_document_email')) {
+        $doc_email = crm_build_document_email('antritt', (int)$entry_id, (int)$course_id, ['pdf_url' => $pdf_url, 'context' => $context]);
+        $body = $doc_email['body'];
+        if (empty($subject) && !empty($doc_email['subject'])) {
+          $subject = $doc_email['subject'];
+        }
+      } else {
+        $body = '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;"><tr><td>' . $data->antritt_email . '</td></tr></table>';
+      }
       break;
 
     default:
@@ -974,6 +1036,32 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
 
   // Left: Email form & Editor
   echo '<div id="x-sieben-email-editor" style="flex:2;">';
+
+  // Dokument-Status Banner für Schnellzugriff (TB, Diplom, Antritt, AB)
+  $quick_doc_names = [
+    'tb'      => 'Teilnahmebestätigung (TB)',
+    'diplom'  => 'Diplom',
+    'antritt' => 'Antrittsmeldung',
+    'ab'      => 'Anmeldebestätigung (AB)',
+  ];
+  if (isset($quick_doc_names[$doc_type])) {
+    $first_pdf = !empty($pdf_url) ? explode(',', $pdf_url)[0] : '';
+    echo '<div class="crm-doc-mailer-banner" style="background:#f0fdf4; border:1px solid #86efac; border-left:4px solid #16a34a; border-radius:6px; padding:12px 16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; box-shadow:0 1px 3px rgba(22,163,74,0.06);">';
+    echo '  <div style="display:flex; align-items:center; gap:10px;">';
+    echo '    <span class="dashicons dashicons-yes-alt" style="color:#16a34a; font-size:22px; width:22px; height:22px;"></span>';
+    echo '    <div>';
+    echo '      <strong style="color:#14532d; font-size:13px;">✓ ' . esc_html($quick_doc_names[$doc_type]) . ' erfolgreich vorbereitet & als Anhang vorausgewählt</strong>';
+    echo '      <p style="margin:2px 0 0 0; font-size:12px; color:#15803d;">Begleitmail steht unten zur Kontrolle bereit. Bitte prüfen und bei Bedarf anpassen.</p>';
+    echo '    </div>';
+    echo '  </div>';
+    echo '  <div style="display:flex; gap:8px; align-items:center;">';
+    if (!empty($first_pdf)) {
+      echo '    <a href="' . esc_url($first_pdf) . '" target="_blank" class="button" style="display:flex; align-items:center; gap:5px; font-size:12px; height:28px; line-height:26px; color:#0f766e;"><span class="dashicons dashicons-visibility" style="font-size:16px;"></span> PDF ansehen</a>';
+    }
+    echo '    <button type="button" class="button crm-switch-to-preview-btn" data-entry-id="' . absint($entry_id) . '" data-course-id="' . absint($course_id) . '" data-doc="' . esc_attr($doc_type) . '" style="display:flex; align-items:center; gap:5px; font-size:12px; height:28px; line-height:26px; color:#475569;"><span class="dashicons dashicons-media-document" style="font-size:16px;"></span> Zur Dokument-Vorschau</button>';
+    echo '  </div>';
+    echo '</div>';
+  }
 
   // Friedelin Banner
   if ($friedelin_draft) {
@@ -1328,6 +1416,31 @@ add_action('wp_ajax_x_sieben_send_mail', function () {
     }
   }
 
+  // Dynamische Fallback-Ersetzung für Anhang-Phrasen falls noch Platzhalter im Body stehen
+  if (strpos($body, '{anhang_text_tb}') !== false || strpos($body, '{anhang_text_diplom}') !== false) {
+    $has_tb_in_att = false;
+    $has_inv_in_att = false;
+    $has_dip_in_att = false;
+    foreach ($attachments as $att_path) {
+      $bn = basename($att_path);
+      if (stripos($bn, 'Teilnahmebestaetigung') !== false || stripos($bn, 'tb_') !== false) $has_tb_in_att = true;
+      if (stripos($bn, 'Honorarnote') !== false || stripos($bn, 'Rechnung') !== false || stripos($bn, 'hn_') !== false) $has_inv_in_att = true;
+      if (stripos($bn, 'Diplom') !== false) $has_dip_in_att = true;
+    }
+    if ($has_tb_in_att && $has_inv_in_att && !$has_dip_in_att) {
+      $tb_ph = 'Im Anhang erhalten Sie Ihre Teilnahmebestätigung sowie die Honorarnote/Rechnung zur Ausbildung als PDF.';
+      $dip_ph = 'Im Anhang erhalten Sie Ihr persönliches Diplom als PDF.';
+    } elseif ($has_tb_in_att && $has_dip_in_att) {
+      $tb_ph = 'Im Anhang erhalten Sie Ihre Teilnahmebestätigung und Ihr Diplom zur erfolgreich abgeschlossenen Ausbildung als PDF.';
+      $dip_ph = 'Im Anhang erhalten Sie Ihre Teilnahmebestätigung und Ihr Diplom zur erfolgreich abgeschlossenen Ausbildung als PDF.';
+    } else {
+      $tb_ph = 'Im Anhang erhalten Sie Ihre Teilnahmebestätigung als PDF.';
+      $dip_ph = 'Im Anhang erhalten Sie Ihr persönliches Diplom als PDF.';
+    }
+    $body = str_replace('{anhang_text_tb}', $tb_ph, $body);
+    $body = str_replace('{anhang_text_diplom}', $dip_ph, $body);
+  }
+
   // Set email headers
   $headers = [
     'Content-Type: text/html; charset=UTF-8',
@@ -1414,13 +1527,16 @@ add_action('wp_ajax_x_sieben_send_mail', function () {
     } elseif ($context === 'xsieben_angebot_kurszeiten' || $context === 'xsieben_angebot_und_kurszeiten') {
       $status_key = 'angebot_und_kurszeiten_gesendet';
       $status_label = 'Angebot & KB gesendet';
-    } elseif ($context === 'teilnahmebestaetigung' || $context === 'xsieben_teilnahmebestaetigung') {
+    } elseif ($context === 'teilnahmebestaetigung' || $context === 'xsieben_teilnahmebestaetigung' || $context === 'tb') {
       $status_key = 'teilnahmebestaetigung_gesendet';
       $status_label = 'Teilnahmebestätigung gesendet';
     } elseif ($context === 'xsieben_diplom' || $context === 'diplom') {
       $status_key = 'diplom_gesendet';
       $status_label = 'Diplom gesendet';
-    } elseif ($context === 'anmeldung' || $context === 'xsieben_anmeldung') {
+    } elseif (in_array($context, ['antritt', 'antrittsmeldung', 'antrittsbestaetigung', 'xsieben_antrittsbestaetigung'], true)) {
+      $status_key = 'in_bearbeitung';
+      $status_label = 'Antrittsmeldung gesendet';
+    } elseif ($context === 'anmeldung' || $context === 'xsieben_anmeldung' || $context === 'ab' || $context === 'xsieben_anmeldebestaetigung') {
       $status_key = 'angemeldet';
       $status_label = 'Anmeldung gesendet';
     } else {

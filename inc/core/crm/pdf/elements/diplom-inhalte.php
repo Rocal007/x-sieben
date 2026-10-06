@@ -16,25 +16,29 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-$links  = $clean_links ?? '';
-$rechts = $clean_rechts ?? '';
-
-$inhalte_html = '
-<table cellspacing="0" cellpadding="0" style="width: 100%;">
-    <tr>
-        <td style="width: 48%; vertical-align: top; text-align: center; font-size: 6.2pt; line-height: 1.2; color: #1e293b;">
-            ' . $links . '
-        </td>
-        <td style="width: 4%;"></td>
-        <td style="width: 48%; vertical-align: top; text-align: center; font-size: 6.2pt; line-height: 1.2; color: #1e293b;">
-            ' . $rechts . '
-        </td>
-    </tr>
-</table>';
+$curriculum_body = $curriculum_html ?? '';
+if (empty($curriculum_body)) {
+    $links  = $clean_links ?? '';
+    $rechts = $clean_rechts ?? '';
+    if (!empty($links) || !empty($rechts)) {
+        $curriculum_body = '
+        <table cellspacing="0" cellpadding="0" style="width: 100%;">
+            <tr>
+                <td style="width: 48%; vertical-align: top; font-size: 9pt; line-height: 1.45; color: #1e293b;">
+                    ' . $links . '
+                </td>
+                <td style="width: 4%;"></td>
+                <td style="width: 48%; vertical-align: top; font-size: 9pt; line-height: 1.45; color: #1e293b;">
+                    ' . $rechts . '
+                </td>
+            </tr>
+        </table>';
+    }
+}
 
 $subs = [
-    'inhalte_titel'  => '<div style="font-size: 4pt;">&nbsp;</div><div style="text-align: center; font-size: 8pt; font-weight: bold; color: #0f172a; letter-spacing: 3px;">A U S B I L D U N G S I N H A L T E</div><div style="font-size: 3pt;">&nbsp;</div>',
-    'inhalte_matrix' => $inhalte_html,
+    'inhalte_titel'  => '<div style="font-size: 15pt; font-weight: bold; color: #007C90; letter-spacing: 1.5px; margin-bottom: 14px;">INHALTE DER AUSBILDUNG</div>',
+    'inhalte_matrix' => '<div style="font-size: 9.5pt; color: #334155; line-height: 1.45;">' . $curriculum_body . '</div>',
 ];
 
 if (!empty($sub_key)) {

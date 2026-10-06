@@ -276,3 +276,10 @@ if (!function_exists('xsieben_antritt_pdf')) {
         return xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, $output_to_browser, $custom_sections);
     }
 }
+
+if (!function_exists('xsieben_antrittsmeldung_pdf')) {
+    function xsieben_antrittsmeldung_pdf($entry_id, $course_id, $output_to_browser = true, $custom_sections = null)
+    {
+        return xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, $output_to_browser, $custom_sections);
+    }
+}

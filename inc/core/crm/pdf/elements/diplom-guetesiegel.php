@@ -22,16 +22,16 @@ return '
 <table cellspacing="0" cellpadding="0" style="width: 100%; text-align: center;">
     <tr>
         <td style="width: 25%; vertical-align: middle; text-align: center;">
-            <img src="' . $oecert_src . '" height="24" style="height: 24px;">
+            <img src="' . $oecert_src . '" height="30" style="height: 30px;">
         </td>
         <td style="width: 25%; vertical-align: middle; text-align: center;">
-            <img src="' . $tuef_src . '" height="28" style="height: 28px;">
+            <img src="' . $tuef_src . '" height="36" style="height: 36px;">
         </td>
         <td style="width: 25%; vertical-align: middle; text-align: center;">
-            <img src="' . $system_src . '" height="22" style="height: 22px;">
+            <img src="' . $system_src . '" height="34" style="height: 34px;">
         </td>
         <td style="width: 25%; vertical-align: middle; text-align: center;">
-            <img src="' . $pma_src . '" height="26" style="height: 26px;">
+            <img src="' . $pma_src . '" height="36" style="height: 36px;">
         </td>
     </tr>
 </table>';

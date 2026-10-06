@@ -913,13 +913,13 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
                         'title'           => __('Kurstyp & Ausbildungsbezeichnung', 'custom-crm'),
                         'desc'            => __('Zwischentitel mit {kurstyp} ("HAT DEN LEHRGANG" / "HAT DAS SEMINAR") und Ausbildungsbezeichnung.', 'custom-crm'),
                         'default'         => true,
-                        'default_content' => "HAT DEN {kurstyp}<br><strong>{kurstitel}</strong>",
+                        'default_content' => "{standard}",
                     ],
                     'lehrgang_zeitraum' => [
                         'title'           => __('Umfang & Ausbildungszeitraum', 'custom-crm'),
                         'desc'            => __('Anzahl der Lehreinheiten und Zeitraum von-bis.', 'custom-crm'),
                         'default'         => true,
-                        'default_content' => "IM AUSMASS VON {le} LEHREINHEITEN A’ JE 45 MINUTEN<br>IM ZEITRAUM VOM {startdatum} BIS ZUM {enddatum} BESUCHT",
+                        'default_content' => "{standard}",
                     ],
                 ],
             ],
@@ -933,9 +933,9 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
                 'subsections' => [
                     'abschluss_formel' => [
                         'title'           => __('Begutachtungs- & Prüfungsformel', 'custom-crm'),
-                        'desc'            => __('Formel zur schriftlichen Prüfung und Abschlussarbeit.', 'custom-crm'),
-                        'default'         => true,
-                        'default_content' => "UND NACH POSITIVER BEGUTACHTUNG DER ABSCHLUSSARBEIT SOWIE ERFOLGREICHER<br>ABSOLVIERUNG DER SCHRIFTLICHEN ABSCHLUSSPRÜFUNG",
+                        'desc'            => __('Optionale Formel zur schriftlichen Prüfung und Abschlussarbeit.', 'custom-crm'),
+                        'default'         => false,
+                        'default_content' => "",
                     ],
                     'erfolg_grad' => [
                         'title'           => __('Prüfungserfolg-Status', 'custom-crm'),

@@ -18,8 +18,8 @@ if (!defined('ABSPATH')) {
 $name = $full_name_html ?? '';
 
 $subs = [
-    'haupttitel'     => '<div style="font-size: 24pt; font-weight: bold; color: #007C90; letter-spacing: 5px;">D I P L O M</div><div style="font-size: 4pt;">&nbsp;</div>',
-    'absolvent_name' => '<div style="font-size: 17pt; color: #0f172a;">' . $name . '</div><div style="font-size: 5pt;">&nbsp;</div>',
+    'haupttitel'     => '<div style="font-size: 8pt;">&nbsp;</div><div style="font-size: 26pt; font-weight: bold; color: #007C90; letter-spacing: 6px;">D I P L O M</div><div style="font-size: 9pt;">&nbsp;</div>',
+    'absolvent_name' => '<div style="font-size: 21pt; color: #0f172a; letter-spacing: 0.5px;">' . $name . '</div><div style="font-size: 9pt;">&nbsp;</div>',
 ];
 
 if (!empty($sub_key)) {

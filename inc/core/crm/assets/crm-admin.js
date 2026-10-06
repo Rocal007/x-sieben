@@ -1218,7 +1218,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 button.innerHTML = '<span class="dashicons dashicons-update spin" style="font-size:14px; width:14px; height:14px; vertical-align:text-bottom; margin-right:3px;"></span>...';
             }
 
-            detailsContainer.innerHTML = '<div style="padding:40px 20px; text-align:center; color:#64748b;"><span class="dashicons dashicons-update spin" style="font-size:32px; width:32px; height:32px; margin-bottom:12px;"></span><br><strong style="font-size:15px; color:#1e293b;">Arbeitsbereich wird vorbereitet...</strong><p style="margin-top:6px; font-size:13px; color:#64748b;">PDF-Vorschau und Optionen werden geladen.</p></div>';
+            const isDirectMailer = button.dataset.directMailer === '1' || ['tb', 'diplom', 'antritt'].includes(docType);
+
+            detailsContainer.innerHTML = isDirectMailer ?
+                '<div style="padding:40px 20px; text-align:center; color:#64748b;"><span class="dashicons dashicons-update spin" style="font-size:32px; width:32px; height:32px; margin-bottom:12px;"></span><br><strong style="font-size:15px; color:#1e293b;">PDF wird erzeugt & Begleitmail vorbereitet...</strong><p style="margin-top:6px; font-size:13px; color:#64748b;">PDF wird erstellt, als Anhang verknüpft und Vorlage geöffnet.</p></div>' :
+                '<div style="padding:40px 20px; text-align:center; color:#64748b;"><span class="dashicons dashicons-update spin" style="font-size:32px; width:32px; height:32px; margin-bottom:12px;"></span><br><strong style="font-size:15px; color:#1e293b;">Arbeitsbereich wird vorbereitet...</strong><p style="margin-top:6px; font-size:13px; color:#64748b;">PDF-Vorschau und Optionen werden geladen.</p></div>';
             detailsContainer.style.display = 'block';
 
             const formData = new FormData();
@@ -1228,6 +1232,9 @@ document.addEventListener("DOMContentLoaded", function () {
             formData.append('entry_id', entryId);
             formData.append('course_id', courseId);
             formData.append('context', context); // Add the context to the form data
+            if (isDirectMailer) {
+                formData.append('direct_mailer', '1');
+            }
 
             fetch(ajaxUrl, { method: 'POST', body: formData })
                 .then(response => response.json())
@@ -1237,6 +1244,35 @@ document.addEventListener("DOMContentLoaded", function () {
                             detailsContainer.innerHTML = data.data.output;
                             detailsContainer.style.display = 'block';
                             initPdfSectionSortables();
+
+                            // Falls Mailer ausgegeben wurde: TinyMCE & Attachments initialisieren
+                            if (document.getElementById('x_sieben_body')) {
+                                if (typeof tinymce !== 'undefined') {
+                                    if (tinymce.get('x_sieben_body')) {
+                                        tinymce.get('x_sieben_body').remove();
+                                    }
+                                    tinymce.init({
+                                        selector: '#x_sieben_body',
+                                        relative_urls: false,
+                                        remove_script_host: false,
+                                        convert_urls: false,
+                                        menubar: false,
+                                        toolbar: "undo redo | bold italic underline | bullist numlist | link unlink | code",
+                                        branding: false,
+                                        setup: function (editor) {
+                                            editor.on('change keyup NodeChange SetContent', function () {
+                                                editor.save();
+                                            });
+                                        }
+                                    });
+                                }
+                                if (typeof quicktags !== 'undefined') {
+                                    quicktags({ id: 'x_sieben_body' });
+                                }
+                                if (typeof crmSyncAttachmentsState === 'function') {
+                                    crmSyncAttachmentsState();
+                                }
+                            }
                         } else {
                             detailsContainer.innerHTML = '<div style="padding:40px 20px; text-align:center; color:#16a34a;"><span class="dashicons dashicons-yes-alt" style="font-size:36px; width:36px; height:36px; margin-bottom:10px;"></span><br><strong style="font-size:15px; color:#1e293b;">' + (data.data.message || 'Aktion erfolgreich ausgeführt.') + '</strong></div>';
                             detailsContainer.style.display = 'block';
@@ -4318,7 +4354,99 @@ jQuery(document).ready(function ($) {
                 });
             }
         }
+
+        // 4. Dynamische Begleitmail-Phrasen für TB & Diplom (Hannes Feedback 06.10.2026)
+        const contextVal = ($('#x_sieben_context').val() || '').toLowerCase();
+        if (contextVal === 'tb' || contextVal === 'teilnahmebestaetigung' || contextVal === 'xsieben_teilnahmebestaetigung' || contextVal === 'diplom' || contextVal === 'xsieben_diplom') {
+            const hasTB = activeDocs.some(function(d) { return d.docType === 'tb'; });
+            const hasInvoice = activeDocs.some(function(d) { return d.docType === 'invoice'; });
+            const hasDiplom = activeDocs.some(function(d) { return d.docType === 'diplom'; });
+
+            let targetPhrase = '';
+            if (hasTB && hasInvoice && !hasDiplom) {
+                targetPhrase = 'Im Anhang erhalten Sie Ihre Teilnahmebestätigung sowie die Honorarnote/Rechnung zur Ausbildung als PDF.';
+            } else if (hasTB && hasDiplom) {
+                targetPhrase = 'Im Anhang erhalten Sie Ihre Teilnahmebestätigung und Ihr Diplom zur erfolgreich abgeschlossenen Ausbildung als PDF.';
+            } else if (hasTB) {
+                targetPhrase = 'Im Anhang erhalten Sie Ihre Teilnahmebestätigung als PDF.';
+            } else if (hasDiplom) {
+                targetPhrase = 'Im Anhang erhalten Sie Ihr persönliches Diplom als PDF.';
+            }
+
+            if (targetPhrase) {
+                let currentContent = '';
+                const editor = (typeof tinymce !== 'undefined') ? tinymce.get('x_sieben_body') : null;
+                if (editor && !editor.isHidden()) {
+                    currentContent = editor.getContent();
+                } else {
+                    currentContent = $('#x_sieben_body').val() || '';
+                }
+
+                // Regex für die Anhang-Sätze
+                const phraseRegex = /Im Anhang erhalten Sie (?:Ihre Teilnahmebestätigung[^.]*|Ihr persönliches Diplom[^.]*)\./gi;
+                if (phraseRegex.test(currentContent)) {
+                    let updatedContent = currentContent.replace(phraseRegex, targetPhrase);
+
+                    // Wenn Diplom bereits dabei ist: Diplom-Hinweis Block ausblenden bzw. entfernen
+                    if (hasDiplom) {
+                        updatedContent = updatedContent.replace(/<div class="[^"]*crm-block-diplom_hinweis[^"]*"[^>]*>.*?<\/div>/gis, '');
+                        updatedContent = updatedContent.replace(/<p[^>]*>.*?Diplom wird Ihnen separat.*?<\/p>/gis, '');
+                    }
+
+                    if (updatedContent !== currentContent) {
+                        if (editor && !editor.isHidden()) {
+                            editor.setContent(updatedContent);
+                            editor.save();
+                        } else {
+                            $('#x_sieben_body').val(updatedContent);
+                        }
+                    }
+                }
+            }
+        }
     }
+
+    // Umschalten von der Begleitmail zurück zur PDF-Vorschau & Einstellungen
+    $(document).on('click', '.crm-switch-to-preview-btn', function (e) {
+        e.preventDefault();
+        const entryId = $(this).data('entry-id');
+        const courseId = $(this).data('course-id');
+        const doc = $(this).data('doc') || 'angebot';
+        let actionKey = 'xsieben_offer';
+        if (doc === 'tb') actionKey = 'xsieben_teilnahmebestaetigung';
+        else if (doc === 'diplom') actionKey = 'xsieben_diplom';
+        else if (doc === 'antritt') actionKey = 'xsieben_antrittsbestaetigung';
+        else if (doc === 'ab') actionKey = 'xsieben_anmeldebestaetigung';
+        else if (doc === 'kb') actionKey = 'xsieben_kurszeitenbestaetigung';
+
+        const detailsContainer = document.getElementById('crm-entry-details-container');
+        if (!detailsContainer) return;
+
+        detailsContainer.innerHTML = '<div style="padding:40px 20px; text-align:center; color:#64748b;"><span class="dashicons dashicons-update spin" style="font-size:32px; width:32px; height:32px; margin-bottom:12px;"></span><br><strong style="font-size:15px; color:#1e293b;">Dokument-Vorschau wird geladen...</strong></div>';
+
+        const formData = new FormData();
+        formData.append('action', 'crm_entry_action');
+        formData.append('nonce', (typeof xSiebenAjax !== 'undefined' && xSiebenAjax.nonce) ? xSiebenAjax.nonce : ($('#crm_ajax_nonce').val() || ''));
+        formData.append('action_key', actionKey);
+        formData.append('entry_id', entryId);
+        formData.append('course_id', courseId);
+        formData.append('context', doc);
+
+        const ajaxEndpoint = (typeof ajaxurl !== 'undefined') ? ajaxurl : ((typeof xSiebenAjax !== 'undefined') ? xSiebenAjax.ajax_url : '/wp-admin/admin-ajax.php');
+
+        fetch(ajaxEndpoint, { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.data.output) {
+                    detailsContainer.innerHTML = data.data.output;
+                    detailsContainer.style.display = 'block';
+                    if (typeof initPdfSectionSortables === 'function') initPdfSectionSortables();
+                }
+            })
+            .catch(err => {
+                console.error('CRM Switch to Preview Error:', err);
+            });
+    });
 
     // Checkbox Umschaltung: An-/Abwählen und On-Demand Generierung
     $(document).on('change', '.crm-attachment-checkbox', function () {

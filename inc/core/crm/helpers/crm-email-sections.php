@@ -323,48 +323,57 @@ function crm_get_email_sections_definitions($doc_type = null): array
         'tb' => [
             'header' => [
                 'title'          => __('Kopfzeile (Logo)', 'custom-crm'),
-                'desc'           => __('Kopfzeile mit Logo.', 'custom-crm'),
+                'desc'           => __('Kopfzeile mit offiziellem X-SIEBEN Logo.', 'custom-crm'),
                 'badge'          => __('Kopfzeile', 'custom-crm'),
                 'icon'           => 'dashicons-format-image',
                 'color'          => '#047857',
                 'default'        => true,
-                'default_content'=> '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:20px;"><tr><td align="left" style="padding-bottom:12px; border-bottom:2px solid #047857;"><img src="https://x-sieben.at/wp-content/themes/sieben/inc/core/crm/assets/xsieben_logo.png" alt="X SIEBEN" width="170" height="auto" style="display:block; border:0; max-width:170px;"></td><td align="right" style="padding-bottom:12px; border-bottom:2px solid #047857; font-family:Arial,sans-serif; font-size:11px; color:#64748b;">Teilnahmebestätigung (TB)<br><span style="color:#047857; font-weight:bold;">Erfolgreicher Kursabschluss</span></td></tr></table>',
+                'default_content'=> '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:20px;"><tr><td align="left" style="padding-bottom:12px; border-bottom:2px solid #007C90;"><img src="https://x-sieben.at/wp-content/themes/sieben/inc/core/crm/assets/xsieben_logo.png" alt="X SIEBEN" width="170" height="auto" style="display:block; border:0; max-width:170px;"></td><td align="right" style="padding-bottom:12px; border-bottom:2px solid #007C90; font-family:Arial,sans-serif; font-size:11px; color:#64748b;">Teilnahmebestätigung (TB)<br><span style="color:#007C90; font-weight:bold;">Erfolgreicher Kursabschluss</span></td></tr></table>',
             ],
             'anrede' => [
-                'title'          => __('Persönliche Anrede & Gratulation', 'custom-crm'),
-                'desc'           => __('Glückwünsche zur erfolgreichen Absolvierung.', 'custom-crm'),
+                'title'          => __('Persönliche Anrede & Dank', 'custom-crm'),
+                'desc'           => __('Dank für die Teilnahme und Hinweis auf den Kursabschluss.', 'custom-crm'),
                 'badge'          => __('Begrüßung', 'custom-crm'),
                 'icon'           => 'dashicons-admin-users',
                 'color'          => '#047857',
                 'default'        => true,
-                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:0 0 16px 0;">{salutation} {titel} {nachname},</p><p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:0 0 16px 0;">wir gratulieren Ihnen herzlich zum erfolgreichen Abschluss der Veranstaltung <strong>{kurstitel}</strong>!</p><p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:0 0 16px 0;">Als Nachweis über Ihre erfolgreiche Teilnahme und die absolvierten {le} Lehreinheiten übermitteln wir Ihnen anbei Ihre offizielle <strong>Teilnahmebestätigung (TB)</strong>.</p>',
+                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:0 0 16px 0;">{salutation} {titel} {nachname},</p><p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:0 0 16px 0;">nochmals vielen Dank für Ihre Teilnahme an unserer Ausbildung <strong>{kurstitel}</strong>.</p><p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:0 0 16px 0;">Der Lehrgang wurde mit heutigem Datum abgeschlossen. {anhang_text_tb}</p>',
             ],
-            'beilagen' => [
-                'title'          => __('Hinweis auf PDF-Teilnahmebestätigung', 'custom-crm'),
-                'desc'           => __('Hinweis auf TB_Nachname.pdf.', 'custom-crm'),
-                'badge'          => __('Beilage', 'custom-crm'),
-                'icon'           => 'dashicons-media-document',
-                'color'          => '#047857',
-                'default'        => true,
-                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:13.5px; line-height:1.6; color:#334155; margin:0 0 16px 0;">📎 <strong>Ihr Dokument im Anhang:</strong><br>Die zertifizierte Bestätigung liegt dieser E-Mail als PDF bei und kann direkt für Förderabrechnungen, Behörden oder Ihren Arbeitgeber verwendet werden.</p>',
-            ],
-            'alumni' => [
-                'title'          => __('Alumni-Netzwerk & Weiterbildung', 'custom-crm'),
-                'desc'           => __('Einladung zu vertiefenden Lehrgängen und Netzwerktreffen.', 'custom-crm'),
-                'badge'          => __('Alumni', 'custom-crm'),
-                'icon'           => 'dashicons-groups',
+            'foerderstelle' => [
+                'title'          => __('Förderstellen-Hinweis (AMS/WAFF)', 'custom-crm'),
+                'desc'           => __('Hinweis zur Weiterleitung an die Förderstelle (erscheint dynamisch nur bei vorliegendem Förderbezug).', 'custom-crm'),
+                'badge'          => __('Förderung', 'custom-crm'),
+                'icon'           => 'dashicons-building',
                 'color'          => '#0284c7',
                 'default'        => true,
-                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:13px; line-height:1.5; color:#475569; margin:0 0 16px 0;">Wir wünschen Ihnen bei der praktischen Umsetzung des erworbenen Wissens viel Erfolg und freuen uns darauf, Sie bei einem vertiefenden Seminar oder unserer Zertifizierungsvorbereitung wieder begrüßen zu dürfen.</p>',
+                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:13.5px; line-height:1.6; color:#334155; margin:0 0 16px 0;">Sofern die Ausbildung über eine Förderstelle abgewickelt wird, bitten wir Sie, die erforderlichen Abschlussunterlagen unter Berücksichtigung der jeweiligen Einreichfrist möglichst zeitnah an Ihre Ansprechpartnerin bzw. Ihren Ansprechpartner bei der Förderstelle weiterzuleiten.</p>',
+            ],
+            'diplom_hinweis' => [
+                'title'          => __('Hinweis auf folgendes Diplom', 'custom-crm'),
+                'desc'           => __('Hinweis auf spätere Diplomübergabe (erscheint nur, wenn Diplom vorgesehen und noch nicht erstellt/versandt ist).', 'custom-crm'),
+                'badge'          => __('Diplom', 'custom-crm'),
+                'icon'           => 'dashicons-awards',
+                'color'          => '#b45309',
+                'default'        => true,
+                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:13.5px; line-height:1.6; color:#334155; margin:0 0 16px 0;">Sofern im jeweiligen Lehrgang ein Diplomabschluss vorgesehen ist, erhalten Sie Ihr Diplom nach erfolgreicher Absolvierung der dafür vorgesehenen Abschlussleistungen.</p>',
+            ],
+            'kontakt' => [
+                'title'          => __('Hotline & Wünsche', 'custom-crm'),
+                'desc'           => __('Kostenlose Hotline 0800 / 700 170 und Erfolgswünsche.', 'custom-crm'),
+                'badge'          => __('Kontakt', 'custom-crm'),
+                'icon'           => 'dashicons-phone',
+                'color'          => '#0f766e',
+                'default'        => true,
+                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:13.5px; line-height:1.6; color:#334155; margin:0 0 16px 0;">Für weitere Fragen stehen wir Ihnen gerne auch telefonisch und gebührenfrei unter 0800 / 700 170 zur Verfügung.</p><p style="font-family:Arial,sans-serif; font-size:13.5px; line-height:1.6; color:#334155; margin:0 0 16px 0;">Alles Gute und weiterhin viel Erfolg!</p>',
             ],
             'signatur' => [
-                'title'          => __('Signatur', 'custom-crm'),
-                'desc'           => __('Signatur Backoffice.', 'custom-crm'),
+                'title'          => __('Signatur Anna Brauer', 'custom-crm'),
+                'desc'           => __('Offizielle Signatur Anna Brauer, X SIEBEN Wirtschaftstraining GmbH.', 'custom-crm'),
                 'badge'          => __('Signatur', 'custom-crm'),
                 'icon'           => 'dashicons-edit',
                 'color'          => '#059669',
                 'default'        => true,
-                'default_content'=> '{signatur_email}',
+                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:16px 0 0 0;">Herzliche Grüße<br><strong>Anna Brauer</strong><br>X SIEBEN Wirtschaftstraining GmbH</p>',
             ],
             'footer' => [
                 'title'          => __('Footer', 'custom-crm'),
@@ -382,49 +391,91 @@ function crm_get_email_sections_definitions($doc_type = null): array
         // ==========================================
         'diplom' => [
             'header' => [
-                'title'          => __('Feierliche Kopfzeile (Diplom-Logo)', 'custom-crm'),
-                'desc'           => __('Gold-/Bernsteinfarbene Kopfzeile mit Diplom-Badge.', 'custom-crm'),
+                'title'          => __('Kopfzeile (Logo)', 'custom-crm'),
+                'desc'           => __('Kopfzeile mit offiziellem X-SIEBEN Logo.', 'custom-crm'),
                 'badge'          => __('Kopfzeile', 'custom-crm'),
-                'icon'           => 'dashicons-awards',
+                'icon'           => 'dashicons-format-image',
                 'color'          => '#b45309',
                 'default'        => true,
-                'default_content'=> '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:20px;"><tr><td align="left" style="padding-bottom:12px; border-bottom:2px solid #b45309;"><img src="https://x-sieben.at/wp-content/themes/sieben/inc/core/crm/assets/xsieben_logo.png" alt="X SIEBEN" width="170" height="auto" style="display:block; border:0; max-width:170px;"></td><td align="right" style="padding-bottom:12px; border-bottom:2px solid #b45309; font-family:Arial,sans-serif; font-size:11px; color:#64748b;">Diplom & Abschlusszertifikat<br><span style="color:#b45309; font-weight:bold;">ISO 17024 Personenzertifizierung</span></td></tr></table>',
+                'default_content'=> '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:20px;"><tr><td align="left" style="padding-bottom:12px; border-bottom:2px solid #007C90;"><img src="https://x-sieben.at/wp-content/themes/sieben/inc/core/crm/assets/xsieben_logo.png" alt="X SIEBEN" width="170" height="auto" style="display:block; border:0; max-width:170px;"></td><td align="right" style="padding-bottom:12px; border-bottom:2px solid #007C90; font-family:Arial,sans-serif; font-size:11px; color:#64748b;">Diplom & Abschlusszertifikat<br><span style="color:#007C90; font-weight:bold;">ISO 17024 Personenzertifizierung</span></td></tr></table>',
             ],
             'anrede' => [
                 'title'          => __('Feierliche Gratulation & Prüfungserfolg', 'custom-crm'),
-                'desc'           => __('Anerkennung des Prüfungserfolgs ({diplom_success}).', 'custom-crm'),
+                'desc'           => __('Glückwunsch zum erfolgreichen Abschluss und Verweis auf das Diplom.', 'custom-crm'),
                 'badge'          => __('Gratulation', 'custom-crm'),
                 'icon'           => 'dashicons-awards',
                 'color'          => '#b45309',
                 'default'        => true,
-                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:0 0 16px 0;">{salutation} {titel} {nachname},</p><p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:0 0 16px 0;">wir gratulieren Ihnen herzlich zur erfolgreichen Absolvierung der kommissionellen Abschlussprüfung zum {kurstyp} <strong>{kurstitel}</strong> {diplom_success}!</p>',
+                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:0 0 16px 0;">{salutation} {titel} {nachname},</p><p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:0 0 16px 0;">herzlichen Glückwunsch zum erfolgreichen Abschluss Ihrer Ausbildung <strong>{kurstitel}</strong>!</p><p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:0 0 16px 0;">{anhang_text_diplom}</p><p style="font-family:Arial,sans-serif; font-size:13.5px; line-height:1.6; color:#334155; margin:0 0 16px 0;">Wir wünschen Ihnen viel Erfolg bei der Umsetzung des erworbenen Wissens und alles Gute für Ihren weiteren beruflichen Weg.</p>',
             ],
-            'diplom_details' => [
-                'title'          => __('Ausweisungs-Box & Zertifikat-Details', 'custom-crm'),
-                'desc'           => __('Akkreditierungen (SystemCERT, Ö-Cert, TÜV) und Qualifikationsnachweis.', 'custom-crm'),
-                'badge'          => __('Qualifikation', 'custom-crm'),
-                'icon'           => 'dashicons-star-filled',
-                'color'          => '#b45309',
+            'kontakt' => [
+                'title'          => __('Hotline & Kontakt', 'custom-crm'),
+                'desc'           => __('Kostenlose Hotline 0800 / 700 170.', 'custom-crm'),
+                'badge'          => __('Kontakt', 'custom-crm'),
+                'icon'           => 'dashicons-phone',
+                'color'          => '#0f766e',
                 'default'        => true,
-                'default_content'=> '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#fffbeb; border-left:4px solid #b45309; border-top:1px solid #fef3c7; border-right:1px solid #fef3c7; border-bottom:1px solid #fef3c7; border-radius:4px; padding:14px 18px; margin:16px 0; font-family:Arial,sans-serif; font-size:13px; color:#78350f;"><tr><td><strong>Offizieller Qualifikationsnachweis:</strong><br>Mit diesem Diplom weisen Sie Ihre fundierten Fachkenntnisse und praktischen Kompetenzen nach höchsten Qualitätsstandards aus. Ihr Diplom berechtigt zur Führung der entsprechenden Fachbezeichnung.</td></tr></table>',
-            ],
-            'beilagen' => [
-                'title'          => __('Hinweis auf beigelegtes PDF-Diplom', 'custom-crm'),
-                'desc'           => __('Verweis auf hochauflösendes PDF-Diplom.', 'custom-crm'),
-                'badge'          => __('Beilage', 'custom-crm'),
-                'icon'           => 'dashicons-media-document',
-                'color'          => '#b45309',
-                'default'        => true,
-                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:13.5px; line-height:1.6; color:#334155; margin:0 0 16px 0;">📎 <strong>Ihr Diplom im Anhang:</strong><br>Ihr hochauflösendes, siegelgezeichnetes Abschlussdiplom liegt dieser E-Mail als PDF bei. Das Originaldokument auf Urkundenpapier geht Ihnen zusätzlich postalisch zu.</p>',
+                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:13.5px; line-height:1.6; color:#334155; margin:0 0 16px 0;">Für weitere Fragen stehen wir Ihnen gerne auch telefonisch und gebührenfrei unter 0800 / 700 170 zur Verfügung.</p>',
             ],
             'signatur' => [
-                'title'          => __('Signatur', 'custom-crm'),
-                'desc'           => __('Geschäftsführung Dr. Johannes Gasberger.', 'custom-crm'),
+                'title'          => __('Signatur Anna Brauer', 'custom-crm'),
+                'desc'           => __('Offizielle Signatur Anna Brauer, X SIEBEN Wirtschaftstraining GmbH.', 'custom-crm'),
                 'badge'          => __('Signatur', 'custom-crm'),
                 'icon'           => 'dashicons-edit',
                 'color'          => '#059669',
                 'default'        => true,
-                'default_content'=> '{signatur_email}',
+                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:16px 0 0 0;">Herzliche Grüße<br><strong>Anna Brauer</strong><br>X SIEBEN Wirtschaftstraining GmbH</p>',
+            ],
+            'footer' => [
+                'title'          => __('Footer', 'custom-crm'),
+                'desc'           => __('Rechtlicher Footer.', 'custom-crm'),
+                'badge'          => __('Footer', 'custom-crm'),
+                'icon'           => 'dashicons-admin-generic',
+                'color'          => '#475569',
+                'default'        => true,
+                'default_content'=> '{email_footer}',
+            ],
+        ],
+
+        // ==========================================
+        // 7. ANTRITT (Antrittsmeldung AMS)
+        // ==========================================
+        'antritt' => [
+            'header' => [
+                'title'          => __('Kopfzeile (Logo)', 'custom-crm'),
+                'desc'           => __('Kopfzeile mit offiziellem X-SIEBEN Logo.', 'custom-crm'),
+                'badge'          => __('Kopfzeile', 'custom-crm'),
+                'icon'           => 'dashicons-format-image',
+                'color'          => '#0891b2',
+                'default'        => true,
+                'default_content'=> '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:20px;"><tr><td align="left" style="padding-bottom:12px; border-bottom:2px solid #007C90;"><img src="https://x-sieben.at/wp-content/themes/sieben/inc/core/crm/assets/xsieben_logo.png" alt="X SIEBEN" width="170" height="auto" style="display:block; border:0; max-width:170px;"></td><td align="right" style="padding-bottom:12px; border-bottom:2px solid #007C90; font-family:Arial,sans-serif; font-size:11px; color:#64748b;">Antrittsmeldung<br><span style="color:#007C90; font-weight:bold;">Bestätigung für Förderstellen</span></td></tr></table>',
+            ],
+            'anrede' => [
+                'title'          => __('Persönliche Anrede & Antrittsmeldung', 'custom-crm'),
+                'desc'           => __('Übermittlung der Antrittsmeldung und Weiterleitungshinweis.', 'custom-crm'),
+                'badge'          => __('Begrüßung', 'custom-crm'),
+                'icon'           => 'dashicons-admin-users',
+                'color'          => '#0891b2',
+                'default'        => true,
+                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:0 0 16px 0;">{salutation} {titel} {nachname},</p><p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:0 0 16px 0;">anbei erhalten Sie wie vereinbart Ihre Antrittsmeldung zur Ausbildung <strong>{kurstitel}</strong> als PDF.</p><p style="font-family:Arial,sans-serif; font-size:13.5px; line-height:1.6; color:#334155; margin:0 0 16px 0;">Das Dokument können Sie bei Bedarf direkt an Ihre zuständige Förderstelle weiterleiten.</p>',
+            ],
+            'kontakt' => [
+                'title'          => __('Hotline & Kontakt', 'custom-crm'),
+                'desc'           => __('Kostenlose Hotline 0800 / 700 170.', 'custom-crm'),
+                'badge'          => __('Kontakt', 'custom-crm'),
+                'icon'           => 'dashicons-phone',
+                'color'          => '#0f766e',
+                'default'        => true,
+                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:13.5px; line-height:1.6; color:#334155; margin:0 0 16px 0;">Für weitere Fragen stehen wir Ihnen gerne auch telefonisch und gebührenfrei unter 0800 / 700 170 zur Verfügung.</p>',
+            ],
+            'signatur' => [
+                'title'          => __('Signatur Anna Brauer', 'custom-crm'),
+                'desc'           => __('Offizielle Signatur Anna Brauer, X SIEBEN Wirtschaftstraining GmbH.', 'custom-crm'),
+                'badge'          => __('Signatur', 'custom-crm'),
+                'icon'           => 'dashicons-edit',
+                'color'          => '#059669',
+                'default'        => true,
+                'default_content'=> '<p style="font-family:Arial,sans-serif; font-size:14px; line-height:1.6; color:#1e293b; margin:16px 0 0 0;">Herzliche Grüße<br><strong>Anna Brauer</strong><br>X SIEBEN Wirtschaftstraining GmbH</p>',
             ],
             'footer' => [
                 'title'          => __('Footer', 'custom-crm'),
@@ -1010,7 +1061,7 @@ function crm_render_email_sections_manager(string $doc_type = 'angebot', $entry_
  * @param array|null $custom_sections
  * @return string Client-sicheres HTML
  */
-function crm_assemble_email_from_sections(string $doc_type, $entry_id = null, $course_id = null, $custom_sections = null): string
+function crm_assemble_email_from_sections(string $doc_type, $entry_id = null, $course_id = null, $custom_sections = null, array $options = []): string
 {
     require_once dirname(__DIR__) . '/crm-model.php';
     $crm_model = new CRM_Model($course_id, $entry_id);
@@ -1019,15 +1070,79 @@ function crm_assemble_email_from_sections(string $doc_type, $entry_id = null, $c
 
     $body_content = '';
 
+    // Dynamische Anhangstext-Ermittlung vorab
+    $attached_docs = $options['attached_docs'] ?? [];
+    if (empty($attached_docs) && !empty($options['pdf_url'])) {
+        $attached_docs = array_filter(array_map('trim', explode(',', $options['pdf_url'])));
+    }
+    $has_tb_att      = false;
+    $has_diplom_att  = false;
+    $has_invoice_att = false;
+    foreach ($attached_docs as $ad) {
+        $bn = basename(parse_url($ad, PHP_URL_PATH));
+        if (stripos($bn, 'teilnahme') !== false || stripos($bn, 'tb_') !== false) $has_tb_att = true;
+        if (stripos($bn, 'diplom') !== false) $has_diplom_att = true;
+        if (stripos($bn, 'honorarnote') !== false || stripos($bn, 'rechnung') !== false || stripos($bn, 'hn_') !== false) $has_invoice_att = true;
+    }
+    if ($doc_type === 'tb' && !$has_tb_att) $has_tb_att = true;
+    if ($doc_type === 'diplom' && !$has_diplom_att) $has_diplom_att = true;
+
+    if ($has_tb_att && $has_invoice_att && !$has_diplom_att) {
+        $tb_phrase = 'Im Anhang erhalten Sie Ihre Teilnahmebestätigung sowie die Honorarnote/Rechnung zur Ausbildung als PDF.';
+        $dip_phrase = 'Im Anhang erhalten Sie Ihr persönliches Diplom als PDF.';
+    } elseif ($has_tb_att && $has_diplom_att) {
+        $tb_phrase = 'Im Anhang erhalten Sie Ihre Teilnahmebestätigung und Ihr Diplom zur erfolgreich abgeschlossenen Ausbildung als PDF.';
+        $dip_phrase = 'Im Anhang erhalten Sie Ihre Teilnahmebestätigung und Ihr Diplom zur erfolgreich abgeschlossenen Ausbildung als PDF.';
+    } else {
+        $tb_phrase = 'Im Anhang erhalten Sie Ihre Teilnahmebestätigung als PDF.';
+        $dip_phrase = 'Im Anhang erhalten Sie Ihr persönliches Diplom als PDF.';
+    }
+
     foreach ($sections as $sec) {
         if (empty($sec['enabled'])) {
             continue;
+        }
+
+        $sec_key = $sec['key'] ?? '';
+
+        // Dynamische Kontext-Regel 1 (Hannes Vorgabe 06.10.2026): Förderstelle nur wenn Förderbezug im Lead vorliegt
+        if ($sec_key === 'foerderstelle') {
+            $foerd = ($entry_id && function_exists('crm_get_entry_foerderung')) ? crm_get_entry_foerderung($entry_id) : ['ams' => false, 'waff' => false];
+            $is_foerd = !empty($foerd['ams']) || !empty($foerd['waff']) || (stripos($crm_model->title ?: '', 'ams') !== false);
+            if (!$is_foerd && empty($options['force_foerderung'])) {
+                continue;
+            }
+        }
+
+        // Dynamische Kontext-Regel 2 (Hannes Vorgabe 06.10.2026): Diplom-Hinweis nur wenn Lehrgang ein Diplom vorsieht und Diplom noch nicht vorliegt
+        if ($sec_key === 'diplom_hinweis') {
+            $title_str = mb_strtolower($crm_model->title ?: '', 'UTF-8');
+            $typ_str   = mb_strtolower($crm_model->kurstyp ?: '', 'UTF-8');
+            $has_diplom_in_course = (strpos($title_str, 'diplom') !== false || strpos($typ_str, 'diplom') !== false || strpos($typ_str, 'lehrgang') !== false);
+
+            $pdf_param = $options['pdf_url'] ?? '';
+            $diplom_already = (stripos($pdf_param, 'diplom') !== false);
+            if (!$diplom_already && $entry_id) {
+                $vorname_s   = $crm_model->vorname ?: '';
+                $storage_dir = function_exists('crm_get_pdf_storage_dir') ? crm_get_pdf_storage_dir() : (get_template_directory() . '/angebote/');
+                $existing_dips = glob($storage_dir . 'Diplom_*' . $vorname_s . '*.pdf');
+                if (!empty($existing_dips)) {
+                    $diplom_already = true;
+                }
+            }
+            if (!$has_diplom_in_course || $diplom_already) {
+                continue;
+            }
         }
 
         $raw_content = $sec['content'] ?? '';
         if (empty(trim($raw_content))) {
             continue;
         }
+
+        // Dynamische Bausteine einsetzen
+        $raw_content = str_replace('{anhang_text_tb}', $tb_phrase, $raw_content);
+        $raw_content = str_replace('{anhang_text_diplom}', $dip_phrase, $raw_content);
 
         // Platzhalter ersetzen
         $parsed = $crm_model->parse_string_with_data($raw_content);
@@ -1039,7 +1154,7 @@ function crm_assemble_email_from_sections(string $doc_type, $entry_id = null, $c
         $parsed = do_shortcode($parsed);
 
         // Block hinzufügen
-        $body_content .= '<div class="crm-mail-block crm-block-' . esc_attr($sec['key'] ?? 'section') . '" style="margin-bottom:14px;">' . $parsed . '</div>';
+        $body_content .= '<div class="crm-mail-block crm-block-' . esc_attr($sec_key ?: 'section') . '" style="margin-bottom:14px;">' . $parsed . '</div>';
     }
 
     // Äußeres E-Mail-Container-Layout (Tabelle für Outlook / Mobilgeräte)
@@ -1059,6 +1174,30 @@ function crm_assemble_email_from_sections(string $doc_type, $entry_id = null, $c
     }
 
     return $output;
+}
+
+/**
+ * Erzeugt eine passgenaue E-Mail (Betreff + Body) für TB, Diplom, Antritt etc.
+ *
+ * @param string $doc_type 'tb', 'diplom', 'antritt'
+ * @param int $entry_id
+ * @param int $course_id
+ * @param array $options
+ * @return array ['subject' => string, 'body' => string]
+ */
+function crm_build_document_email(string $doc_type, int $entry_id, int $course_id, array $options = []): array
+{
+    require_once dirname(__DIR__) . '/crm-model.php';
+    $crm_model = new CRM_Model($course_id, $entry_id);
+
+    $body = crm_assemble_email_from_sections($doc_type, $entry_id, $course_id, null, $options);
+    $subject_tpl = crm_get_email_subject_template($doc_type);
+    $subject = $crm_model->parse_string_with_data($subject_tpl);
+
+    return [
+        'subject' => $subject,
+        'body'    => $body,
+    ];
 }
 
 /**
@@ -1107,8 +1246,9 @@ function crm_get_default_email_subjects(): array
         'kb'         => __('Kurszeitenbestätigung für: {kurstitel}', 'custom-crm'),
         'angebot_kb' => __('Angebot & Kurszeiten für: {kurstitel}', 'custom-crm'),
         'anmeldung'  => __('Ihre Anfrage / Anmeldung für: {kurstitel}', 'custom-crm'),
-        'tb'         => __('Ihre Teilnahmebestätigung für: {kurstitel}', 'custom-crm'),
-        'diplom'     => __('Diplom {kurstitel}', 'custom-crm'),
+        'tb'         => __('Ihre Abschlussdokumente zur Ausbildung {kurstitel}', 'custom-crm'),
+        'diplom'     => __('Ihr Diplom zur Ausbildung {kurstitel}', 'custom-crm'),
+        'antritt'    => __('Ihre Antrittsmeldung zur Ausbildung {kurstitel}', 'custom-crm'),
         'invoice'    => __('Honorarnote für: {kurstitel}', 'custom-crm'),
         'default'    => __('Ihre Anfrage zu: {kurstitel}', 'custom-crm'),
     ];
@@ -1125,6 +1265,14 @@ function crm_get_email_subject_template(string $doc_type): string
     $defaults = crm_get_default_email_subjects();
     $saved = get_option('crm_email_subject_' . $doc_type, null);
     if ($saved !== null && trim((string)$saved) !== '') {
+        // Migration von alten Standard-Werten auf Hannes Vorgabe (06.10.2026)
+        if ($doc_type === 'tb' && in_array(trim((string)$saved), ['Ihre Teilnahmebestätigung für: {kurstitel}', 'Teilnahmebestätigung {kurstitel}'], true)) {
+            $saved = $defaults['tb'];
+            update_option('crm_email_subject_tb', $saved);
+        } elseif ($doc_type === 'diplom' && in_array(trim((string)$saved), ['Diplom {kurstitel}', 'Ihr Diplom {kurstitel}'], true)) {
+            $saved = $defaults['diplom'];
+            update_option('crm_email_subject_diplom', $saved);
+        }
         return (string)$saved;
     }
     return $defaults[$doc_type] ?? ($defaults['default'] ?? 'Ihre Anfrage');
@@ -1361,6 +1509,14 @@ function crm_get_email_type_attachments_config($doc_type = null): array
                     'color' => '#b45309',
                     'desc'  => __('Abschlussdiplom bei erfolgreicher Prüfung.', 'custom-crm'),
                 ],
+                [
+                    'type'  => 'invoice',
+                    'title' => __('Honorarnote / Rechnung (PDF)', 'custom-crm'),
+                    'badge' => '💶 Honorarnote',
+                    'icon'  => 'dashicons-money-alt',
+                    'color' => '#be185d',
+                    'desc'  => __('Honorarnote / Rechnung zur Ausbildung.', 'custom-crm'),
+                ],
             ],
         ],
         'diplom' => [
@@ -1382,6 +1538,28 @@ function crm_get_email_type_attachments_config($doc_type = null): array
                     'icon'  => 'dashicons-id-alt',
                     'color' => '#047857',
                     'desc'  => __('Zusätzlicher Stundennachweis.', 'custom-crm'),
+                ],
+            ],
+        ],
+        'antritt' => [
+            'standard' => [
+                [
+                    'type'  => 'antritt',
+                    'title' => __('Antrittsmeldung (AMS)', 'custom-crm'),
+                    'badge' => '📋 Antritt',
+                    'icon'  => 'dashicons-yes-alt',
+                    'color' => '#0891b2',
+                    'desc'  => __('Bestätigung über den tatsächlichen Kursantritt für das AMS.', 'custom-crm'),
+                ],
+            ],
+            'optional' => [
+                [
+                    'type'  => 'kb',
+                    'title' => __('Kurszeitenbestätigung (KB)', 'custom-crm'),
+                    'badge' => '📅 Kurszeiten',
+                    'icon'  => 'dashicons-calendar-alt',
+                    'color' => '#0f766e',
+                    'desc'  => __('Ergänzender Termin- und Stundennachweis.', 'custom-crm'),
                 ],
             ],
         ],
@@ -1651,6 +1829,20 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
     if (!$found_tb) {
         $found_tb = $find_server_pdf("TB_{$entry_id}-");
     }
+    if (!$found_tb && in_array($context, ['teilnahmebestaetigung', 'tb', 'xsieben_teilnahmebestaetigung'], true) && $entry_id && $course_id && function_exists('xsieben_teilnahmebestaetigung_pdf')) {
+        try {
+            $gen_tb_url = xsieben_teilnahmebestaetigung_pdf($entry_id, $course_id, false);
+            if ($gen_tb_url) {
+                $gen_tb_name = rawurldecode(basename(parse_url($gen_tb_url, PHP_URL_PATH)));
+                $found_tb = $gen_tb_name;
+                $resolved_uris[$gen_tb_name]  = $gen_tb_url;
+                $resolved_paths[$gen_tb_name] = $storage_dir . $gen_tb_name;
+            }
+        } catch (\Throwable $e) {
+            error_log('CRM Auto TB Generation Error: ' . $e->getMessage());
+        }
+    }
+
     $found_ab      = $find_server_pdf("Anmeldebestaetigung_{$vorname}_{$nachname}_");
     if (!$found_ab) {
         $found_ab = $find_server_pdf("AB_{$entry_id}-");
@@ -1658,6 +1850,20 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
     if (!$found_ab) {
         $found_ab = $find_server_pdf("Anmeldebestaetigung_");
     }
+    if (!$found_ab && in_array($context, ['anmeldebestaetigung', 'ab', 'xsieben_anmeldebestaetigung'], true) && $entry_id && $course_id && function_exists('xsieben_anmeldebestaetigung_pdf')) {
+        try {
+            $gen_ab_url = xsieben_anmeldebestaetigung_pdf($entry_id, $course_id, false);
+            if ($gen_ab_url) {
+                $gen_ab_name = rawurldecode(basename(parse_url($gen_ab_url, PHP_URL_PATH)));
+                $found_ab = $gen_ab_name;
+                $resolved_uris[$gen_ab_name]  = $gen_ab_url;
+                $resolved_paths[$gen_ab_name] = $storage_dir . $gen_ab_name;
+            }
+        } catch (\Throwable $e) {
+            error_log('CRM Auto AB Generation Error: ' . $e->getMessage());
+        }
+    }
+
     $found_antritt = $find_server_pdf("Antrittsmeldung_{$vorname}_{$nachname}_");
     if (!$found_antritt) {
         $found_antritt = $find_server_pdf("Antritt_{$entry_id}-");
@@ -1665,10 +1871,43 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
     if (!$found_antritt) {
         $found_antritt = $find_server_pdf("Antrittsmeldung_");
     }
+    if (!$found_antritt && in_array($context, ['antritt', 'antrittsmeldung', 'antrittsbestaetigung', 'xsieben_antrittsbestaetigung'], true) && $entry_id && $course_id) {
+        try {
+            $gen_antritt_url = '';
+            if (function_exists('xsieben_antrittsbestaetigung_pdf')) {
+                $gen_antritt_url = xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, false);
+            } elseif (function_exists('xsieben_antrittsmeldung_pdf')) {
+                $gen_antritt_url = xsieben_antrittsmeldung_pdf($entry_id, $course_id, false);
+            }
+            if ($gen_antritt_url) {
+                $gen_antritt_name = rawurldecode(basename(parse_url($gen_antritt_url, PHP_URL_PATH)));
+                $found_antritt = $gen_antritt_name;
+                $resolved_uris[$gen_antritt_name]  = $gen_antritt_url;
+                $resolved_paths[$gen_antritt_name] = $storage_dir . $gen_antritt_name;
+            }
+        } catch (\Throwable $e) {
+            error_log('CRM Auto Antritt Generation Error: ' . $e->getMessage());
+        }
+    }
+
     $found_diplom  = false;
     if (!empty($vorname) && !empty($nachname)) {
         $found_diplom = $find_server_pdf("Diplom_", $vorname);
     }
+    if (!$found_diplom && in_array($context, ['xsieben_diplom', 'diplom'], true) && $entry_id && $course_id && function_exists('xsieben_diplom_pdf')) {
+        try {
+            $gen_dip_url = xsieben_diplom_pdf($entry_id, $course_id, false);
+            if ($gen_dip_url) {
+                $gen_dip_name = rawurldecode(basename(parse_url($gen_dip_url, PHP_URL_PATH)));
+                $found_diplom = $gen_dip_name;
+                $resolved_uris[$gen_dip_name]  = $gen_dip_url;
+                $resolved_paths[$gen_dip_name] = $storage_dir . $gen_dip_name;
+            }
+        } catch (\Throwable $e) {
+            error_log('CRM Auto Diplom Generation Error: ' . $e->getMessage());
+        }
+    }
+
     $found_invoice = $find_server_pdf("Honorarnote_{$entry_id}-");
     if (!$found_invoice) {
         $found_invoice = $find_server_pdf("HN_{$entry_id}-");
@@ -1947,6 +2186,46 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
             $candidates['kb']['is_checked'] = true;
             if (!in_array($candidates['kb']['url'], $active_urls, true)) {
                 $active_urls[] = $candidates['kb']['url'];
+            }
+        }
+    }
+
+    // Falls Teilnahmebestätigung (TB) im Fokus steht: TB als Anhang vorauswählen
+    if (!empty($candidates['tb']['url']) && empty($candidates['tb']['is_checked'])) {
+        if (in_array($context, ['teilnahmebestaetigung', 'tb', 'xsieben_teilnahmebestaetigung'], true)) {
+            $candidates['tb']['is_checked'] = true;
+            if (!in_array($candidates['tb']['url'], $active_urls, true)) {
+                $active_urls[] = $candidates['tb']['url'];
+            }
+        }
+    }
+
+    // Falls Diplom im Fokus steht: Diplom als Anhang vorauswählen
+    if (!empty($candidates['diplom']['url']) && empty($candidates['diplom']['is_checked'])) {
+        if (in_array($context, ['xsieben_diplom', 'diplom'], true)) {
+            $candidates['diplom']['is_checked'] = true;
+            if (!in_array($candidates['diplom']['url'], $active_urls, true)) {
+                $active_urls[] = $candidates['diplom']['url'];
+            }
+        }
+    }
+
+    // Falls Antrittsmeldung im Fokus steht: Antrittsmeldung als Anhang vorauswählen
+    if (!empty($candidates['antritt']['url']) && empty($candidates['antritt']['is_checked'])) {
+        if (in_array($context, ['antritt', 'antrittsmeldung', 'antrittsbestaetigung', 'xsieben_antrittsbestaetigung'], true)) {
+            $candidates['antritt']['is_checked'] = true;
+            if (!in_array($candidates['antritt']['url'], $active_urls, true)) {
+                $active_urls[] = $candidates['antritt']['url'];
+            }
+        }
+    }
+
+    // Falls Anmeldebestätigung (AB) im Fokus steht: AB als Anhang vorauswählen
+    if (!empty($candidates['ab']['url']) && empty($candidates['ab']['is_checked'])) {
+        if (in_array($context, ['anmeldebestaetigung', 'ab', 'xsieben_anmeldebestaetigung'], true)) {
+            $candidates['ab']['is_checked'] = true;
+            if (!in_array($candidates['ab']['url'], $active_urls, true)) {
+                $active_urls[] = $candidates['ab']['url'];
             }
         }
     }

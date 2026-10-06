@@ -20,8 +20,8 @@ $logo     = !empty($logo_path) ? esc_attr($logo_path) : '';
 $wba_html = $wba_logo_html ?? '';
 
 $subs = [
-    'logo_links' => '<td style="width: 60%; text-align: left; vertical-align: top;"><img src="' . $logo . '" width="135"></td>',
-    'logo_wba'   => '<td style="width: 40%; text-align: right; vertical-align: top;">' . $wba_html . '</td>',
+    'logo_links' => '<td style="width: 58%; text-align: left; vertical-align: middle;"><img src="' . $logo . '" width="190"></td>',
+    'logo_wba'   => '<td style="width: 42%; text-align: right; vertical-align: middle;">' . $wba_html . '</td>',
 ];
 
 if (!empty($sub_key)) {
@@ -32,4 +32,4 @@ if (!empty($return_subs_array)) {
     return $subs;
 }
 
-return '<table cellspacing="0" cellpadding="0" style="width: 100%;"><tr>' . implode('', $subs) . '</tr></table><div style="font-size: 8pt;">&nbsp;</div>';
+return '<table cellspacing="0" cellpadding="0" style="width: 100%;"><tr>' . implode('', $subs) . '</tr></table>';

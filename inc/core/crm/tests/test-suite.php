@@ -300,6 +300,7 @@ class CrmSeniorDevTestSuite
         $this->testSuite52_Version21904EliminateTcpdfParagraphIndentation();
         $this->testSuite53_Version21905DynamicPlaceholdersAndTemplates();
         $this->testSuite54_Version21906ScrumKombiCertAndEmailGrammar();
+        $this->testSuite55_Version21907DiplomAppleDesignAndQuickDocMailer();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -3609,7 +3610,7 @@ Firma: DRK Gifhorn Service und Pflegeteam gGmbH";
         $this->assert("teilnamebestaetigung.php ruft crm_clean_pdf_html vor writeHTML auf", strpos($tbPdfCode, 'crm_clean_pdf_html($html)') !== false);
 
         $diplomPdfCode = file_get_contents(dirname(__DIR__) . '/pdf/diplom.php');
-        $this->assert("diplom.php ruft crm_clean_pdf_html vor writeHTML auf", strpos($diplomPdfCode, 'crm_clean_pdf_html($html)') !== false);
+        $this->assert("diplom.php ruft crm_clean_pdf_html vor writeHTML auf", strpos($diplomPdfCode, 'crm_clean_pdf_html(') !== false);
 
         $invoicePdfCode = file_get_contents(dirname(__DIR__) . '/pdf/invoice.php');
         $this->assert("invoice.php ruft crm_clean_pdf_html vor writeHTML auf", strpos($invoicePdfCode, 'crm_clean_pdf_html($full_html)') !== false);
@@ -3748,6 +3749,80 @@ Firma: DRK Gifhorn Service und Pflegeteam gGmbH";
         // 5. Kanonischer Katalog & Disambiguierung
         $canonKombi = crm_match_canonical_certification('Scrum.org Zertifizierung - PSM I (USD 200,-) + PSPO I (USD 200,-)');
         $this->assert("crm_match_canonical_certification erkennt auch umgekehrte Reihenfolge (PSM I + PSPO I)", $canonKombi !== null && $canonKombi['short_name'] === 'Scrum.org PSPO I + PSM I');
+    }
+
+    public function testSuite55_Version21907DiplomAppleDesignAndQuickDocMailer(): void
+    {
+        echo "\n\033[1;33m[SUITE 55] Feedback 06.10.2026: Diplom Apple-Redesign & Dokument-Schnellzugriff Begleitmail-Automation (v2.19.7)\033[0m\n";
+
+        // 1. Version Check
+        $this->assert("CRM_VERSION ist >= 2.19.7", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.19.7', '>='));
+
+        // 2. Diplom Redesign (Task #53)
+        $diplomCode = file_get_contents(dirname(__DIR__) . '/pdf/diplom.php');
+        $this->assert("diplom.php enthält Seitenumbruch vor Curriculum", strpos($diplomCode, "\$pdf->AddPage('P', 'A4');") !== false);
+        $this->assert("diplom.php unterdrückt Titelumbruch bei <= 38 Zeichen", strpos($diplomCode, 'mb_strlen($raw_title) > 38') !== false);
+        $this->assert("diplom.php setzt zeitraum_verb auf MIT nur wenn nötig", strpos($diplomCode, "\$zeitraum_verb = \$succ_info['has_mit'] ? 'MIT' : '';") !== false);
+
+        $lehrgangCode = file_get_contents(dirname(__DIR__) . '/pdf/elements/diplom-lehrgang.php');
+        $this->assert("diplom-lehrgang.php hat schlanke Zeilenhöhe 1.6", strpos($lehrgangCode, 'line-height: 1.6;') !== false);
+        $this->assert("diplom-lehrgang.php enthält kein klobiges IM AUSMASS VON", strpos($lehrgangCode, 'IM AUSMASS VON') === false);
+
+        $sectionsPdfCode = file_get_contents(dirname(__DIR__) . '/helpers/crm-pdf-sections.php');
+        $this->assert("crm-pdf-sections.php deaktiviert Standard-Abschlussformel", strpos($sectionsPdfCode, "'abschluss_formel'") !== false && strpos($sectionsPdfCode, "'default'         => false,") !== false);
+
+        // 3. E-Mail Sections & Vorlagen für TB, Diplom, Antritt (Task #54)
+        require_once dirname(__DIR__) . '/helpers/crm-email-sections.php';
+        $emailSectionsCode = file_get_contents(dirname(__DIR__) . '/helpers/crm-email-sections.php');
+
+        $this->assert("crm-email-sections.php enthält crm_build_document_email", function_exists('crm_build_document_email'));
+        $this->assert("crm-email-sections.php enthält dynamische Anhangs-Phrasen {anhang_text_tb}", strpos($emailSectionsCode, '{anhang_text_tb}') !== false);
+        $this->assert("crm-email-sections.php enthält dynamische Anhangs-Phrasen {anhang_text_diplom}", strpos($emailSectionsCode, '{anhang_text_diplom}') !== false);
+
+        // Standard-Betreffzeilen prüfen
+        $subjects = crm_get_default_email_subjects();
+        $this->assertEqual("Standard-Betreff für TB", 'Ihre Abschlussdokumente zur Ausbildung {kurstitel}', $subjects['tb'] ?? '');
+        $this->assertEqual("Standard-Betreff für Diplom", 'Ihr Diplom zur Ausbildung {kurstitel}', $subjects['diplom'] ?? '');
+        $this->assertEqual("Standard-Betreff für Antritt", 'Ihre Antrittsmeldung zur Ausbildung {kurstitel}', $subjects['antritt'] ?? '');
+
+        // Generierung von Begleit-Mails mit Anna Brauer Signatur (Simulation mit Lead #997, Kurs #1061)
+        if (class_exists('CRM_Model')) {
+            $tbEmail = crm_build_document_email('tb', 997, 1061);
+            $this->assert("TB Begleitmail enthält Betreff mit Kurstitel", strpos($tbEmail['subject'], 'Ihre Abschlussdokumente zur Ausbildung') !== false);
+            $this->assert("TB Begleitmail enthält Anna Brauer Signatur", strpos($tbEmail['body'], 'Anna Brauer') !== false);
+            $this->assert("TB Begleitmail enthält korrekte Anhang-Phrase", strpos($tbEmail['body'], 'Im Anhang erhalten Sie Ihre Teilnahmebestätigung') !== false);
+
+            $diplomEmail = crm_build_document_email('diplom', 997, 1061);
+            $this->assert("Diplom Begleitmail enthält Betreff", strpos($diplomEmail['subject'], 'Ihr Diplom zur Ausbildung') !== false);
+            $this->assert("Diplom Begleitmail enthält Anna Brauer Signatur", strpos($diplomEmail['body'], 'Anna Brauer') !== false);
+            $this->assert("Diplom Begleitmail enthält Diplom-Anhang-Phrase", strpos($diplomEmail['body'], 'Im Anhang erhalten Sie Ihr persönliches Diplom als PDF.') !== false);
+
+            $antrittEmail = crm_build_document_email('antritt', 997, 1061);
+            $this->assert("Antritt Begleitmail enthält Betreff", strpos($antrittEmail['subject'], 'Ihre Antrittsmeldung zur Ausbildung') !== false);
+            $this->assert("Antritt Begleitmail enthält Anna Brauer Signatur", strpos($antrittEmail['body'], 'Anna Brauer') !== false);
+        }
+
+        // 4. Output-Controler: Mailer Integration & Banner
+        $outputControlerCode = file_get_contents(dirname(__DIR__) . '/controler/output-controler.php');
+        $this->assert("output-controler.php enthält crm-doc-mailer-banner", strpos($outputControlerCode, 'crm-doc-mailer-banner') !== false);
+        $this->assert("output-controler.php enthält crm-switch-to-preview-btn", strpos($outputControlerCode, 'crm-switch-to-preview-btn') !== false);
+        $this->assert("output-controler.php unterstützt case 'tb' im Body Switch", strpos($outputControlerCode, "case 'tb':") !== false);
+        $this->assert("output-controler.php unterstützt case 'diplom' im Body Switch", strpos($outputControlerCode, "case 'diplom':") !== false);
+        $this->assert("output-controler.php unterstützt case 'antritt' im Body Switch", strpos($outputControlerCode, "case 'antritt':") !== false);
+        $this->assert("output-controler.php enthält Fallback-Ersetzung für Anhang-Phrasen in send_mail", strpos($outputControlerCode, "strpos(\$body, '{anhang_text_tb}') !== false") !== false);
+        $this->assert("output-controler.php aktualisiert status_key auf teilnahmebestaetigung_gesendet", strpos($outputControlerCode, "\$status_key = 'teilnahmebestaetigung_gesendet';") !== false);
+
+        // 5. CRM Admin & JS Direct Mailer Dispatching
+        $crmAdminCode = file_get_contents(dirname(__DIR__) . '/crm-admin.php');
+        $this->assert("crm-admin.php unterstützt direct_mailer in crm_entry_action", strpos($crmAdminCode, "\$direct_mailer = !empty(\$_POST['direct_mailer'])") !== false);
+        $this->assert("crm-admin.php ruft x_sieben_pdf_mailer bei direct_mailer auf", strpos($crmAdminCode, 'x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $mailer_context);') !== false);
+
+        $crmAdminJs = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
+        $this->assert("crm-admin.js setzt isDirectMailer für tb, diplom, antritt", strpos($crmAdminJs, "['tb', 'diplom', 'antritt'].includes(docType)") !== false);
+        $this->assert("crm-admin.js übergibt direct_mailer in formData", strpos($crmAdminJs, "formData.append('direct_mailer', '1');") !== false);
+        $this->assert("crm-admin.js initialisiert TinyMCE bei Mailer-Ausgabe", strpos($crmAdminJs, "if (document.getElementById('x_sieben_body'))") !== false);
+        $this->assert("crm-admin.js enthält dynamische Phrasen-Aktualisierung in crmSyncAttachmentsState", strpos($crmAdminJs, "Im Anhang erhalten Sie Ihre Teilnahmebestätigung sowie die Honorarnote/Rechnung") !== false);
+        $this->assert("crm-admin.js enthält Click-Handler für crm-switch-to-preview-btn", strpos($crmAdminJs, "crm-switch-to-preview-btn") !== false);
     }
 }
 

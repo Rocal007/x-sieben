@@ -19,7 +19,7 @@
 
 // --- Core Setup & Helpers ---
 if (!defined('CRM_VERSION')) {
-    define('CRM_VERSION', '2.19.6');
+    define('CRM_VERSION', '2.19.7');
 }
 
 require_once __DIR__ . '/helpers/crm-cache.php';
@@ -569,30 +569,50 @@ add_action('wp_ajax_crm_entry_action', function () {
         $refFunc  = new ReflectionFunction($function);
         $paramCount = $refFunc->getNumberOfParameters();
 
-        if ($action_key === 'xsieben_diplom') {
-            $diplom_success = isset($_POST['diplom_success']) ? sanitize_text_field(wp_unslash($_POST['diplom_success'])) : null;
-            call_user_func($function, $entry_id, $course_id, true, $diplom_success);
-        } elseif ($action_key === 'xsieben_offer' || $action_key === 'xsieben_kurszeitenbestaetigung' || $action_key === 'xsieben_teilnahmebestaetigung' || $action_key === 'xsieben_angebot_und_kurszeiten' || $action_key === 'xsieben_anmeldebestaetigung' || $action_key === 'xsieben_antrittsbestaetigung') {
-            $custom_sections = isset($_POST['custom_sections']) && is_array($_POST['custom_sections']) ? array_map('sanitize_key', $_POST['custom_sections']) : null;
-            call_user_func($function, $entry_id, $course_id, true, $custom_sections);
-        } elseif ($paramCount >= 3) {
-            call_user_func($function, $entry_id, $course_id, $context);
+        $direct_mailer = !empty($_POST['direct_mailer']) && in_array(strval($_POST['direct_mailer']), ['1', 'true'], true);
+
+        if ($direct_mailer) {
+            $pdf_url = '';
+            if ($action_key === 'xsieben_diplom') {
+                $diplom_success = isset($_POST['diplom_success']) ? sanitize_text_field(wp_unslash($_POST['diplom_success'])) : null;
+                $pdf_url = call_user_func($function, $entry_id, $course_id, false, $diplom_success);
+            } elseif ($action_key === 'xsieben_offer' || $action_key === 'xsieben_kurszeitenbestaetigung' || $action_key === 'xsieben_teilnahmebestaetigung' || $action_key === 'xsieben_angebot_und_kurszeiten' || $action_key === 'xsieben_anmeldebestaetigung' || $action_key === 'xsieben_antrittsbestaetigung') {
+                $custom_sections = isset($_POST['custom_sections']) && is_array($_POST['custom_sections']) ? array_map('sanitize_key', $_POST['custom_sections']) : null;
+                $pdf_url = call_user_func($function, $entry_id, $course_id, false, $custom_sections);
+            } elseif ($paramCount >= 3) {
+                $pdf_url = call_user_func($function, $entry_id, $course_id, false);
+            } else {
+                $pdf_url = call_user_func($function, $entry_id, $course_id);
+            }
+
+            if (!empty($pdf_url) && function_exists('x_sieben_pdf_mailer')) {
+                $mailer_context = $context ?: $action_key;
+                x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $mailer_context);
+            }
         } else {
-            call_user_func($function, $entry_id, $course_id);
+            if ($action_key === 'xsieben_diplom') {
+                $diplom_success = isset($_POST['diplom_success']) ? sanitize_text_field(wp_unslash($_POST['diplom_success'])) : null;
+                call_user_func($function, $entry_id, $course_id, true, $diplom_success);
+            } elseif ($action_key === 'xsieben_offer' || $action_key === 'xsieben_kurszeitenbestaetigung' || $action_key === 'xsieben_teilnahmebestaetigung' || $action_key === 'xsieben_angebot_und_kurszeiten' || $action_key === 'xsieben_anmeldebestaetigung' || $action_key === 'xsieben_antrittsbestaetigung') {
+                $custom_sections = isset($_POST['custom_sections']) && is_array($_POST['custom_sections']) ? array_map('sanitize_key', $_POST['custom_sections']) : null;
+                call_user_func($function, $entry_id, $course_id, true, $custom_sections);
+            } elseif ($paramCount >= 3) {
+                call_user_func($function, $entry_id, $course_id, $context);
+            } else {
+                call_user_func($function, $entry_id, $course_id);
+            }
         }
 
         $output = ob_get_clean();
 
-            // Track PDF creation in CRM history (Audit-Trail)
-            if (function_exists('crm_add_entry_status_history')) {
-                $act_label = isset($actions[$action_key]['label']) ? $actions[$action_key]['label'] : $action_key;
-                crm_add_entry_status_history(
-                    $entry_id,
-                    'pdf_' . $action_key,
-                    sprintf(__('PDF %s erstellt', 'custom-crm'), $act_label),
-                    sprintf(__('PDF generiert für Eintrag #%d (Kontext: %s)', 'custom-crm'), $entry_id, $context ?: $action_key)
-                );
-            }
+        // Track PDF creation in CRM history (Audit-Trail)
+        if (function_exists('crm_add_entry_status_history')) {
+            $act_label = isset($actions[$action_key]['label']) ? $actions[$action_key]['label'] : $action_key;
+            $history_action = $direct_mailer ? 'mailer_' . $action_key : 'pdf_' . $action_key;
+            $history_title  = $direct_mailer ? sprintf(__('Begleit-Mail für %s vorbereitet', 'custom-crm'), $act_label) : sprintf(__('PDF %s erstellt', 'custom-crm'), $act_label);
+            $history_desc   = sprintf(__('PDF generiert für Eintrag #%d (Kontext: %s)', 'custom-crm'), $entry_id, $context ?: $action_key);
+            crm_add_entry_status_history($entry_id, $history_action, $history_title, $history_desc);
+        }
 
         wp_send_json_success([
             'message' => sprintf(
