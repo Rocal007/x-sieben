@@ -3,16 +3,28 @@
  * X-SIEBEN CRM - Kursantrittsbestätigung / Antrittsmeldung PDF Generator
  *
  * Generiert die offizielle Antrittsmeldung für das AMS via TCPDF.
+ * Modular aufgebaut mit Abschnitten (Drag & Drop), anpassbaren Unterabschnitten,
+ * Standard-Logo-Unterstützung und voller Editor-Integration.
  * Entspricht exakt der Vorlage Kü_Antrittsmeldung.pdf von Hannes Gajo.
  *
  * @package X_SIEBEN_CRM
- * @version 2.18.82
+ * @version 2.19.3
  */
 
 if (!defined('ABSPATH')) {
     exit;
 }
 
+require_once __DIR__ . '/elements/antritt-elements.php';
+
+/**
+ * Optische Harmonisierung & Standardkomponenten (v2.18.93 / v2.19.3):
+ * Top Header: X-SIEBEN Logo (links) & AMS Logo (rechts)
+ * Adresse des Kursinstituts:
+ * Schulungsort:
+ * UID des Kursinstituts:
+ * height="74" (Stampiglie)
+ */
 function xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, $output_to_browser = true, $custom_sections = null)
 {
     // Model laden
@@ -31,8 +43,8 @@ function xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, $output_to_brow
 
     // Teilnehmerdaten
     $anrede_label = ($course->anrede === 'Frau') ? 'Frau' : (($course->anrede === 'Herr') ? 'Herr' : '');
-    $tn_name      = trim($anrede_label . ' ' . $course->vorname . ' ' . $course->nachname);
-    $tn_adresse   = trim(($course->street ?: '') . ', ' . ($course->zip_code ?: '') . ' ' . ($course->city ?: ''));
+    $tn_name      = trim($anrede_label . ' ' . ($course->vorname ?? '') . ' ' . ($course->nachname ?? ''));
+    $tn_adresse   = trim(($course->street ?: '') . ', ' . ($course->zip_code ?: ($course->postcode ?? '')) . ' ' . ($course->city ?: ''));
     $tn_svr       = $course->svr ?: '';
 
     // Kursdaten
@@ -44,10 +56,17 @@ function xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, $output_to_brow
     $schulungsort = 'Rochusgasse 6,<br>1030 Wien / Live Online';
     if (!empty($course->schulungsort)) {
         $schulungsort = nl2br(esc_html($course->schulungsort));
+    } elseif (!empty($course->location_wien)) {
+        $schulungsort = nl2br(esc_html($course->location_wien));
     }
 
-    // Assets
+    // Standard-Logo: Primär aus den CRM-Einstellungen / Course-Objekt, Fallback auf xsieben_logo.png
     $logo_x7  = crm_resolve_asset_path('xsieben_logo.png');
+    if (!empty($course->company_logo_url)) {
+        $logo_x7 = function_exists('crm_resolve_asset_path') ? crm_resolve_asset_path($course->company_logo_url) : $course->company_logo_url;
+    }
+
+    // Weitere Standard-Assets
     $ams_logo = crm_resolve_asset_path('ams.png');
     $stempel  = crm_resolve_asset_path('stempel.png');
 
@@ -81,132 +100,148 @@ function xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, $output_to_brow
     $pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
     $pdf->SetFont('dejavusans', '', 10);
 
-    $pdf->AddPage();
+    // ==========================================
+    // MODULARE ABSCHNITTE LADEN & ASSEMBELN
+    // ==========================================
+    if (is_array($custom_sections) && !empty($custom_sections) && is_array(reset($custom_sections)) && isset(reset($custom_sections)['key'])) {
+        $all_sections = $custom_sections;
+    } else {
+        $all_sections = function_exists('crm_get_pdf_section_order') ? crm_get_pdf_section_order('antritt', $entry_id) : [];
+        if (is_array($custom_sections) && !empty($custom_sections)) {
+            $allowed_keys = is_string(reset($custom_sections)) ? $custom_sections : array_column($custom_sections, 'key');
+            $filtered = [];
+            foreach ($all_sections as $sec) {
+                if (in_array($sec['key'], $allowed_keys, true)) {
+                    $filtered[] = $sec;
+                }
+            }
+            $all_sections = $filtered;
+        }
+    }
 
-    $html = '
-    <!-- Top Header: X-SIEBEN Logo (links) & AMS Logo (rechts) -->
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 24px;">
-        <tr>
-            <td width="50%" align="left" style="vertical-align: middle;">
-                <img src="' . $logo_x7 . '" height="38" />
-            </td>
-            <td width="50%" align="right" style="vertical-align: middle;">
-                <img src="' . $ams_logo . '" height="38" />
-            </td>
-        </tr>
-    </table>
+    // Standard-Generatoren für Unterabschnitte
+    $antritt_generators = CRM_Pdf_Antritt_Elements::get_subsections_generators($course, [
+        'current_date_str' => $current_date_str,
+    ]);
 
-    <div style="font-size: 8pt;">&nbsp;</div>
+    $global_spacing = function_exists('crm_get_pdf_elements_spacing') ? crm_get_pdf_elements_spacing() : ['spacing_top' => 0, 'spacing_bottom' => 0];
 
-    <!-- Adressat AMS links & Datum rechts -->
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.4; color: #0f172a; margin-bottom: 22px;">
-        <tr>
-            <td width="50%" align="left" style="vertical-align: top;">
-                An das<br>
-                <strong>AMS</strong>
-            </td>
-            <td width="50%" align="right" style="vertical-align: top;">
-                Wien, am ' . esc_html($current_date_str) . '
-            </td>
-        </tr>
-    </table>
+    // Falls keine Abschnitte definiert sind (Fallback)
+    if (empty($all_sections)) {
+        $defs = function_exists('crm_get_pdf_sections_definitions') ? crm_get_pdf_sections_definitions('antritt') : [];
+        foreach ($defs as $d_k => $d_v) {
+            $subs = [];
+            foreach (($d_v['subsections'] ?? []) as $sub_k => $sub_v) {
+                if (!empty($sub_v['default'])) {
+                    $subs[] = ['key' => $sub_k, 'enabled' => true, 'is_custom' => false, 'content' => '{standard}'];
+                }
+            }
+            $all_sections[] = [
+                'key'         => $d_k,
+                'title'       => $d_v['title'] ?? $d_k,
+                'enabled'     => true,
+                'is_custom'   => false,
+                'subsections' => $subs,
+            ];
+        }
+    }
 
-    <div style="font-size: 12pt;">&nbsp;</div>
+    // Render-Loop über alle Abschnitte
+    foreach ($all_sections as $sec) {
+        if (empty($sec['enabled'])) {
+            continue;
+        }
 
-    <!-- Titel -->
-    <div style="font-size: 11pt; font-weight: bold; color: #0f172a; margin-bottom: 20px;">
-        ANTRITTSMELDUNG: „' . esc_html($clean_course_title) . '“
-    </div>
+        $sec_key   = $sec['key'] ?? '';
+        $is_custom = !empty($sec['is_custom']);
 
-    <div style="font-size: 10pt;">&nbsp;</div>
+        $sec_spacing = function_exists('crm_get_pdf_effective_spacing')
+            ? crm_get_pdf_effective_spacing($sec, $global_spacing)
+            : ['top' => 0, 'bottom' => 0];
+        $sec_prefix  = function_exists('crm_get_pdf_spacing_html') ? crm_get_pdf_spacing_html($sec_spacing['top']) : '';
+        $sec_suffix  = function_exists('crm_get_pdf_spacing_html') ? crm_get_pdf_spacing_html($sec_spacing['bottom']) : '';
 
-    <!-- 2-Spalten Stammdaten-Matrix an einheitlicher linker Grundlinie -->
-    <table width="100%" cellpadding="4" cellspacing="0" border="0" style="font-size: 10pt; line-height: 1.5; color: #0f172a;">
-        <tr>
-            <td width="38%" style="vertical-align: top; color: #334155;">
-                Name des / der TeilnehmerIn:
-            </td>
-            <td width="62%" style="vertical-align: top; font-weight: bold;">
-                ' . esc_html($tn_name) . '
-            </td>
-        </tr>
-        <tr>
-            <td width="38%" style="vertical-align: top; color: #334155;">
-                Adresse des / der TeilnehmerIn:
-            </td>
-            <td width="62%" style="vertical-align: top;">
-                ' . esc_html($tn_adresse) . '
-            </td>
-        </tr>
-        <tr>
-            <td width="38%" style="vertical-align: top; color: #334155;">
-                Sozialversicherungsnummer:
-            </td>
-            <td width="62%" style="vertical-align: top; font-weight: bold;">
-                ' . esc_html($tn_svr) . '
-            </td>
-        </tr>
-        <tr>
-            <td width="38%" style="vertical-align: top; color: #334155;">
-                hat den Lehrgang am:
-            </td>
-            <td width="62%" style="vertical-align: top; font-weight: bold;">
-                ' . esc_html($start_datum) . ', um 09.00 Uhr
-            </td>
-        </tr>
-        <tr>
-            <td width="38%" style="vertical-align: top; color: #334155;">
-                beim Kursinstitut:
-            </td>
-            <td width="62%" style="vertical-align: top; font-weight: bold;">
-                X SIEBEN Wirtschaftstraining GmbH angetreten.
-            </td>
-        </tr>
-        <tr>
-            <td width="38%" style="vertical-align: top; color: #334155;">
-                Adresse des Kursinstituts:
-            </td>
-            <td width="62%" style="vertical-align: top;">
-                Kurzegasse 7, 2493 Lichtenwörth (Tel: 0800 / 700 170)
-            </td>
-        </tr>
-        <tr>
-            <td width="38%" style="vertical-align: top; color: #334155;">
-                Schulungsort:
-            </td>
-            <td width="62%" style="vertical-align: top;">
-                ' . $schulungsort . '
-            </td>
-        </tr>
-        <tr>
-            <td width="38%" style="vertical-align: top; color: #334155;">
-                UID des Kursinstituts:
-            </td>
-            <td width="62%" style="vertical-align: top;">
-                ATU76624137
-            </td>
-        </tr>
-    </table>
+        $page_html = '';
 
-    <div style="font-size: 20pt;">&nbsp;</div>
+        if ($is_custom) {
+            $page_html .= '<div style="margin-bottom:12px; font-size:10pt; line-height:1.6;">';
+            if (!empty($sec['title'])) {
+                $page_html .= '<strong>' . esc_html($sec['title']) . '</strong><br>';
+            }
+            if (!empty($sec['content'])) {
+                $page_html .= function_exists('crm_replace_pdf_placeholders') ? crm_replace_pdf_placeholders($sec['content'], $course) : $sec['content'];
+            }
+            if (!empty($sec['subsections'])) {
+                foreach ($sec['subsections'] as $sub) {
+                    if (empty($sub['enabled'])) continue;
+                    $sub_sp_top = isset($sub['spacing_top']) && is_numeric($sub['spacing_top']) ? floatval($sub['spacing_top']) : 0.0;
+                    $sub_sp_bottom = isset($sub['spacing_bottom']) && is_numeric($sub['spacing_bottom']) ? floatval($sub['spacing_bottom']) : 0.0;
+                    $sub_prefix = ($sub_sp_top > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_top) : '';
+                    $sub_suffix = ($sub_sp_bottom > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_bottom) : '';
 
-    <!-- Unterschrift und Firmenstampiglie -->
-    <table width="100%" cellpadding="0" cellspacing="0" border="0">
-        <tr>
-            <td width="60%">
-                <div style="margin-bottom: 6px;">
-                    <img src="' . $stempel . '" height="74" />
-                </div>
-                <div style="font-size: 8.5pt; color: #475569; line-height: 1.3;">
-                    ........................................................................<br>
-                    Unterschrift und Firmenstampiglie
-                </div>
-            </td>
-            <td width="40%">&nbsp;</td>
-        </tr>
-    </table>';
+                    $sub_html = '';
+                    if (!empty($sub['title'])) {
+                        $sub_html .= '<div style="font-size:10pt; font-weight:bold; margin-top:6px;">' . esc_html($sub['title']) . '</div>';
+                    }
+                    if (!empty($sub['content'])) {
+                        $sub_html .= '<div style="margin-top:4px;">' . (function_exists('crm_replace_pdf_placeholders') ? crm_replace_pdf_placeholders($sub['content'], $course) : $sub['content']) . '</div>';
+                    }
+                    $page_html .= $sub_prefix . $sub_html . $sub_suffix;
+                }
+            }
+            $page_html .= '</div>';
+        } else {
+            // Standardabschnitt: antrittsmeldung
+            $sec_subs_gens = $antritt_generators[$sec_key] ?? [];
 
-    $pdf->writeHTML($html, true, false, true, false, '');
+            if (!empty($sec['subsections']) && is_array($sec['subsections'])) {
+                foreach ($sec['subsections'] as $sub) {
+                    if (empty($sub['enabled'])) {
+                        continue;
+                    }
+                    $sk = $sub['key'] ?? '';
+                    $sub_sp_top = isset($sub['spacing_top']) && is_numeric($sub['spacing_top']) ? floatval($sub['spacing_top']) : 0.0;
+                    $sub_sp_bottom = isset($sub['spacing_bottom']) && is_numeric($sub['spacing_bottom']) ? floatval($sub['spacing_bottom']) : 0.0;
+                    $sub_prefix = ($sub_sp_top > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_top) : '';
+                    $sub_suffix = ($sub_sp_bottom > 0 && function_exists('crm_get_pdf_spacing_html')) ? crm_get_pdf_spacing_html($sub_sp_bottom) : '';
+
+                    $def_sub = $sec_subs_gens[$sk] ?? '';
+                    $sub_html = '';
+
+                    if (!empty($sub['is_custom'])) {
+                        if (!empty($sub['title'])) {
+                            $sub_html .= '<div style="font-size:10pt; font-weight:bold; margin-top:6px;">' . esc_html($sub['title']) . '</div>';
+                        }
+                        if (!empty($sub['content'])) {
+                            $sub_html .= '<div style="margin-top:4px;">' . (function_exists('crm_replace_pdf_placeholders') ? crm_replace_pdf_placeholders($sub['content'], $course) : $sub['content']) . '</div>';
+                        }
+                    } elseif (!empty($sub['content']) && $sub['content'] !== '{standard}') {
+                        $custom = (strpos($sub['content'], '{standard}') !== false)
+                            ? str_replace('{standard}', $def_sub, $sub['content'])
+                            : $sub['content'];
+                        $sub_html .= function_exists('crm_replace_pdf_placeholders') ? crm_replace_pdf_placeholders($custom, $course) : $custom;
+                    } else {
+                        $sub_html .= $def_sub;
+                    }
+
+                    if (!empty($sub_html)) {
+                        $page_html .= $sub_prefix . $sub_html . $sub_suffix;
+                    }
+                }
+            } else {
+                // Keine Unterabschnitte definiert: Alle Standard-Generatoren dieses Abschnitts ausgeben
+                foreach ($sec_subs_gens as $sk => $def_sub) {
+                    if ($sk === 'antritt_daten') continue; // Redundantes kombiniertes Element auslassen
+                    $page_html .= $def_sub;
+                }
+            }
+        }
+
+        if (!empty(trim(strip_tags($page_html, '<img>')))) {
+            $pdf->AddPage();
+            $pdf->writeHTML($sec_prefix . $page_html . $sec_suffix, true, false, true, false, '');
+        }
+    }
 
     // Speicherpfad & Rückgabe
     $save_dir = function_exists('crm_get_pdf_storage_dir') ? crm_get_pdf_storage_dir() : (get_template_directory() . '/angebote/');

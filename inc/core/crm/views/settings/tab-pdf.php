@@ -276,6 +276,12 @@ if (!defined('ABSPATH')) exit;
                                 <button type="button" class="button crm-sec-pill" data-doc="invoice" style="color:#be185d;">
                                     <span class="dashicons dashicons-money-alt" style="font-size:13px; vertical-align:text-top;"></span> Honorarnote (6)
                                 </button>
+                                <button type="button" class="button crm-sec-pill" data-doc="ab" style="color:#2563eb;">
+                                    <span class="dashicons dashicons-media-document" style="font-size:13px; vertical-align:text-top;"></span> Anmeldung AB (2)
+                                </button>
+                                <button type="button" class="button crm-sec-pill" data-doc="antritt" style="color:#0891b2;">
+                                    <span class="dashicons dashicons-clipboard" style="font-size:13px; vertical-align:text-top;"></span> Antrittsmeldung (1)
+                                </button>
                             </div>
                         </div>
 
@@ -296,6 +302,12 @@ if (!defined('ABSPATH')) exit;
                         </div>
                         <div class="crm-sec-tab-pane" id="crm-sec-pane-invoice" style="display:none;">
                             <?php crm_render_pdf_sections_manager('invoice', null, false); ?>
+                        </div>
+                        <div class="crm-sec-tab-pane" id="crm-sec-pane-ab" style="display:none;">
+                            <?php crm_render_pdf_sections_manager('ab', null, false); ?>
+                        </div>
+                        <div class="crm-sec-tab-pane" id="crm-sec-pane-antritt" style="display:none;">
+                            <?php crm_render_pdf_sections_manager('antritt', null, false); ?>
                         </div>
                     </div>
 
@@ -334,6 +346,12 @@ if (!defined('ABSPATH')) exit;
                                 </button>
                                 <button type="button" class="button crm-preview-switch-btn" data-doc="invoice" title="<?php esc_attr_e('Honorarnote / Rechnung', 'custom-crm'); ?>">
                                     <span class="dashicons dashicons-money-alt" style="font-size:13px; vertical-align:text-top;"></span> Honorarnote
+                                </button>
+                                <button type="button" class="button crm-preview-switch-btn" data-doc="ab" title="<?php esc_attr_e('Anmeldebestätigung (AB)', 'custom-crm'); ?>">
+                                    <span class="dashicons dashicons-media-document" style="font-size:13px; vertical-align:text-top;"></span> Anmeldung (AB)
+                                </button>
+                                <button type="button" class="button crm-preview-switch-btn" data-doc="antritt" title="<?php esc_attr_e('Antrittsmeldung für das AMS', 'custom-crm'); ?>">
+                                    <span class="dashicons dashicons-clipboard" style="font-size:13px; vertical-align:text-top;"></span> Antrittsmeldung
                                 </button>
                             </div>
 

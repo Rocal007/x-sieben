@@ -49,6 +49,7 @@ if (!function_exists('crm_is_internal_email')) {
  */
 function crm_parse_email_inquiry_text(string $raw_text): array
 {
+    global $wpdb;
     $clean_text = trim($raw_text);
 
     $lead = [
@@ -95,6 +96,16 @@ function crm_parse_email_inquiry_text(string $raw_text): array
                         }
                     }
                 }
+                break;
+            }
+        }
+    }
+    // Fallback: Von: ohne spitze Klammern (z. B. "Von: max.mustermann@gmx.at")
+    if (empty($lead['email']) && preg_match_all('/(?:Von|From):\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/iu', $clean_text, $hdr_plain, PREG_SET_ORDER)) {
+        foreach ($hdr_plain as $hp) {
+            $p_mail = trim($hp[1]);
+            if (!crm_is_internal_email($p_mail)) {
+                $lead['email'] = $p_mail;
                 break;
             }
         }
@@ -148,13 +159,13 @@ function crm_parse_email_inquiry_text(string $raw_text): array
     }
 
     // 2. Strukturierte Felder (z. B. Kursfinder, Formular-E-Mails, Key-Value)
-    if (preg_match('/Vorname:\s*([^\r\n]+)/iu', $clean_text, $m)) {
+    if (preg_match('/(?:^|\r?\n)Vorname(?:\s*:|\r?\n)\s*([^\r\n]+)/iu', $clean_text, $m)) {
         $lead['vorname'] = trim($m[1]);
     }
-    if (preg_match('/Nachname:\s*([^\r\n]+)/iu', $clean_text, $m)) {
+    if (preg_match('/(?:^|\r?\n)Nachname(?:\s*:|\r?\n)\s*([^\r\n]+)/iu', $clean_text, $m)) {
         $lead['nachname'] = trim($m[1]);
     }
-    if (preg_match('/Telefon:\s*([^\r\n]+)/iu', $clean_text, $m)) {
+    if (preg_match('/(?:^|\r?\n)Telefon(?:\s*:|\r?\n)\s*([^\r\n]+)/iu', $clean_text, $m)) {
         $lead['telefon'] = trim($m[1]);
     }
     if (preg_match('/(?:Firma|Unternehmen)[:\t ]*:\s*([^\r\n]+)/iu', $clean_text, $m)) {
@@ -191,7 +202,7 @@ function crm_parse_email_inquiry_text(string $raw_text): array
         } elseif (preg_match('/(?:Meine[mn]?\s+Name\s+ist|Ich\s+bin)\s+([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß]+)/u', $clean_text, $m)) {
             $lead['vorname'] = trim($m[1]);
             $lead['nachname'] = trim($m[2]);
-        } elseif (preg_match('/(?:Mit\s+freundlichen\s+Grüßen|Danke|LG|Liebe\s+Grüße)[,\s\r\n]+([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß]+)/u', $clean_text, $m)) {
+        } elseif (preg_match('/(?:Mit\s+freundlichen\s+Grüßen|Freundliche\s+Grüße|Besten\s+Dank|Herzlichen\s+Dank|Schöne\s+Grüße|Viele\s+Grüße|Danke|LG|Liebe\s+Grüße)[,\s\r\n]+([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß]+)/u', $clean_text, $m)) {
             $lead['vorname'] = trim($m[1]);
             $lead['nachname'] = trim($m[2]);
         } elseif (preg_match('/um\s+[\d:]+\s+schrieb\s+([A-ZÄÖÜ][a-zäöüß]+)\s+([A-ZÄÖÜ][a-zäöüß]+)\s*</u', $clean_text, $m)) {
@@ -224,6 +235,13 @@ function crm_parse_email_inquiry_text(string $raw_text): array
                 }
                 $lead['telefon'] = trim($cand_tel);
                 break;
+            }
+        }
+        // Freistehende Telefonnummern in Signaturen (z. B. "--\n069917261203" oder nach Zeilenumbruch)
+        if (empty($lead['telefon']) && preg_match('/(?:^|\r?\n)(?:--\s*\r?\n)?(\+?43[0-9\s\/\-]{7,20}|06[5-9][0-9\s\/\-]{6,15}|0[1-9][0-9\s\/\-]{6,15})(?:\r?\n|$)/m', $clean_text, $m_sig_tel)) {
+            $cand_clean = preg_replace('/[^\d+]/', '', $m_sig_tel[1]);
+            if (!str_contains($cand_clean, '800700170') && !str_contains($cand_clean, '262235110') && !str_contains($cand_clean, '69910206937')) {
+                $lead['telefon'] = trim($m_sig_tel[1]);
             }
         }
     }
@@ -275,6 +293,41 @@ function crm_parse_email_inquiry_text(string $raw_text): array
         }
     }
 
+    // 9.5 Falls der Kunde bereits in der Datenbank existiert, fehlende Stammdaten aus bestehendem WPForms-Eintrag anreichern
+    if (!empty($lead['email']) && (empty($lead['vorname']) || empty($lead['nachname']) || empty($lead['telefon']) || empty($lead['strasse']))) {
+        if (isset($wpdb) && !empty($wpdb->prefix)) {
+            $clean_e = strtolower(trim($lead['email']));
+            $prev_entries = $wpdb->get_results($wpdb->prepare(
+                "SELECT fields FROM {$wpdb->prefix}wpforms_entries WHERE fields LIKE %s ORDER BY entry_id DESC LIMIT 5",
+                '%' . $wpdb->esc_like('"value":"' . $clean_e . '"') . '%'
+            ), ARRAY_A);
+            foreach ($prev_entries as $prev_entry) {
+                if (!empty($prev_entry['fields'])) {
+                    $p_fields = json_decode($prev_entry['fields'], true);
+                    if (is_array($p_fields)) {
+                        if (empty($lead['anrede']) && !empty($p_fields[88]['value'])) $lead['anrede'] = $p_fields[88]['value'];
+                        if (empty($lead['vorname']) && !empty($p_fields[86]['value'])) $lead['vorname'] = $p_fields[86]['value'];
+                        if (empty($lead['nachname']) && !empty($p_fields[89]['value'])) $lead['nachname'] = $p_fields[89]['value'];
+                        if (empty($lead['telefon']) && !empty($p_fields[91]['value'])) $lead['telefon'] = $p_fields[91]['value'];
+                        if (empty($lead['strasse'])) {
+                            if (!empty($p_fields[35]['address1'])) {
+                                $lead['strasse'] = trim($p_fields[35]['address1']);
+                                if (!empty($p_fields[35]['city'])) $lead['ort'] = trim($p_fields[35]['city']);
+                                if (!empty($p_fields[35]['postal'])) $lead['plz'] = trim($p_fields[35]['postal']);
+                                if (!empty($p_fields[35]['country'])) $lead['land'] = trim($p_fields[35]['country']);
+                            } elseif (!empty($p_fields[35]['value'])) {
+                                $addr_lines = explode("\n", trim($p_fields[35]['value']));
+                                $lead['strasse'] = trim($addr_lines[0] ?? '');
+                                if (!empty($addr_lines[1])) $lead['ort'] = trim(preg_replace('/,.*$/', '', $addr_lines[1]));
+                                if (!empty($addr_lines[2]) && preg_match('/\d{4,5}/', $addr_lines[2])) $lead['plz'] = trim($addr_lines[2]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     return $lead;
 }
 
@@ -294,6 +347,7 @@ function crm_match_course_by_inquiry(string $text, string $preferred_title = '')
 
     // 1. Spezifische Regel-Mappings für Standardkurse von X-SIEBEN
     $rules = [
+        ['pattern' => '/kombinationsausbildung|fachtrainer.*daf.*daz|daf.*daz.*fachtrainer/iu', 'id' => 703],
         ['pattern' => '/agil.*digital.*projektmanagement|agiles\s*&\s*digitales\s*projektmanagement|agile\s*\/\s*digitales\s*projektmanagement/iu', 'id' => 67321],
         ['pattern' => '/ipma.*level\s*d|level\s*d.*zertifizierungsvorbereitung|projektmanagement.*ipma/iu', 'id' => 1167],
         ['pattern' => '/eventmanagement/iu', 'id' => 542],

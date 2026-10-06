@@ -1625,6 +1625,28 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
     if (!$found_kb) {
         $found_kb = $find_server_pdf("KB_{$entry_id}-");
     }
+
+    // Falls KB noch nicht auf dem Server existiert, aber Kontext oder Förderfall dies erfordert:
+    // Jetzt sofort autark generieren (Hannes Feedback 05.10.2026)
+    $course_title_att  = ($course_id ? get_the_title($course_id) : '');
+    $is_ams_course_att = (stripos($course_title_att, 'ams') !== false);
+    $is_kb_context_att = in_array($context, ['xsieben_angebot_und_kurszeiten', 'angebot_kb', 'kurszeitenbestaetigung'], true);
+    $entry_foerd_att   = ($entry_id && function_exists('crm_get_entry_foerderung')) ? crm_get_entry_foerderung($entry_id) : ['ams' => false, 'waff' => false];
+    $is_foerd_att      = !empty($entry_foerd_att['ams']) || !empty($entry_foerd_att['waff']) || $is_ams_course_att;
+
+    if (!$found_kb && ($is_kb_context_att || $is_foerd_att) && $entry_id && $course_id && function_exists('xsieben_kurszeitenbestaetigung_pdf')) {
+        try {
+            $gen_kb_url = xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, false);
+            if ($gen_kb_url) {
+                $gen_kb_name = rawurldecode(basename(parse_url($gen_kb_url, PHP_URL_PATH)));
+                $found_kb = $gen_kb_name;
+                $resolved_uris[$gen_kb_name]  = $gen_kb_url;
+                $resolved_paths[$gen_kb_name] = $storage_dir . $gen_kb_name;
+            }
+        } catch (\Throwable $e) {
+            error_log('CRM Auto KB Generation in Attachments Selector Error: ' . $e->getMessage());
+        }
+    }
     $found_tb      = $find_server_pdf("Teilnahmebestaetigung_{$vorname}_{$nachname}_");
     if (!$found_tb) {
         $found_tb = $find_server_pdf("TB_{$entry_id}-");
@@ -1914,6 +1936,17 @@ function crm_render_email_attachments_selector(string $pdf_url, int $course_id, 
             $candidates['terminplan']['is_checked'] = true;
             if (!in_array($candidates['terminplan']['url'], $active_urls, true)) {
                 $active_urls[] = $candidates['terminplan']['url'];
+            }
+        }
+    }
+
+    // Falls Kurszeitenbestätigung (KB) im Begleitmail angekündigt wird oder ein AMS-/Förderfall vorliegt:
+    // Strikte Synchronisationsregel (Hannes Feedback 05.10.2026): KB MUSS als Anhang vorausgewählt sein!
+    if (!empty($candidates['kb']['url']) && empty($candidates['kb']['is_checked'])) {
+        if ($is_kb_context_att || $is_foerd_att) {
+            $candidates['kb']['is_checked'] = true;
+            if (!in_array($candidates['kb']['url'], $active_urls, true)) {
+                $active_urls[] = $candidates['kb']['url'];
             }
         }
     }
@@ -2211,16 +2244,20 @@ function crm_build_standard_offer_email(int $entry_id, int $course_id, array $op
     $course_title = $course_model ? $course_model->title : (get_the_title($course_id) ?: ($analysis['course_title'] ?? 'Ihre Weiterbildung'));
     $course_link  = $course_id ? get_permalink($course_id) : 'https://x-sieben.at';
 
-    // Bestimme Förderstatus (AMS / WAFF / Bildungskarenz)
+    // Bestimme Förderstatus (AMS / WAFF / Bildungskarenz) & Dokumenten-Auswahl
+    $selected_docs = isset($options['selected_docs']) && is_array($options['selected_docs']) ? $options['selected_docs'] : [];
+    $is_ams_aktion_course = (stripos($course_title, 'AMS') !== false || stripos($course_link, 'ams-aktion') !== false || $course_id == 65629);
     $is_ams_funding = isset($options['is_ams_funding']) 
         ? (bool)$options['is_ams_funding'] 
-        : (!empty($analysis['is_ams_funding']));
+        : (!empty($analysis['is_ams_funding']) || $is_ams_aktion_course);
 
-    // Kontext
-    $context = $is_ams_funding ? 'xsieben_angebot_und_kurszeiten' : 'xsieben_angebot';
+    $want_kb = isset($options['want_kb']) 
+        ? (bool)$options['want_kb'] 
+        : (isset($selected_docs['kb']) ? (bool)$selected_docs['kb'] : $is_ams_funding);
 
-    // Betreff
-    $subject = $is_ams_funding
+    // Kontext & Betreff (Hannes Feedback 30.09.2026: Kurszeitenbestätigung im Betreff nur wenn KB aktiv ausgestellt wird)
+    $context = $want_kb ? 'xsieben_angebot_und_kurszeiten' : 'xsieben_angebot';
+    $subject = $want_kb
         ? sprintf('Angebot & Kurszeitenbestätigung: %s | X SIEBEN Wirtschaftstraining', $course_title)
         : sprintf('Angebot: %s | X SIEBEN Wirtschaftstraining', $course_title);
 
@@ -2421,7 +2458,8 @@ function crm_build_standard_offer_email(int $entry_id, int $course_id, array $op
 
     // 3. Angebote im Anhang
     if ($want_offer_1 || $want_offer_2 || $want_offer_3) {
-        $body_html .= '<p>Ihr persönliches Angebot zur Ausbildung findet sich ebenfalls im Anhang:<br>';
+        // Hannes Feedback 29.09.2026: 'findet sich im Anhang:' statt 'findet sich ebenfalls im Anhang:'
+        $body_html .= '<p>Ihr persönliches Angebot zur Ausbildung findet sich im Anhang:<br>';
         if ($want_offer_1 && $want_offer_2 && $want_offer_3 && $has_cert_option) {
             $body_html .= '• <strong>Angebot 1:</strong> Ein Angebot ohne Zertifizierung (ausschließlich Lehrgangs-/Seminargebühr)<br>';
             $body_html .= '• <strong>Angebot 2:</strong> Ein weiteres Angebot inklusive der optional möglichen Zertifizierung: <strong>' . esc_html($cert_name) . '</strong><br>';
@@ -2434,14 +2472,16 @@ function crm_build_standard_offer_email(int $entry_id, int $course_id, array $op
         } else {
             $body_html .= '• Ein detailliertes und unverbindliches Angebot mit allen Veranstaltungsinformationen';
         }
-        if ($has_terminplan_pdf && (!isset($options['want_terminplan']) || !empty($options['want_terminplan']))) {
+        // Hannes Feedback 29.09.2026: Wenn der Terminplan bereits als direkter Download-Link oberhalb aufgeführt ist,
+        // entfällt der Terminplan-Punkt in der Anhang-Aufzählung komplett.
+        if ($has_terminplan_pdf && !$has_direct_terminplan_link && (!isset($options['want_terminplan']) || !empty($options['want_terminplan']))) {
             $body_html .= '<br>• <strong>Terminplan:</strong> Detaillierter Termin- und Ablaufplan der einzelnen Schulungstage';
         }
         $body_html .= '</p>';
     }
 
-    // 4. Förderstellen-Hinweis (NUR wenn AMS/Förderung oder KB aktiv!)
-    if ($is_ams_funding || $want_kb) {
+    // 4. Förderstellen-Hinweis (Hannes Feedback 30.09.2026: STRIKT nur wenn KB aktiv ausgestellt / mitgesendet wird!)
+    if (!empty($want_kb)) {
         $body_html .= '<p style="background: #f0fdf4; border-left: 4px solid #16a34a; padding: 10px 14px; border-radius: 4px; color: #166534; font-size: 13px;">';
         $body_html .= '📎 <strong>Für Ihre Förderstelle:</strong> Zusätzlich zu Ihren Angeboten haben wir die offizielle <strong>Kurszeitenbestätigung (KB)</strong> zur direkten Einreichung bei Ihrer Förderstelle (AMS / WAFF) beigelegt.';
         $body_html .= '</p>';

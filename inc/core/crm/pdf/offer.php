@@ -56,6 +56,9 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser = true, $cu
 
     // Clean up wpautop / HTML paragraph wrappers for clean, uniform spacing inside table cell
     $clean_pdf_text = function ($html) {
+        $html = preg_replace('/<div[^>]*style=[\'"][^\'"]*position:\s*absolute[^\'"]*[\'"][^>]*>.*?<\/div>/si', '', $html);
+        $html = preg_replace('/<div[^>]*role=[\'"](?:status|alert)[\'"][^>]*>.*?<\/div>/si', '', $html);
+        $html = preg_replace('/<div[^>]*aria-live=[\'"][^\'"]*[\'"][^>]*>.*?<\/div>/si', '', $html);
         $html = preg_replace('/<div[^>]*>\s*(?:&nbsp;|\x{00a0})?\s*<\/div>/iu', '<br><br>', $html);
         $html = preg_replace('/^\s*<p[^>]*>/iu', '', $html);
         $html = preg_replace('/<\/p>\s*<p[^>]*>/iu', '<br><br>', $html);
@@ -632,6 +635,10 @@ function xsieben_offer_pdf($entry_id, $course_id, $output_to_browser = true, $cu
             }
 
             $full_page_html = $styles . $sec_prefix . $sec_html . $sec_suffix;
+            // Globaler Sanitize-Schutz gegen unsichtbare Screen-Reader/Aria-DIVs und Position-Absolute Artefakte
+            $full_page_html = preg_replace('/<div[^>]*style=[\'"][^\'"]*position:\s*absolute[^\'"]*[\'"][^>]*>.*?<\/div>/si', '', $full_page_html);
+            $full_page_html = preg_replace('/<div[^>]*role=[\'"](?:status|alert)[\'"][^>]*>.*?<\/div>/si', '', $full_page_html);
+            $full_page_html = preg_replace('/<div[^>]*aria-live=[\'"][^\'"]*[\'"][^>]*>.*?<\/div>/si', '', $full_page_html);
             $pattern = '/(<table[^>]*class=[\'"][^\'"]*\btitle\b[^\'"]*[\'"][^>]*>.*?<\/table>)/si';
             $parts   = preg_split($pattern, $full_page_html, -1, PREG_SPLIT_DELIM_CAPTURE);
 

@@ -222,7 +222,7 @@ function crm_detect_course_from_message(string $message_text = '', array $entry_
         strpos($text_lower, 'sprachlektor') !== false ||
         (strpos($text_lower, 'lektor') !== false && strpos($text_lower, 'trainer') !== false)
     ) {
-        if (strpos($text_lower, 'fachtrainer') !== false && (strpos($text_lower, 'kombi') !== false || strpos($text_lower, '&') !== false || strpos($text_lower, 'und') !== false || strpos($text_lower, 'beides') !== false)) {
+        if (strpos($text_lower, 'fachtrainer') !== false && (strpos($text_lower, 'kombi') !== false || strpos($text_lower, '&') !== false || strpos($text_lower, 'und') !== false || strpos($text_lower, 'beides') !== false || strpos($text_lower, '+') !== false)) {
             $match = [
                 'course_id'    => 703,
                 'course_title' => 'FachtrainerInnen & DaF / DaZ TrainerInnen Ausbildung - ISO 17024',
@@ -1490,9 +1490,10 @@ function crm_friedelin_process_followup(int $entry_id, array $lead_data = [], ar
     $combined_text = $msg_history . "\n" . $new_incoming;
 
     // Prüfen, ob der Kunde ausdrücklich ein neues Angebot anfordert
-    $wants_new_offer = (bool)preg_match('/(?:neues|weiteres)\s+angebot|kostenvoranschlag\s+f[üu]r\s+weiteren|neuen?\s+kurs\s+buchen/ui', $combined_text);
+    $wants_new_offer = (bool)preg_match('/(?:neues|weiteres|anderes|aktualisiertes|ein)\s+angebot|angebot\s+f[üu]r\s+(?:diese|den|die|einen|das)|kostenvoranschlag|kombinationsausbildung/ui', $combined_text);
     if ($wants_new_offer) {
-        return crm_friedelin_process_entry($entry_id, true, $selected_docs, false);
+        $lead_data['force_new_offer'] = true;
+        return crm_friedelin_process_entry($entry_id, true, $selected_docs, false, $lead_data);
     }
 
     // Spezifische Frage-Erkennung
@@ -1614,7 +1615,7 @@ function crm_friedelin_process_followup(int $entry_id, array $lead_data = [], ar
 function crm_friedelin_process_entry(int $entry_id, bool $manual_trigger = false, array $selected_docs = [], bool $is_followup = false, array $lead_data = []): array
 {
     // Automatische Folgekommunikations-Erkennung:
-    if (!$is_followup) {
+    if (!$is_followup && empty($lead_data['force_new_offer'])) {
         global $wpdb;
         $curr_status = $wpdb->get_var($wpdb->prepare("SELECT status_key FROM {$wpdb->prefix}crm_entry_status WHERE entry_id = %d", $entry_id));
         if ($curr_status === 'folgekommunikation') {

@@ -832,6 +832,12 @@ class CRM_Pdf_Presenter
     {
         $clean = trim($ps_custom);
         if (!empty(trim(strip_tags($clean)))) {
+            // Bereinige unsichtbare Screen-Reader/Aria-DIVs und überflüssige Absätze
+            $clean = preg_replace('/<div[^>]*style=[\'"][^\'"]*position:\s*absolute[^\'"]*[\'"][^>]*>.*?<\/div>/si', '', $clean);
+            $clean = preg_replace('/<div[^>]*role=[\'"](?:status|alert)[\'"][^>]*>.*?<\/div>/si', '', $clean);
+            $clean = preg_replace('/<div[^>]*aria-live=[\'"][^\'"]*[\'"][^>]*>.*?<\/div>/si', '', $clean);
+            $clean = preg_replace('/<p[^>]*>\s*(?:&nbsp;|\s)*<\/p>/si', '', $clean);
+            $clean = trim($clean);
             if (stripos($clean, '<table') !== false) {
                 return '<div style="font-size:7.5pt; line-height:9.5pt; width:100%;">' . $clean . '</div>';
             }

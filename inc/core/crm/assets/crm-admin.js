@@ -2222,7 +2222,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                 offer_1: draft.selected_docs.offer_1 !== false,
                                 offer_2: Boolean(draft.selected_docs.offer_2),
                                 offer_3: typeof draft.selected_docs.offer_3 !== 'undefined' ? Boolean(draft.selected_docs.offer_3) : hasOffer3,
-                                kb: Boolean(draft.selected_docs.kb),
+                                kb: isAms ? true : Boolean(draft.selected_docs.kb),
                                 agb: draft.selected_docs.agb !== false
                             };
                         } else if (draft && draft.pdf_urls && Array.isArray(draft.pdf_urls) && draft.pdf_urls.length > 0) {
@@ -2788,7 +2788,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     </div>
                 `;
             } else if (step === 2) {
-                const isAms = Boolean(currentWizardData.foerderung && (currentWizardData.foerderung.ams || currentWizardData.foerderung.waff));
+                const isAms = Boolean((currentWizardData.foerderung && (currentWizardData.foerderung.ams || currentWizardData.foerderung.waff)) || currentWizardData.is_ams_funding);
                 const isPrepared = currentWizardData.is_prepared;
                 const draft = currentWizardData.draft;
 
@@ -3944,6 +3944,9 @@ jQuery(document).ready(function ($) {
                 if (typeof quicktags !== 'undefined') {
                     quicktags({ id: 'x_sieben_body' });
                 }
+
+                // Initialen Anhänge-Status sofort synchronisieren (Badge, Hidden-Input & Sidebar)
+                crmSyncAttachmentsState();
 
                 // If test button was clicked in preview, scroll to and highlight the test box
                 if (focusTest) {
@@ -6157,6 +6160,8 @@ jQuery(document).ready(function ($) {
             if (doc === 'kb') secTarget = 'crm-dual-sec-kb';
             else if (doc === 'tb') secTarget = 'crm-dual-sec-tb';
             else if (doc === 'diplom') secTarget = 'crm-dual-sec-diplom';
+            else if (doc === 'ab') secTarget = 'crm-dual-sec-ab';
+            else if (doc === 'antritt') secTarget = 'crm-dual-sec-antritt';
 
             const $secBtn = jQuery('.crm-dual-sec-tab-btn[data-target="' + secTarget + '"]');
             if ($secBtn.length && !$secBtn.hasClass('active')) {
@@ -6237,6 +6242,8 @@ jQuery(document).ready(function ($) {
         if (target === 'crm-dual-sec-kb') docType = 'kb';
         else if (target === 'crm-dual-sec-tb') docType = 'tb';
         else if (target === 'crm-dual-sec-diplom') docType = 'diplom';
+        else if (target === 'crm-dual-sec-ab') docType = 'ab';
+        else if (target === 'crm-dual-sec-antritt') docType = 'antritt';
 
         const $switchBtn = jQuery('.crm-preview-switch-embed[data-doc="' + docType + '"]');
         if ($switchBtn.length && !$switchBtn.hasClass('active')) {
@@ -6367,7 +6374,7 @@ jQuery(document).ready(function ($) {
                 doc_type: docType,
                 entry_id: entryId,
                 course_id: courseId,
-                is_sidebar: 1
+                is_sidebar: $manager.hasClass('crm-sections-sidebar') ? 1 : 0
             },
             success: function (res) {
                 $btn.prop('disabled', false);

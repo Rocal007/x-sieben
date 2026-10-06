@@ -917,13 +917,37 @@ function crm_run_imap_sync(?array $override_settings = null, bool $dry_run = fal
         // Externe Kundenadresse ermitteln
         $hasCustomerEmail = !empty($parsed['email']) && (!function_exists('crm_is_internal_email') || !crm_is_internal_email($parsed['email']));
 
-        // Prüfen, ob Kunde bereits im CRM als Lead existiert
+        // Prüfen, ob Kunde bereits im CRM als Lead existiert (3-stufige Erkennung: E-Mail -> Telefon -> Name)
         $existingEntryId = null;
         if (!empty($parsed['email'])) {
             $clean_email = strtolower(trim($parsed['email']));
             $existingRow = $wpdb->get_row($wpdb->prepare(
                 "SELECT entry_id FROM {$wpdb->prefix}wpforms_entries WHERE fields LIKE %s ORDER BY entry_id DESC LIMIT 1",
                 '%' . $wpdb->esc_like('"value":"' . $clean_email . '"') . '%'
+            ), ARRAY_A);
+            if ($existingRow && !empty($existingRow['entry_id'])) {
+                $existingEntryId = (int)$existingRow['entry_id'];
+            }
+        }
+        if (!$existingEntryId && !empty($parsed['telefon'])) {
+            $clean_tel = preg_replace('/[^\d+]/', '', $parsed['telefon']);
+            if (strlen($clean_tel) >= 7) {
+                $existingRow = $wpdb->get_row($wpdb->prepare(
+                    "SELECT entry_id FROM {$wpdb->prefix}wpforms_entries WHERE fields LIKE %s ORDER BY entry_id DESC LIMIT 1",
+                    '%' . $wpdb->esc_like($clean_tel) . '%'
+                ), ARRAY_A);
+                if ($existingRow && !empty($existingRow['entry_id'])) {
+                    $existingEntryId = (int)$existingRow['entry_id'];
+                }
+            }
+        }
+        if (!$existingEntryId && !empty($parsed['vorname']) && !empty($parsed['nachname'])) {
+            $v_search = trim($parsed['vorname']);
+            $n_search = trim($parsed['nachname']);
+            $existingRow = $wpdb->get_row($wpdb->prepare(
+                "SELECT entry_id FROM {$wpdb->prefix}wpforms_entries WHERE fields LIKE %s AND fields LIKE %s ORDER BY entry_id DESC LIMIT 1",
+                '%' . $wpdb->esc_like('"value":"' . $v_search . '"') . '%',
+                '%' . $wpdb->esc_like('"value":"' . $n_search . '"') . '%'
             ), ARRAY_A);
             if ($existingRow && !empty($existingRow['entry_id'])) {
                 $existingEntryId = (int)$existingRow['entry_id'];
@@ -1055,22 +1079,26 @@ function crm_run_imap_sync(?array $override_settings = null, bool $dry_run = fal
             $res = crm_create_lead_from_parsed_data($parsed, $runPrep);
 
             if (!empty($res['success']) && !empty($res['entry_id'])) {
-                $entryId = (int)$res['entry_id'];
+                $entryId    = (int)$res['entry_id'];
+                $isFollowup = !empty($res['action']) && $res['action'] === 'updated_followup';
                 $importedCount++;
                 $createdLeads[] = [
                     'entry_id'    => $entryId,
                     'client_name' => trim(($parsed['vorname'] ?? '') . ' ' . ($parsed['nachname'] ?? '')),
                     'course'      => $parsed['kurs_titel'] ?? 'Kurs',
                     'subject'     => $email['subject'],
+                    'is_followup' => $isFollowup,
                 ];
 
                 $logEntries[] = [
                     'subject'  => $email['subject'],
                     'from'     => $email['from'],
                     'date'     => $email['date'],
-                    'action'   => 'created',
+                    'action'   => $isFollowup ? 'followup' : 'created',
                     'entry_id' => $entryId,
-                    'reason'   => sprintf(__('Lead #%d erfolgreich angelegt.', 'custom-crm'), $entryId),
+                    'reason'   => $isFollowup
+                        ? sprintf(__('Folgekommunikation zu Lead #%d erfolgreich erfasst.', 'custom-crm'), $entryId)
+                        : sprintf(__('Lead #%d erfolgreich angelegt.', 'custom-crm'), $entryId),
                 ];
 
                 // Gelesen-Flag setzen

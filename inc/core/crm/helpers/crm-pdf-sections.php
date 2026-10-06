@@ -1127,10 +1127,58 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
             'color'       => '#2563eb',
             'default'     => true,
             'subsections' => [
-                'bestaetigung' => [
-                    'title'           => __('Bestätigung & Eckdaten', 'custom-crm'),
-                    'desc'            => __('Offizielles Bestätigungsschreiben mit Kurstitel, Termin und Ort.', 'custom-crm'),
+                'header' => [
+                    'title'           => __('Header & Firmenlogos', 'custom-crm'),
+                    'desc'            => __('wba Logo (links) & X-SIEBEN Firmenlogo (rechts).', 'custom-crm'),
                     'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+                'empfaenger' => [
+                    'title'           => __('Adressfenster / Empfänger', 'custom-crm'),
+                    'desc'            => __('Anrede, Name und Anschrift des Teilnehmers.', 'custom-crm'),
+                    'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+                'referenz' => [
+                    'title'           => __('Referenzleiste (4-Spalten)', 'custom-crm'),
+                    'desc'            => __('Ihre Zeichen, Unser Zeichen, Telefon/Name und Ausstellungsdatum.', 'custom-crm'),
+                    'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+                'betreff' => [
+                    'title'           => __('Betreffzeile', 'custom-crm'),
+                    'desc'            => __('Offizieller Betreff zur Kursanmeldung.', 'custom-crm'),
+                    'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+                'anrede_text' => [
+                    'title'           => __('Anrede & Bestätigungstext', 'custom-crm'),
+                    'desc'            => __('Persönliche Anrede und Einleitungssatz.', 'custom-crm'),
+                    'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+                'eckdaten' => [
+                    'title'           => __('Kurs-Eckdaten (Tabelle)', 'custom-crm'),
+                    'desc'            => __('Veranstaltungstitel, Beginn/Dauer und Schulungsort.', 'custom-crm'),
+                    'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+                'hotline' => [
+                    'title'           => __('Hotline & Rückfragen', 'custom-crm'),
+                    'desc'            => __('Kostenfreie Hotline-Nummer und Hilfestellung.', 'custom-crm'),
+                    'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+                'signatur' => [
+                    'title'           => __('Grußformel & Signatur', 'custom-crm'),
+                    'desc'            => __('Mit freundlichen Grüßen, Firmenstampiglie und Geschäftsführung.', 'custom-crm'),
+                    'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+                'bestaetigung' => [
+                    'title'           => __('Bestätigung & Eckdaten (Kombiniert)', 'custom-crm'),
+                    'desc'            => __('Offizielles Bestätigungsschreiben mit Kurstitel, Termin und Ort.', 'custom-crm'),
+                    'default'         => false,
                     'default_content' => "{standard}",
                 ],
             ],
@@ -1143,8 +1191,14 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
             'color'       => '#2563eb',
             'default'     => true,
             'subsections' => [
+                'header' => [
+                    'title'           => __('Header & Firmenlogos (Seite 2)', 'custom-crm'),
+                    'desc'            => __('wba Logo (links) & X-SIEBEN Firmenlogo (rechts).', 'custom-crm'),
+                    'default'         => true,
+                    'default_content' => "{standard}",
+                ],
                 'hinweistext' => [
-                    'title'           => __('Rechtlicher Hinweis', 'custom-crm'),
+                    'title'           => __('Rechtlicher Hinweis & AGB', 'custom-crm'),
                     'desc'            => __('Hinweis auf AGB, Widerrufsbelehrung und Datenschutz.', 'custom-crm'),
                     'default'         => true,
                     'default_content' => "{standard}",
@@ -1164,10 +1218,40 @@ function crm_get_pdf_sections_definitions($doc_type = null): array
             'color'       => '#0891b2',
             'default'     => true,
             'subsections' => [
-                'antritt_daten' => [
-                    'title'           => __('Antrittsdaten & Kursangaben', 'custom-crm'),
-                    'desc'            => __('Teilnehmer, SV-Nummer, Antrittsdatum, Schulungsort und Stampiglie.', 'custom-crm'),
+                'header' => [
+                    'title'           => __('Header & Logos', 'custom-crm'),
+                    'desc'            => __('X-SIEBEN Firmenlogo (links) & AMS Logo (rechts).', 'custom-crm'),
                     'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+                'adressat_datum' => [
+                    'title'           => __('Adressat AMS & Datum', 'custom-crm'),
+                    'desc'            => __('An das AMS & Ausstellungsdatum.', 'custom-crm'),
+                    'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+                'titel' => [
+                    'title'           => __('Titelzeile', 'custom-crm'),
+                    'desc'            => __('ANTRITTSMELDUNG: „Kurstitel“.', 'custom-crm'),
+                    'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+                'stammdaten' => [
+                    'title'           => __('Stammdaten-Matrix', 'custom-crm'),
+                    'desc'            => __('Teilnehmer, SV-Nummer, Antrittsdatum, Institut, Schulungsort und UID.', 'custom-crm'),
+                    'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+                'signatur' => [
+                    'title'           => __('Unterschrift & Stampiglie', 'custom-crm'),
+                    'desc'            => __('Firmenstampiglie und Unterschrift Kursinstitut.', 'custom-crm'),
+                    'default'         => true,
+                    'default_content' => "{standard}",
+                ],
+                'antritt_daten' => [
+                    'title'           => __('Antrittsdaten & Kursangaben (Kombiniert)', 'custom-crm'),
+                    'desc'            => __('Teilnehmer, SV-Nummer, Antrittsdatum, Schulungsort und Stampiglie.', 'custom-crm'),
+                    'default'         => false,
                     'default_content' => "{standard}",
                 ],
             ],
@@ -1299,6 +1383,14 @@ function crm_replace_pdf_placeholders(string $content, $course = null): string
         '{bic}'                => $bic_val,
         '{bank_iban}'          => $iban_val,
         '{bank_bic}'           => $bic_val,
+        '{company_logo}'       => !empty($course->company_logo) ? $course->company_logo : ($course->xsieben_logo ?? ''),
+        '{xsieben_logo}'       => !empty($course->xsieben_logo) ? $course->xsieben_logo : ($course->company_logo ?? ''),
+        '{logo}'               => !empty($course->company_logo) ? $course->company_logo : ($course->xsieben_logo ?? ''),
+        '{logo_url}'           => !empty($course->company_logo_url) ? $course->company_logo_url : (function_exists('crm_resolve_asset_path') ? crm_resolve_asset_path('xsieben_logo.png') : ''),
+        '{svr}'                => $course->svr ?? '',
+        '{stempel}'            => function_exists('crm_resolve_asset_path') ? crm_resolve_asset_path('stempel.png') : '',
+        '{ams_logo}'           => function_exists('crm_resolve_asset_path') ? crm_resolve_asset_path('ams.png') : '',
+        '{wba_logo}'           => function_exists('crm_resolve_asset_path') ? crm_resolve_asset_path('wba-1.png') : '',
     ];
     return str_replace(array_keys($map), array_values($map), $content);
 }
@@ -2417,6 +2509,30 @@ function crm_get_subsection_default_html(string $doc_type, string $sec_key, stri
                 'signatur'     => ['aussteller_info' => $default_footer_html],
                 'fusszeile'    => ['aussteller_info' => $default_footer_html],
             ];
+            break;
+
+        case 'ab':
+        case 'anmeldebestaetigung':
+            require_once dirname(__DIR__) . '/pdf/elements/ab-elements.php';
+            $entry_date_str = date('d.m.Y');
+            if ($entry_id && function_exists('wpforms')) {
+                $entry_obj = wpforms()->entry->get($entry_id);
+                if ($entry_obj && !empty($entry_obj->date)) {
+                    $entry_date_str = date('d.m.Y', strtotime($entry_obj->date));
+                }
+            }
+            $gens = CRM_Pdf_Ab_Elements::get_subsections_generators($course, [
+                'entry_date_str'   => $entry_date_str,
+                'current_date_str' => date('d.m.Y'),
+            ]);
+            break;
+
+        case 'antritt':
+        case 'antrittsbestaetigung':
+            require_once dirname(__DIR__) . '/pdf/elements/antritt-elements.php';
+            $gens = CRM_Pdf_Antritt_Elements::get_subsections_generators($course, [
+                'current_date_str' => date('d.m.Y'),
+            ]);
             break;
     }
 

@@ -449,7 +449,9 @@
             'diplom': 'Diplom / Zertifikat',
             'angebot': 'Angebot & Anhang',
             'angebot_2': 'Angebot 2: Inkl. Zertifizierung',
-            'invoice': 'Honorarnote / Rechnung'
+            'invoice': 'Honorarnote / Rechnung',
+            'ab': 'Anmeldebestätigung (AB)',
+            'antritt': 'Antrittsmeldung (AMS)'
         };
 
         function loadPdfPreview(docType, forceReload) {

@@ -182,6 +182,18 @@ function crm_get_pdf_preview_url_ajax_handler()
                 $url = xsieben_invoice_pdf($entry_id, $course_id, false, $preview_sections);
                 break;
 
+            case 'ab':
+            case 'anmeldebestaetigung':
+                require_once $base_dir . '/pdf/anmeldebestaetigung.php';
+                $url = xsieben_anmeldebestaetigung_pdf($entry_id, $course_id, false, $preview_sections);
+                break;
+
+            case 'antritt':
+            case 'antrittsbestaetigung':
+                require_once $base_dir . '/pdf/antrittsbestaetigung.php';
+                $url = xsieben_antrittsbestaetigung_pdf($entry_id, $course_id, false, $preview_sections);
+                break;
+
             default:
                 $url = '';
         }

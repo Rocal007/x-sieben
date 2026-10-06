@@ -384,6 +384,16 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
     $matching_kb = !empty($kb_token) ? glob($save_dir . 'Kurszeitenbestaetigung_*' . $kb_token . '*.pdf') : [];
     if (!empty($matching_kb)) {
       $kb_url = $storage_url . rawurlencode(basename(end($matching_kb)));
+    } elseif ($cid_check && function_exists('xsieben_kurszeitenbestaetigung_pdf')) {
+      $course_title_chk = get_the_title($cid_check) ?: '';
+      $is_ams_course = (stripos($course_title_chk, 'ams') !== false);
+      if ($is_foerd_active || $is_ams_course || in_array($context, ['xsieben_angebot_und_kurszeiten', 'angebot_kb', 'kurszeitenbestaetigung'], true)) {
+        try {
+          $kb_url = xsieben_kurszeitenbestaetigung_pdf($entry_id, $cid_check, false);
+        } catch (\Throwable $e) {
+          error_log('CRM Auto KB Generation in Preview Error: ' . $e->getMessage());
+        }
+      }
     }
   }
 
@@ -609,6 +619,61 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
       </div>
 
       <embed id="crm-active-pdf-embed" src="<?php echo esc_url($active_embed_url); ?>" type="application/pdf" width="100%" height="680px" style="border: 1px solid #cbd5e1; border-radius: 8px; min-height: 650px; box-shadow: 0 4px 14px rgba(0,0,0,0.06); background:#f8fafc;" />
+
+      <?php
+      // PDF-Abschnitte Manager (Drag & Drop) in der Eintrags-Vorschau (unterhalb der PDF-Vorschau)
+      if (function_exists('crm_render_pdf_sections_manager')) : ?>
+        <div class="crm-pdf-sections-preview-box crm-dual-sections-preview-box"
+             data-context="<?php echo esc_attr($context); ?>"
+             data-course="<?php echo absint($course_id); ?>"
+             data-entry="<?php echo absint($entry_id); ?>"
+             style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:16px; margin-top:20px; margin-bottom:15px; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+          <div style="font-size:13.5px; font-weight:700; color:#0f172a; margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+            <span class="dashicons dashicons-menu" style="color:#007C90; font-size:18px;"></span>
+            <span>Abschnitte anordnen (Drag & Drop)</span>
+          </div>
+          
+          <div class="crm-dual-sec-tabs" style="display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;">
+            <button type="button" class="button crm-dual-sec-tab-btn <?php echo in_array($active_doc, ['angebot_basis', 'angebot_zert', 'angebot_3', 'angebot']) ? 'active' : ''; ?>" data-target="crm-dual-sec-angebot" style="<?php echo in_array($active_doc, ['angebot_basis', 'angebot_zert', 'angebot_3', 'angebot']) ? 'border-color:#7c3aed; color:#6d28d9; font-weight:600;' : ''; ?> font-size:11.5px; height:26px; line-height:24px; padding:0 10px;">
+              Angebot
+            </button>
+            <button type="button" class="button crm-dual-sec-tab-btn <?php echo ($active_doc === 'kb') ? 'active' : ''; ?>" data-target="crm-dual-sec-kb" style="<?php echo ($active_doc === 'kb') ? 'border-color:#0f766e; color:#0f766e; font-weight:600;' : 'color:#0f766e;'; ?> font-size:11.5px; height:26px; line-height:24px; padding:0 10px;">
+              Kurszeiten (KB)
+            </button>
+            <button type="button" class="button crm-dual-sec-tab-btn <?php echo ($active_doc === 'tb') ? 'active' : ''; ?>" data-target="crm-dual-sec-tb" style="<?php echo ($active_doc === 'tb') ? 'border-color:#047857; color:#047857; font-weight:600;' : 'color:#047857;'; ?> font-size:11.5px; height:26px; line-height:24px; padding:0 10px;">
+              Teilnahme (TB)
+            </button>
+            <button type="button" class="button crm-dual-sec-tab-btn <?php echo ($active_doc === 'diplom') ? 'active' : ''; ?>" data-target="crm-dual-sec-diplom" style="<?php echo ($active_doc === 'diplom') ? 'border-color:#b45309; color:#b45309; font-weight:600;' : 'color:#b45309;'; ?> font-size:11.5px; height:26px; line-height:24px; padding:0 10px;">
+              Diplom
+            </button>
+            <button type="button" class="button crm-dual-sec-tab-btn <?php echo ($active_doc === 'ab') ? 'active' : ''; ?>" data-target="crm-dual-sec-ab" style="<?php echo ($active_doc === 'ab') ? 'border-color:#2563eb; color:#1d4ed8; font-weight:600;' : 'color:#2563eb;'; ?> font-size:11.5px; height:26px; line-height:24px; padding:0 10px;">
+              Anmeldung (AB)
+            </button>
+            <button type="button" class="button crm-dual-sec-tab-btn <?php echo ($active_doc === 'antritt') ? 'active' : ''; ?>" data-target="crm-dual-sec-antritt" style="<?php echo ($active_doc === 'antritt') ? 'border-color:#0891b2; color:#0e7490; font-weight:600;' : 'color:#0891b2;'; ?> font-size:11.5px; height:26px; line-height:24px; padding:0 10px;">
+              Antrittsmeldung
+            </button>
+          </div>
+
+          <div id="crm-dual-sec-angebot" class="crm-dual-sec-pane" style="<?php echo in_array($active_doc, ['angebot_basis', 'angebot_zert', 'angebot_3', 'angebot']) ? '' : 'display:none;'; ?>">
+            <?php crm_render_pdf_sections_manager('angebot', $entry_id, false); ?>
+          </div>
+          <div id="crm-dual-sec-kb" class="crm-dual-sec-pane" style="<?php echo ($active_doc === 'kb') ? '' : 'display:none;'; ?>">
+            <?php crm_render_pdf_sections_manager('kb', $entry_id, false); ?>
+          </div>
+          <div id="crm-dual-sec-tb" class="crm-dual-sec-pane" style="<?php echo ($active_doc === 'tb') ? '' : 'display:none;'; ?>">
+            <?php crm_render_pdf_sections_manager('tb', $entry_id, false); ?>
+          </div>
+          <div id="crm-dual-sec-diplom" class="crm-dual-sec-pane" style="<?php echo ($active_doc === 'diplom') ? '' : 'display:none;'; ?>">
+            <?php crm_render_pdf_sections_manager('diplom', $entry_id, false); ?>
+          </div>
+          <div id="crm-dual-sec-ab" class="crm-dual-sec-pane" style="<?php echo ($active_doc === 'ab') ? '' : 'display:none;'; ?>">
+            <?php crm_render_pdf_sections_manager('ab', $entry_id, false); ?>
+          </div>
+          <div id="crm-dual-sec-antritt" class="crm-dual-sec-pane" style="<?php echo ($active_doc === 'antritt') ? '' : 'display:none;'; ?>">
+            <?php crm_render_pdf_sections_manager('antritt', $entry_id, false); ?>
+          </div>
+        </div>
+      <?php endif; ?>
     </div>
 
     <div id="x-sieben-button-row" style="flex: 0 0 310px; min-width: 280px; display:flex; flex-direction:column; gap:12px; margin-top:40px;">
@@ -711,50 +776,8 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
           </button>
           <div class="crm-diplom-success-feedback" style="display:none; font-size:11.5px; color:#16a34a; font-weight:600; margin-top:8px; text-align:center;"></div>
         </div>
-      <?php
-      // PDF-Abschnitte Manager (Drag & Drop) in der Eintrags-Vorschau
-      if (function_exists('crm_render_pdf_sections_manager')) : ?>
-        <div class="crm-pdf-sections-preview-box crm-dual-sections-preview-box"
-             data-context="<?php echo esc_attr($context); ?>"
-             data-course="<?php echo absint($course_id); ?>"
-             data-entry="<?php echo absint($entry_id); ?>"
-             style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:14px; margin-top:12px; margin-bottom:15px; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-          <div style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
-            <span class="dashicons dashicons-menu" style="color:#007C90; font-size:18px;"></span>
-            <span>Abschnitte anordnen (Drag & Drop)</span>
-          </div>
-          
-          <div class="crm-dual-sec-tabs" style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
-            <button type="button" class="button crm-dual-sec-tab-btn <?php echo in_array($active_doc, ['angebot_basis', 'angebot_zert', 'angebot']) ? 'active' : ''; ?>" data-target="crm-dual-sec-angebot" style="<?php echo in_array($active_doc, ['angebot_basis', 'angebot_zert', 'angebot']) ? 'border-color:#7c3aed; color:#6d28d9; font-weight:600;' : ''; ?> font-size:11px; height:24px; line-height:22px; padding:0 8px;">
-              Angebot
-            </button>
-            <button type="button" class="button crm-dual-sec-tab-btn <?php echo ($active_doc === 'kb') ? 'active' : ''; ?>" data-target="crm-dual-sec-kb" style="<?php echo ($active_doc === 'kb') ? 'border-color:#0f766e; color:#0f766e; font-weight:600;' : 'color:#0f766e;'; ?> font-size:11px; height:24px; line-height:22px; padding:0 8px;">
-              Kurszeiten (KB)
-            </button>
-            <button type="button" class="button crm-dual-sec-tab-btn <?php echo ($active_doc === 'tb') ? 'active' : ''; ?>" data-target="crm-dual-sec-tb" style="<?php echo ($active_doc === 'tb') ? 'border-color:#047857; color:#047857; font-weight:600;' : 'color:#047857;'; ?> font-size:11px; height:24px; line-height:22px; padding:0 8px;">
-              Teilnahme (TB)
-            </button>
-            <button type="button" class="button crm-dual-sec-tab-btn <?php echo ($active_doc === 'diplom') ? 'active' : ''; ?>" data-target="crm-dual-sec-diplom" style="<?php echo ($active_doc === 'diplom') ? 'border-color:#b45309; color:#b45309; font-weight:600;' : 'color:#b45309;'; ?> font-size:11px; height:24px; line-height:22px; padding:0 8px;">
-              Diplom
-            </button>
-          </div>
 
-          <div id="crm-dual-sec-angebot" class="crm-dual-sec-pane" style="<?php echo in_array($active_doc, ['angebot_basis', 'angebot_zert', 'angebot']) ? '' : 'display:none;'; ?>">
-            <?php crm_render_pdf_sections_manager('angebot', $entry_id, true); ?>
-          </div>
-          <div id="crm-dual-sec-kb" class="crm-dual-sec-pane" style="<?php echo ($active_doc === 'kb') ? '' : 'display:none;'; ?>">
-            <?php crm_render_pdf_sections_manager('kb', $entry_id, true); ?>
-          </div>
-          <div id="crm-dual-sec-tb" class="crm-dual-sec-pane" style="<?php echo ($active_doc === 'tb') ? '' : 'display:none;'; ?>">
-            <?php crm_render_pdf_sections_manager('tb', $entry_id, true); ?>
-          </div>
-          <div id="crm-dual-sec-diplom" class="crm-dual-sec-pane" style="<?php echo ($active_doc === 'diplom') ? '' : 'display:none;'; ?>">
-            <?php crm_render_pdf_sections_manager('diplom', $entry_id, true); ?>
-          </div>
-        </div>
-      <?php endif; ?>
-
-      <div style="margin-top: 10px; font-style: italic; font-size: 0.9em;">
+      <div style="margin-top: 10px; font-style: italic; font-size: 0.9em; color:#64748b;">
         Kundendaten bearbeiten, um Zertifizierungen auszuwählen
       </div>
 
@@ -880,6 +903,46 @@ function x_sieben_pdf_mailer($pdf_url, $course_id, $entry_id, $context)
     }
     if (!empty($friedelin_draft['all_pdf_param'])) {
       $pdf_url = $friedelin_draft['all_pdf_param'];
+    }
+  }
+
+  // Strikte Dokumenten-Synchronisation (Hannes Feedback 05.10.2026):
+  // Wenn das Anschreiben die KB ankündigt, sicherstellen dass KB existiert & in pdf_url ist
+  $body_has_kb = (stripos($body, 'Kurszeitenbestätigung') !== false || stripos($body, 'Kurszeitenbestaetigung') !== false || in_array($context, ['xsieben_angebot_und_kurszeiten', 'angebot_kb', 'kurszeitenbestaetigung'], true));
+  if ($body_has_kb && $entry_id && $course_id) {
+    $save_dir_m = function_exists('crm_get_pdf_storage_dir') ? crm_get_pdf_storage_dir() : (get_template_directory() . '/angebote/');
+    $storage_url_m = function_exists('crm_get_pdf_storage_url') ? crm_get_pdf_storage_url() : (get_template_directory_uri() . '/angebote/');
+    $kb_token_m = function_exists('crm_generate_pdf_token') ? crm_generate_pdf_token($entry_id, 'kb') : '';
+    $matching_kb_m = !empty($kb_token_m) ? glob($save_dir_m . 'Kurszeitenbestaetigung_*' . $kb_token_m . '*.pdf') : [];
+    $active_kb_url = '';
+    if (!empty($matching_kb_m)) {
+      $active_kb_url = $storage_url_m . rawurlencode(basename(end($matching_kb_m)));
+    } elseif (function_exists('xsieben_kurszeitenbestaetigung_pdf')) {
+      try {
+        $active_kb_url = xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, false);
+      } catch (\Throwable $e) {
+        error_log('CRM Error generating KB for Mailer: ' . $e->getMessage());
+      }
+    }
+    if (!empty($active_kb_url)) {
+      $pdf_urls_cur = array_filter(array_map('trim', explode(',', $pdf_url)));
+      $has_kb_url_in_param = false;
+      foreach ($pdf_urls_cur as $puc) {
+        if (stripos(basename($puc), 'kurszeiten') !== false || stripos(basename($puc), 'kb_') !== false) {
+          $has_kb_url_in_param = true;
+          break;
+        }
+      }
+      if (!$has_kb_url_in_param) {
+        $pdf_urls_cur[] = $active_kb_url;
+        $pdf_url = implode(',', $pdf_urls_cur);
+      }
+    } else {
+      // KB konnte nicht generiert werden -> Anschreiben bereinigen gemäß Vorgabe
+      $body = preg_replace('/<p[^>]*>.*?Für Ihre Förderstelle.*?<\/p>/is', '', $body);
+      $body = preg_replace('/<p[^>]*>.*?Kurszeitenbestätigung \(KB\).*?<\/p>/is', '', $body);
+      $subject = str_replace('Angebot & Kurszeitenbestätigung:', 'Angebot:', $subject);
+      $subject = str_replace('Angebot & Kurszeiten:', 'Angebot:', $subject);
     }
   }
 
@@ -1195,6 +1258,73 @@ add_action('wp_ajax_x_sieben_send_mail', function () {
     if (method_exists($crm_model, 'parse_string_with_data')) {
       $subject = $crm_model->parse_string_with_data($subject);
       $body    = $crm_model->parse_string_with_data($body);
+    }
+  }
+
+  // =========================================================================
+  // STRIKTE SYNCHRONISATIONSREGEL (Hannes Feedback 05.10.2026):
+  // KB im Mailtext angekündigt -> KB-PDF MUSS vorhanden und als Anhang beigelegt sein!
+  // =========================================================================
+  $body_promises_kb = (
+    stripos($body, 'Kurszeitenbestätigung') !== false ||
+    stripos($body, 'Kurszeitenbestaetigung') !== false ||
+    stripos($body, 'offizielle Kurszeitenbestätigung (KB)') !== false ||
+    stripos($body, 'Für Ihre Förderstelle') !== false ||
+    in_array($context, ['xsieben_angebot_und_kurszeiten', 'angebot_kb', 'kurszeitenbestaetigung'], true)
+  );
+
+  $has_kb_in_attachments = false;
+  foreach ($attachments as $att_file) {
+    $att_bn = basename($att_file);
+    if (strpos($att_bn, 'Kurszeitenbestaetigung_') === 0 || strpos($att_bn, 'KB_') === 0 || stripos($att_bn, 'kurszeiten') !== false) {
+      $has_kb_in_attachments = true;
+      break;
+    }
+  }
+
+  if ($body_promises_kb && !$has_kb_in_attachments) {
+    $kb_resolved_path = '';
+    $save_dir = function_exists('crm_get_pdf_storage_dir') ? crm_get_pdf_storage_dir() : (get_template_directory() . '/angebote/');
+    
+    // 1. Suche nach existierender KB-Datei auf dem Server
+    if ($entry_id) {
+      $kb_token = function_exists('crm_generate_pdf_token') ? crm_generate_pdf_token($entry_id, 'kb') : '';
+      $matching_kb = !empty($kb_token) ? glob($save_dir . 'Kurszeitenbestaetigung_*' . $kb_token . '*.pdf') : [];
+      if (empty($matching_kb)) {
+        $matching_kb = glob($save_dir . 'KB_' . $entry_id . '-*.pdf');
+      }
+      if (!empty($matching_kb)) {
+        $kb_resolved_path = end($matching_kb);
+      }
+    }
+
+    // 2. Falls nicht auf Festplatte vorhanden: Jetzt sofort autark on-the-fly generieren
+    if (empty($kb_resolved_path) && $entry_id && $course_id && function_exists('xsieben_kurszeitenbestaetigung_pdf')) {
+      try {
+        $gen_url = xsieben_kurszeitenbestaetigung_pdf($entry_id, $course_id, false);
+        if ($gen_url) {
+          $bn = rawurldecode(basename(parse_url($gen_url, PHP_URL_PATH)));
+          $cand_p = $save_dir . $bn;
+          if (file_exists($cand_p)) {
+            $kb_resolved_path = $cand_p;
+          }
+        }
+      } catch (\Throwable $e) {
+        error_log('CRM Circuit-Breaker: KB generation failed: ' . $e->getMessage());
+      }
+    }
+
+    // 3. Wenn KB-Datei vorhanden/generiert: Als Attachment anhängen!
+    if (!empty($kb_resolved_path) && file_exists($kb_resolved_path)) {
+      $attachments[] = $kb_resolved_path;
+      $has_kb_in_attachments = true;
+    } else {
+      // 4. Fallback-Regel von Hannes: "Falls die KB aus irgendeinem Grund nicht generiert werden kann,
+      // sollte sie umgekehrt auch nicht als beigefügt angekündigt werden"
+      $body = preg_replace('/<p[^>]*>.*?Für Ihre Förderstelle.*?<\/p>/is', '', $body);
+      $body = preg_replace('/<p[^>]*>.*?Kurszeitenbestätigung \(KB\).*?<\/p>/is', '', $body);
+      $subject = str_replace('Angebot & Kurszeitenbestätigung:', 'Angebot:', $subject);
+      $subject = str_replace('Angebot & Kurszeiten:', 'Angebot:', $subject);
     }
   }
 

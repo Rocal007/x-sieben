@@ -711,6 +711,21 @@ function crm_get_entry_foerderung($entry_id, $fields = null): array
         }
     }
 
+    // 5. Kursbezogene Erkennung (z.B. Lehrgänge mit AMS-Aktion im Titel)
+    if (!$has_ams && $entry_id && class_exists('CRM_Model')) {
+        try {
+            $tmp_m = new CRM_Model(0, $entry_id);
+            if (!empty($tmp_m->post_id)) {
+                $c_title = get_the_title($tmp_m->post_id) ?: '';
+                if (stripos($c_title, 'ams') !== false) {
+                    $has_ams = true;
+                }
+            }
+        } catch (\Throwable $e) {
+            // Ignorieren falls Model nicht instanziiert werden kann
+        }
+    }
+
     return [
         'ams'  => $has_ams,
         'waff' => $has_waff,

@@ -295,6 +295,8 @@ class CrmSeniorDevTestSuite
         $this->testSuite47_Version21898StrictKbAttachmentSynchronization();
         $this->testSuite48_Version21899OfferPage1FooterOverlapFix();
         $this->testSuite49_Version21900EmailAndImapSynchronization();
+        $this->testSuite50_Version21902SectionManagerUnderPdfPreview();
+        $this->testSuite51_Version21903AbAndAntrittSectionIntegrationAndStandardComponents();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -3389,6 +3391,136 @@ Firma: DRK Gifhorn Service und Pflegeteam gGmbH";
 
         // Aufräumen: Ursprüngliche Einstellungen wiederherstellen
         update_option('crm_imap_settings', $oldSettings);
+    }
+
+    /**
+     * [SUITE 50] Geschäftsvorfall: Abschnittsanordnung unter PDF-Vorschau positioniert (v2.19.2)
+     */
+    public function testSuite50_Version21902SectionManagerUnderPdfPreview(): void
+    {
+        echo "\n\033[1;33m[SUITE 50] Geschäftsvorfall: Abschnittsanordnung unter PDF-Vorschau (v2.19.2)\033[0m\n";
+
+        // 1. Versionierung
+        $this->assert("CRM_VERSION ist >= 2.19.2", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.19.2', '>='));
+
+        // 2. output-controler.php Positionierungsprüfung
+        $outputControler = file_get_contents(dirname(__DIR__) . '/controler/output-controler.php');
+
+        $embedPos = strpos($outputControler, 'id="crm-active-pdf-embed"');
+        $sectionsBoxPos = strpos($outputControler, 'class="crm-pdf-sections-preview-box');
+        $sidebarPos = strpos($outputControler, 'id="x-sieben-button-row"');
+
+        $this->assert("output-controler.php enthält #crm-active-pdf-embed", $embedPos !== false);
+        $this->assert("output-controler.php enthält crm-pdf-sections-preview-box", $sectionsBoxPos !== false);
+        $this->assert("output-controler.php enthält #x-sieben-button-row", $sidebarPos !== false);
+
+        // Sections Manager muss NACH dem PDF Embed und VOR der Sidebar (#x-sieben-button-row) stehen
+        $this->assert("Abschnittsanordnung steht UNTER dem PDF-Embed", $sectionsBoxPos > $embedPos);
+        $this->assert("Abschnittsanordnung steht NICHT in der Sidebar", $sectionsBoxPos < $sidebarPos);
+
+        // crm_render_pdf_sections_manager wird mit is_sidebar = false aufgerufen (volle Breite unter PDF)
+        $this->assert("crm_render_pdf_sections_manager('angebot', \$entry_id, false) wird mit false aufgerufen", strpos($outputControler, "crm_render_pdf_sections_manager('angebot', \$entry_id, false)") !== false);
+        $this->assert("crm_render_pdf_sections_manager('kb', \$entry_id, false) wird mit false aufgerufen", strpos($outputControler, "crm_render_pdf_sections_manager('kb', \$entry_id, false)") !== false);
+        $this->assert("crm_render_pdf_sections_manager('tb', \$entry_id, false) wird mit false aufgerufen", strpos($outputControler, "crm_render_pdf_sections_manager('tb', \$entry_id, false)") !== false);
+        $this->assert("crm_render_pdf_sections_manager('diplom', \$entry_id, false) wird mit false aufgerufen", strpos($outputControler, "crm_render_pdf_sections_manager('diplom', \$entry_id, false)") !== false);
+
+        // 3. crm-admin.js Reset-Handler Prüfung
+        $adminJs = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
+        $this->assert("crm-admin.js ermittelt is_sidebar dynamisch anhand crm-sections-sidebar", strpos($adminJs, "\$manager.hasClass('crm-sections-sidebar') ? 1 : 0") !== false);
+    }
+
+    /**
+     * [SUITE 51] Anmeldebestätigung (AB) & Antrittsmeldung: Modularisierung, Standard-Logo & Komponenten (v2.19.3)
+     */
+    public function testSuite51_Version21903AbAndAntrittSectionIntegrationAndStandardComponents(): void
+    {
+        echo "\n\033[1;33m[SUITE 51] Anmeldebestätigung (AB) & Antrittsmeldung: Modularisierung, Standard-Logo & Komponenten (v2.19.3)\033[0m\n";
+
+        // 1. Versionierung
+        $this->assert("CRM_VERSION ist >= 2.19.3", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.19.3', '>='));
+
+        // 2. Element Helper Dateien existieren
+        $abElementsPath = dirname(__DIR__) . '/pdf/elements/ab-elements.php';
+        $antrittElementsPath = dirname(__DIR__) . '/pdf/elements/antritt-elements.php';
+        $this->assert("ab-elements.php existiert", file_exists($abElementsPath));
+        $this->assert("antritt-elements.php existiert", file_exists($antrittElementsPath));
+
+        require_once $abElementsPath;
+        require_once $antrittElementsPath;
+
+        // 3. Klassen und Methodenprüfung
+        $this->assert("Klasse CRM_Pdf_Ab_Elements existiert", class_exists('CRM_Pdf_Ab_Elements'));
+        $this->assert("CRM_Pdf_Ab_Elements besitzt render_header", method_exists('CRM_Pdf_Ab_Elements', 'render_header'));
+        $this->assert("CRM_Pdf_Ab_Elements besitzt render_empfaenger", method_exists('CRM_Pdf_Ab_Elements', 'render_empfaenger'));
+        $this->assert("CRM_Pdf_Ab_Elements besitzt render_referenz", method_exists('CRM_Pdf_Ab_Elements', 'render_referenz'));
+        $this->assert("CRM_Pdf_Ab_Elements besitzt render_betreff", method_exists('CRM_Pdf_Ab_Elements', 'render_betreff'));
+        $this->assert("CRM_Pdf_Ab_Elements besitzt render_anrede_text", method_exists('CRM_Pdf_Ab_Elements', 'render_anrede_text'));
+        $this->assert("CRM_Pdf_Ab_Elements besitzt render_eckdaten", method_exists('CRM_Pdf_Ab_Elements', 'render_eckdaten'));
+        $this->assert("CRM_Pdf_Ab_Elements besitzt render_hotline", method_exists('CRM_Pdf_Ab_Elements', 'render_hotline'));
+        $this->assert("CRM_Pdf_Ab_Elements besitzt render_signatur", method_exists('CRM_Pdf_Ab_Elements', 'render_signatur'));
+        $this->assert("CRM_Pdf_Ab_Elements besitzt render_agb_hinweis", method_exists('CRM_Pdf_Ab_Elements', 'render_agb_hinweis'));
+        $this->assert("CRM_Pdf_Ab_Elements besitzt get_subsections_generators", method_exists('CRM_Pdf_Ab_Elements', 'get_subsections_generators'));
+
+        $this->assert("Klasse CRM_Pdf_Antritt_Elements existiert", class_exists('CRM_Pdf_Antritt_Elements'));
+        $this->assert("CRM_Pdf_Antritt_Elements besitzt render_header", method_exists('CRM_Pdf_Antritt_Elements', 'render_header'));
+        $this->assert("CRM_Pdf_Antritt_Elements besitzt render_adressat_datum", method_exists('CRM_Pdf_Antritt_Elements', 'render_adressat_datum'));
+        $this->assert("CRM_Pdf_Antritt_Elements besitzt render_titel", method_exists('CRM_Pdf_Antritt_Elements', 'render_titel'));
+        $this->assert("CRM_Pdf_Antritt_Elements besitzt render_stammdaten", method_exists('CRM_Pdf_Antritt_Elements', 'render_stammdaten'));
+        $this->assert("CRM_Pdf_Antritt_Elements besitzt render_signatur", method_exists('CRM_Pdf_Antritt_Elements', 'render_signatur'));
+        $this->assert("CRM_Pdf_Antritt_Elements besitzt get_subsections_generators", method_exists('CRM_Pdf_Antritt_Elements', 'get_subsections_generators'));
+
+        // 4. Section Definitions Prüfung
+        require_once dirname(__DIR__) . '/helpers/crm-pdf-sections.php';
+        $abDefs = crm_get_pdf_sections_definitions('ab');
+        $this->assert("Definitions für 'ab' enthalten anschreiben", isset($abDefs['anschreiben']));
+        $this->assert("Definitions für 'ab' enthalten agb_hinweis", isset($abDefs['agb_hinweis']));
+        $this->assert("anschreiben enthält Unterabschnitt eckdaten", isset($abDefs['anschreiben']['subsections']['eckdaten']));
+        $this->assert("anschreiben enthält Unterabschnitt hotline", isset($abDefs['anschreiben']['subsections']['hotline']));
+        $this->assert("anschreiben enthält Unterabschnitt signatur", isset($abDefs['anschreiben']['subsections']['signatur']));
+
+        $antrittDefs = crm_get_pdf_sections_definitions('antritt');
+        $this->assert("Definitions für 'antritt' enthalten antrittsmeldung", isset($antrittDefs['antrittsmeldung']));
+        $this->assert("antrittsmeldung enthält Unterabschnitt stammdaten", isset($antrittDefs['antrittsmeldung']['subsections']['stammdaten']));
+        $this->assert("antrittsmeldung enthält Unterabschnitt signatur", isset($antrittDefs['antrittsmeldung']['subsections']['signatur']));
+
+        // 5. Default HTML Generator Prüfung
+        $abEckdatenHtml = crm_get_subsection_default_html('ab', 'anschreiben', 'eckdaten', 1096, 40914);
+        $this->assert("Default HTML Generator für AB eckdaten liefert #007c8c", strpos($abEckdatenHtml, '#007c8c') !== false);
+        $this->assert("Default HTML Generator für AB eckdaten liefert Veranstaltungstitel:", strpos($abEckdatenHtml, 'Veranstaltungstitel:') !== false);
+
+        $antrittStammHtml = crm_get_subsection_default_html('antritt', 'antrittsmeldung', 'stammdaten', 1096, 40914);
+        $this->assert("Default HTML Generator für Antritt stammdaten liefert Name des / der TeilnehmerIn:", strpos($antrittStammHtml, 'Name des / der TeilnehmerIn:') !== false);
+        $this->assert("Default HTML Generator für Antritt stammdaten liefert Schulungsort:", strpos($antrittStammHtml, 'Schulungsort:') !== false);
+
+        // 6. output-controler.php Prüfung
+        $outputControler = file_get_contents(dirname(__DIR__) . '/controler/output-controler.php');
+        $this->assert("output-controler.php enthält Tab-Button für crm-dual-sec-ab", strpos($outputControler, 'data-target="crm-dual-sec-ab"') !== false);
+        $this->assert("output-controler.php enthält Tab-Button für crm-dual-sec-antritt", strpos($outputControler, 'data-target="crm-dual-sec-antritt"') !== false);
+        $this->assert("output-controler.php enthält Pane crm-dual-sec-ab", strpos($outputControler, 'id="crm-dual-sec-ab"') !== false);
+        $this->assert("output-controler.php enthält Pane crm-dual-sec-antritt", strpos($outputControler, 'id="crm-dual-sec-antritt"') !== false);
+
+        // 7. tab-pdf.php Prüfung
+        $tabPdf = file_get_contents(dirname(__DIR__) . '/views/settings/tab-pdf.php');
+        $this->assert("tab-pdf.php enthält Pill data-doc=ab", strpos($tabPdf, 'data-doc="ab"') !== false);
+        $this->assert("tab-pdf.php enthält Pill data-doc=antritt", strpos($tabPdf, 'data-doc="antritt"') !== false);
+        $this->assert("tab-pdf.php enthält Pane crm-sec-pane-ab", strpos($tabPdf, 'id="crm-sec-pane-ab"') !== false);
+        $this->assert("tab-pdf.php enthält Pane crm-sec-pane-antritt", strpos($tabPdf, 'id="crm-sec-pane-antritt"') !== false);
+        $this->assert("tab-pdf.php enthält Vorschau-Umschalter für ab", strpos($tabPdf, 'crm-preview-switch-btn" data-doc="ab"') !== false);
+        $this->assert("tab-pdf.php enthält Vorschau-Umschalter für antritt", strpos($tabPdf, 'crm-preview-switch-btn" data-doc="antritt"') !== false);
+
+        // 8. settings-controler.php Prüfung
+        $settingsControler = file_get_contents(dirname(__DIR__) . '/controler/settings-controler.php');
+        $this->assert("settings-controler.php unterstützt case 'ab'", strpos($settingsControler, "case 'ab':") !== false);
+        $this->assert("settings-controler.php unterstützt case 'antritt'", strpos($settingsControler, "case 'antritt':") !== false);
+
+        // 9. crm-admin.js & crm-settings.js Prüfung
+        $adminJs = file_get_contents(dirname(__DIR__) . '/assets/crm-admin.js');
+        $this->assert("crm-admin.js schaltet auf crm-dual-sec-ab", strpos($adminJs, "secTarget = 'crm-dual-sec-ab'") !== false);
+        $this->assert("crm-admin.js schaltet auf crm-dual-sec-antritt", strpos($adminJs, "secTarget = 'crm-dual-sec-antritt'") !== false);
+
+        $settingsJs = file_get_contents(dirname(__DIR__) . '/assets/crm-settings.js');
+        $this->assert("crm-settings.js enthält docTitle für ab", strpos($settingsJs, "'ab': 'Anmeldebestätigung (AB)'") !== false);
+        $this->assert("crm-settings.js enthält docTitle für antritt", strpos($settingsJs, "'antritt': 'Antrittsmeldung (AMS)'") !== false);
     }
 }
 
