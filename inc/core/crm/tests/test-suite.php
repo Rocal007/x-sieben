@@ -304,6 +304,7 @@ class CrmSeniorDevTestSuite
         $this->testSuite56_Version21908MultiStepMailDifferentiationAndPreviewFix();
         $this->testSuite57_Version22000DiplomFineTuning();
         $this->testSuite58_Version2201SearchAndPreviewFix();
+        $this->testSuite59_Version2202TimelineModularization();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -335,6 +336,7 @@ class CrmSeniorDevTestSuite
             $crmDir . '/controler/output-controler.php',
             $crmDir . '/helpers/normalize.php',
             $crmDir . '/helpers/crm-status.php',
+            $crmDir . '/helpers/crm-timeline.php',
             $crmDir . '/helpers/crm-cache.php',
             $crmDir . '/helpers/crm-email-sections.php',
             $crmDir . '/helpers/crm-pdf-sections.php',
@@ -4044,6 +4046,38 @@ Firma: DRK Gifhorn Service und Pflegeteam gGmbH";
             ));
             $this->assert("Globale Suche nach 'Sordje' findet Entry 997 in wpforms_entries", intval($found) === 997);
         }
+    }
+
+    public function testSuite59_Version2202TimelineModularization(): void
+    {
+        echo "\n\033[1;33m[SUITE 59] Architektonische Modularisierung: Timeline & History Entflechtung (v2.20.2)\033[0m\n";
+
+        // 1. Versionsprüfung
+        $this->assert("CRM_VERSION ist >= 2.20.2", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.20.2', '>='));
+
+        // 2. Existenz und Syntax des neuen Moduls crm-timeline.php
+        $timelinePath = dirname(__DIR__) . '/helpers/crm-timeline.php';
+        $this->assert("crm-timeline.php existiert als eigenständiges Modul", file_exists($timelinePath));
+
+        $timelineContent = file_get_contents($timelinePath);
+        $this->assert("crm-timeline.php besitzt ABSPATH Schutz", strpos($timelineContent, "defined('ABSPATH')") !== false);
+        $this->assert("crm-timeline.php definiert crm_get_business_case_history", strpos($timelineContent, 'function crm_get_business_case_history(') !== false);
+        $this->assert("crm-timeline.php definiert crm_render_business_case_timeline", strpos($timelineContent, 'function crm_render_business_case_timeline(') !== false);
+
+        // 3. Saubere Einbindung in crm-status.php
+        $statusPath = dirname(__DIR__) . '/helpers/crm-status.php';
+        $statusContent = file_get_contents($statusPath);
+        $this->assert("crm-status.php bindet crm-timeline.php via require_once ein", strpos($statusContent, "crm-timeline.php") !== false);
+
+        // 4. Funktionale Integrität der exportierten Funktionen
+        $this->assert("Funktion crm_get_business_case_history ist aufrufbar", function_exists('crm_get_business_case_history'));
+        $this->assert("Funktion crm_render_business_case_timeline ist aufrufbar", function_exists('crm_render_business_case_timeline'));
+
+        $emptyHistory = crm_get_business_case_history(0);
+        $this->assert("crm_get_business_case_history(0) liefert leeres Array", is_array($emptyHistory) && empty($emptyHistory['has_started']));
+
+        $emptyHtml = crm_render_business_case_timeline(0);
+        $this->assert("crm_render_business_case_timeline(0) liefert leeren String", $emptyHtml === '');
     }
 }
 
