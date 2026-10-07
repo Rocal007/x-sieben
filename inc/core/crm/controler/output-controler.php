@@ -299,6 +299,8 @@ function x_sieben_pdf_preview($pdf_url, $course_id, $entry_id = 0, $context = 'x
   $kb_url          = $second_pdf_url ?: '';
   $tb_url          = '';
   $diplom_url      = '';
+  $ab_url          = '';
+  $antritt_url     = '';
 
   // Context mapping and initial active document
   if ($context === 'xsieben_diplom' || $context === 'diplom') {

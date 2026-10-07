@@ -887,13 +887,13 @@ document.addEventListener("DOMContentLoaded", function () {
             const statusVal = (statusFilter ? statusFilter.value : "").toLowerCase().trim();
             const entryRows = table ? table.querySelectorAll("tbody tr.crm-entry-row") : [];
 
-            // 1. Table Rows Filter
+            // 1. Table Rows Filter (using textContent for fast zero-reflow execution)
             entryRows.forEach(row => {
                 const entryId = row.dataset.entryId;
-                const text = row.innerText.toLowerCase();
+                const text = (row.textContent || "").toLowerCase();
                 const matchesSearch = !searchVal || text.includes(searchVal);
                 const statusCell = row.querySelector('.crm-status-cell');
-                const statusText = statusCell ? statusCell.innerText.toLowerCase() : '';
+                const statusText = statusCell ? (statusCell.textContent || "").toLowerCase() : '';
                 const matchesStatus = !statusVal || statusText.includes(statusVal);
 
                 const isVisible = matchesSearch && matchesStatus;
@@ -908,9 +908,9 @@ document.addEventListener("DOMContentLoaded", function () {
             let visibleCards = 0;
             const cards = document.querySelectorAll('#crm-view-cards .crm-customer-card');
             cards.forEach(card => {
-                const text = card.innerText.toLowerCase();
+                const text = (card.textContent || "").toLowerCase();
                 const statusCell = card.querySelector('.crm-status-label');
-                const statusText = statusCell ? statusCell.innerText.toLowerCase() : (card.dataset.statusKey || '').toLowerCase();
+                const statusText = statusCell ? (statusCell.textContent || "").toLowerCase() : (card.dataset.statusKey || '').toLowerCase();
                 const matchesSearch = !searchVal || text.includes(searchVal);
                 const matchesStatus = !statusVal || statusText.includes(statusVal);
 
@@ -925,9 +925,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 kanbanBoard.querySelectorAll('.crm-kanban-column').forEach(col => {
                     let colVisible = 0;
                     col.querySelectorAll('.crm-kanban-card').forEach(kCard => {
-                        const text = kCard.innerText.toLowerCase();
+                        const text = (kCard.textContent || "").toLowerCase();
                         const statusCell = kCard.querySelector('.crm-status-label');
-                        const statusText = statusCell ? statusCell.innerText.toLowerCase() : (kCard.dataset.statusKey || '').toLowerCase();
+                        const statusText = statusCell ? (statusCell.textContent || "").toLowerCase() : (kCard.dataset.statusKey || '').toLowerCase();
                         const matchesSearch = !searchVal || text.includes(searchVal);
                         const matchesStatus = !statusVal || statusText.includes(statusVal);
 
@@ -955,9 +955,9 @@ document.addEventListener("DOMContentLoaded", function () {
             let activeStillVisible = false;
 
             splitItems.forEach(item => {
-                const text = item.innerText.toLowerCase();
+                const text = (item.textContent || "").toLowerCase();
                 const statusCell = item.querySelector('.crm-status-label');
-                const statusText = statusCell ? statusCell.innerText.toLowerCase() : (item.dataset.statusKey || '').toLowerCase();
+                const statusText = statusCell ? (statusCell.textContent || "").toLowerCase() : (item.dataset.statusKey || '').toLowerCase();
                 const matchesSearch = !searchVal || text.includes(searchVal);
                 const matchesStatus = !statusVal || statusText.includes(statusVal);
 
@@ -976,10 +976,6 @@ document.addEventListener("DOMContentLoaded", function () {
             if (!activeStillVisible && firstVisibleSplit) {
                 splitItems.forEach(i => i.classList.remove('is-active'));
                 firstVisibleSplit.classList.add('is-active');
-                const splitPane = document.getElementById('crm-view-split');
-                if (splitPane && splitPane.style.display !== 'none') {
-                    loadSplitDossier(firstVisibleSplit);
-                }
             }
 
             // 5. Total Count Badge in View Switcher Toolbar
@@ -1005,8 +1001,25 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         };
 
+        // Debounce helper to prevent UI freezing during typing
+        function crmFilterDebounce(fn, delay) {
+            let timer = null;
+            return function (...args) {
+                clearTimeout(timer);
+                timer = setTimeout(() => fn.apply(this, args), delay);
+            };
+        }
+
         if (searchInput) {
-            searchInput.addEventListener("input", filterRows);
+            searchInput.addEventListener("input", crmFilterDebounce(filterRows, 150));
+            searchInput.addEventListener("keydown", function (e) {
+                if (e.key === 'Enter') {
+                    const form = this.closest('form');
+                    if (form) {
+                        form.submit();
+                    }
+                }
+            });
         }
         if (statusFilter) {
             statusFilter.addEventListener("change", filterRows);
@@ -4424,9 +4437,12 @@ jQuery(document).ready(function ($) {
 
         detailsContainer.innerHTML = '<div style="padding:40px 20px; text-align:center; color:#64748b;"><span class="dashicons dashicons-update spin" style="font-size:32px; width:32px; height:32px; margin-bottom:12px;"></span><br><strong style="font-size:15px; color:#1e293b;">Dokument-Vorschau wird geladen...</strong></div>';
 
+        const activeNonce = (typeof crmData !== 'undefined' && crmData.nonce) ? crmData.nonce :
+                            ((typeof xSiebenAjax !== 'undefined' && xSiebenAjax.nonce) ? xSiebenAjax.nonce : ($('#crm_ajax_nonce').val() || ''));
+
         const formData = new FormData();
         formData.append('action', 'crm_entry_action');
-        formData.append('nonce', (typeof xSiebenAjax !== 'undefined' && xSiebenAjax.nonce) ? xSiebenAjax.nonce : ($('#crm_ajax_nonce').val() || ''));
+        formData.append('nonce', activeNonce);
         formData.append('action_key', actionKey);
         formData.append('entry_id', entryId);
         formData.append('course_id', courseId);
@@ -4437,14 +4453,24 @@ jQuery(document).ready(function ($) {
         fetch(ajaxEndpoint, { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
-                if (data.success && data.data.output) {
+                if (data.success && data.data && data.data.output) {
                     detailsContainer.innerHTML = data.data.output;
                     detailsContainer.style.display = 'block';
                     if (typeof initPdfSectionSortables === 'function') initPdfSectionSortables();
+                } else {
+                    const errMsg = (data && data.data && data.data.message) ? data.data.message : 'Vorschau konnte nicht geladen werden.';
+                    detailsContainer.innerHTML = '<div style="padding:40px 20px; text-align:center; color:#dc2626;"><span class="dashicons dashicons-warning" style="font-size:36px; width:36px; height:36px; margin-bottom:12px;"></span><br><strong style="font-size:15px; color:#1e293b;">Vorschau konnte nicht geladen werden</strong><p style="margin-top:6px; font-size:13px; color:#64748b;">' + (typeof crmEscapeHtml === 'function' ? crmEscapeHtml(errMsg) : errMsg) + '</p><button type="button" class="button crm-switch-to-preview-btn" data-entry-id="' + entryId + '" data-course-id="' + courseId + '" data-doc="' + doc + '" style="margin-top:12px;">Erneut versuchen</button></div>';
+                    if (typeof displayNotice === 'function') {
+                        displayNotice(errMsg, 'error');
+                    }
                 }
             })
             .catch(err => {
                 console.error('CRM Switch to Preview Error:', err);
+                detailsContainer.innerHTML = '<div style="padding:40px 20px; text-align:center; color:#dc2626;"><span class="dashicons dashicons-warning" style="font-size:36px; width:36px; height:36px; margin-bottom:12px;"></span><br><strong style="font-size:15px; color:#1e293b;">Verbindungsfehler beim Laden der Vorschau</strong><p style="margin-top:6px; font-size:13px; color:#64748b;">Bitte Seite neu laden oder erneut versuchen.</p><button type="button" class="button crm-switch-to-preview-btn" data-entry-id="' + entryId + '" data-course-id="' + courseId + '" data-doc="' + doc + '" style="margin-top:12px;">Erneut versuchen</button></div>';
+                if (typeof displayNotice === 'function') {
+                    displayNotice('Netzwerk- oder Serverfehler beim Laden der Vorschau.', 'error');
+                }
             });
     });
 

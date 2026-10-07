@@ -19,7 +19,7 @@
 
 // --- Core Setup & Helpers ---
 if (!defined('CRM_VERSION')) {
-    define('CRM_VERSION', '2.20.0');
+    define('CRM_VERSION', '2.20.1');
 }
 
 require_once __DIR__ . '/helpers/crm-cache.php';
@@ -539,7 +539,8 @@ add_action('wp_ajax_crm_entry_action', function () {
     if (!current_user_can('manage_options')) {
         wp_send_json_error(['message' => __('Unauthorized access.', 'custom-crm')]);
     }
-    if (!check_ajax_referer('crm_ajax_nonce', 'nonce', false)) {
+    $nonce = isset($_REQUEST['nonce']) ? $_REQUEST['nonce'] : (isset($_REQUEST['_ajax_nonce']) ? $_REQUEST['_ajax_nonce'] : '');
+    if (!wp_verify_nonce($nonce, 'crm_ajax_nonce') && !wp_verify_nonce($nonce, 'x_sieben_mailer_nonce')) {
         wp_send_json_error(['message' => __('Security check failed.', 'custom-crm')]);
     }
 
@@ -1358,22 +1359,64 @@ function render_crm_admin_page()
         exit;
     }
 
-    // Fetch entries from WPForms
-    if ($selected_form_raw === 'all') {
-        $entries = wpforms()->entry->get_entries([
-            'number'  => $entries_per_page,
-            'offset'  => $offset,
-        ]);
-        $total_entries = wpforms()->entry->get_entries(['select' => 'COUNT(entry_id)'], true);
-        $form_id = 0;
+    // Fetch entries from WPForms (with optional server-side global search across all entries)
+    $search_term = isset($_REQUEST['s']) ? sanitize_text_field(wp_unslash($_REQUEST['s'])) : '';
+
+    global $wpdb;
+    $entries_table = $wpdb->prefix . 'wpforms_entries';
+
+    if (!empty($search_term)) {
+        $search_like = '%' . $wpdb->esc_like($search_term) . '%';
+        $search_id   = is_numeric($search_term) ? intval($search_term) : 0;
+
+        if ($selected_form_raw === 'all') {
+            $total_entries = (int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$entries_table} WHERE status != 'trash' AND (fields LIKE %s OR entry_id = %d)",
+                $search_like,
+                $search_id
+            ));
+            $entries = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$entries_table} WHERE status != 'trash' AND (fields LIKE %s OR entry_id = %d) ORDER BY entry_id DESC LIMIT %d OFFSET %d",
+                $search_like,
+                $search_id,
+                $entries_per_page,
+                $offset
+            ));
+            $form_id = 0;
+        } else {
+            $form_id = absint($selected_form_raw) ?: $default_form_id;
+            $total_entries = (int)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$entries_table} WHERE form_id = %d AND status != 'trash' AND (fields LIKE %s OR entry_id = %d)",
+                $form_id,
+                $search_like,
+                $search_id
+            ));
+            $entries = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$entries_table} WHERE form_id = %d AND status != 'trash' AND (fields LIKE %s OR entry_id = %d) ORDER BY entry_id DESC LIMIT %d OFFSET %d",
+                $form_id,
+                $search_like,
+                $search_id,
+                $entries_per_page,
+                $offset
+            ));
+        }
     } else {
-        $form_id = absint($selected_form_raw) ?: $default_form_id;
-        $entries = wpforms()->entry->get_entries([
-            'form_id' => $form_id,
-            'number'  => $entries_per_page,
-            'offset'  => $offset,
-        ]);
-        $total_entries = wpforms()->entry->get_entries(['form_id' => $form_id, 'select' => 'COUNT(entry_id)'], true);
+        if ($selected_form_raw === 'all') {
+            $entries = wpforms()->entry->get_entries([
+                'number'  => $entries_per_page,
+                'offset'  => $offset,
+            ]);
+            $total_entries = wpforms()->entry->get_entries(['select' => 'COUNT(entry_id)'], true);
+            $form_id = 0;
+        } else {
+            $form_id = absint($selected_form_raw) ?: $default_form_id;
+            $entries = wpforms()->entry->get_entries([
+                'form_id' => $form_id,
+                'number'  => $entries_per_page,
+                'offset'  => $offset,
+            ]);
+            $total_entries = wpforms()->entry->get_entries(['form_id' => $form_id, 'select' => 'COUNT(entry_id)'], true);
+        }
     }
     $total_pages = ceil($total_entries / $entries_per_page);
 
@@ -1498,7 +1541,23 @@ function render_crm_admin_page()
                             <option value="course_desc"><?php esc_html_e('🎓 Kurs: Z – A', 'custom-crm'); ?></option>
                             <option value="course_date_asc"><?php esc_html_e('⏳ Kursbeginn: Nächste', 'custom-crm'); ?></option>
                         </select>
-                        <input type="text" id="courseTableSearch" placeholder="<?php printf(esc_attr__('Search %d entries...', 'custom-crm'), $total_entries); ?>" style="width: 220px;">
+                        <form method="GET" action="<?php echo esc_url(admin_url('admin.php')); ?>" style="display:inline-flex; align-items:center; gap:4px; margin:0;" class="crm-global-search-form">
+                            <input type="hidden" name="page" value="crm">
+                            <?php if ($selected_form_raw !== 'all'): ?>
+                                <input type="hidden" name="form_id" value="<?php echo esc_attr($selected_form_raw); ?>">
+                            <?php endif; ?>
+                            <div style="position:relative; display:inline-flex; align-items:center;">
+                                <input type="search" name="s" id="courseTableSearch" value="<?php echo esc_attr($search_term); ?>" placeholder="<?php printf(esc_attr__('Search %d entries...', 'custom-crm'), $total_entries); ?>" style="width: 230px; height:32px; padding:0 26px 0 8px; border-radius:4px; border:1px solid #cbd5e1; font-size:13px;" autocomplete="off" title="<?php esc_attr_e('Tippen für Sofort-Filter oder Enter für globale Suche in allen Seiten', 'custom-crm'); ?>">
+                                <button type="submit" style="position:absolute; right:5px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer; padding:0; display:flex; align-items:center;" title="<?php esc_attr_e('In allen Einträgen suchen (Enter)', 'custom-crm'); ?>">
+                                    <span class="dashicons dashicons-search" style="font-size:15px; width:15px; height:15px; line-height:15px;"></span>
+                                </button>
+                            </div>
+                            <?php if (!empty($search_term)): ?>
+                                <a href="<?php echo esc_url(remove_query_arg(['s', 'paged'])); ?>" class="button" style="height:32px; padding:0 8px; color:#dc2626; border-color:#fca5a5; display:inline-flex; align-items:center;" title="<?php esc_attr_e('Suche zurücksetzen', 'custom-crm'); ?>">
+                                    <span class="dashicons dashicons-dismiss" style="font-size:14px; width:14px; height:14px; line-height:14px;"></span>
+                                </a>
+                            <?php endif; ?>
+                        </form>
                         <button type="button" class="button" id="crmOpenEmailImportModal" style="height:32px; font-size:13px; font-weight:600; background:#0284c7; color:#fff; border-color:#0284c7; display:inline-flex; align-items:center; gap:6px; border-radius:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:pointer;" title="<?php esc_attr_e('Weitergeleitete E-Mail-Anfrage einfügen & automatisch als Lead anlegen', 'custom-crm'); ?>">
                             <span class="dashicons dashicons-email-alt" style="font-size:16px; line-height:30px; width:16px; height:16px;"></span>
                             <span><?php esc_html_e('E-Mail-Anfrage einspielen', 'custom-crm'); ?></span>
@@ -1525,6 +1584,21 @@ function render_crm_admin_page()
                 </details>
                 <?php endif; ?>
         </div>
+
+        <?php if (!empty($search_term)) : ?>
+        <div class="crm-search-results-notice" style="background:#f0f9ff; border:1px solid #7dd3fc; border-left:4px solid #0284c7; border-radius:6px; padding:10px 16px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span class="dashicons dashicons-search" style="color:#0284c7; font-size:18px;"></span>
+                <span style="font-size:13px; color:#0369a1;">
+                    <?php printf(esc_html__('Suchergebnisse für: %s &bull; %d Treffer in allen Einträgen', 'custom-crm'), '<strong>„' . esc_html($search_term) . '“</strong>', intval($total_entries)); ?>
+                </span>
+            </div>
+            <a href="<?php echo esc_url(remove_query_arg(['s', 'paged'])); ?>" class="button button-small" style="display:inline-flex; align-items:center; gap:4px; color:#dc2626; border-color:#fca5a5;">
+                <span class="dashicons dashicons-dismiss" style="font-size:14px; line-height:22px;"></span>
+                <?php esc_html_e('Suche aufheben / Alle anzeigen', 'custom-crm'); ?>
+            </a>
+        </div>
+        <?php endif; ?>
 
 
         <?php 
@@ -2082,8 +2156,15 @@ function render_crm_admin_page()
                 <div class="tablenav-pages">
                     <span class="displaying-num"><?php printf(esc_html__('%d entries', 'custom-crm'), $total_entries); ?></span>
                     <?php
+                    $pagination_args = ['paged' => '%#%', 'per_page' => $entries_per_page];
+                    if (!empty($search_term)) {
+                        $pagination_args['s'] = $search_term;
+                    }
+                    if ($selected_form_raw !== 'all') {
+                        $pagination_args['form_id'] = $selected_form_raw;
+                    }
                     echo paginate_links([
-                        'base' => add_query_arg(['paged' => '%#%', 'per_page' => $entries_per_page]),
+                        'base' => add_query_arg($pagination_args),
                         'format' => '?paged=%#%',
                         'current' => $current_page,
                         'total' => $total_pages,

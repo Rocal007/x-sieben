@@ -303,6 +303,7 @@ class CrmSeniorDevTestSuite
         $this->testSuite55_Version21907DiplomAppleDesignAndQuickDocMailer();
         $this->testSuite56_Version21908MultiStepMailDifferentiationAndPreviewFix();
         $this->testSuite57_Version22000DiplomFineTuning();
+        $this->testSuite58_Version2201SearchAndPreviewFix();
 
         $duration = round((microtime(true) - $this->startTime) * 1000, 2);
         echo "\n\033[1;36m--------------------------------------------------------------------\033[0m\n";
@@ -3993,6 +3994,55 @@ Firma: DRK Gifhorn Service und Pflegeteam gGmbH";
         if (function_exists('xsieben_diplom_pdf')) {
             $pdfUrl = xsieben_diplom_pdf(997, 1061, false);
             $this->assert("xsieben_diplom_pdf liefert gültige PDF-URL", !empty($pdfUrl) && strpos($pdfUrl, '.pdf') !== false);
+        }
+    }
+
+    public function testSuite58_Version2201SearchAndPreviewFix(): void
+    {
+        echo "\n\033[1;33m[SUITE 58] Feedback 07.10.2026: Globale Datenbank-Suche & Dokument-Vorschau Resilienz (v2.20.1)\033[0m\n";
+
+        // 1. Version Check
+        $this->assert("CRM_VERSION ist >= 2.20.1", defined('CRM_VERSION') && version_compare(CRM_VERSION, '2.20.1', '>='));
+
+        // 2. Nonce Dual-Verification in crm-admin.php
+        $crmAdminPath = dirname(__DIR__) . '/crm-admin.php';
+        $crmAdminContent = file_get_contents($crmAdminPath);
+        $this->assert("crm_entry_action unterstützt crm_ajax_nonce und x_sieben_mailer_nonce", 
+            strpos($crmAdminContent, "wp_verify_nonce(\$nonce, 'crm_ajax_nonce')") !== false && 
+            strpos($crmAdminContent, "wp_verify_nonce(\$nonce, 'x_sieben_mailer_nonce')") !== false
+        );
+
+        // 3. Globale serverseitige Suche in crm-admin.php
+        $this->assert("crm-admin.php liest \$_REQUEST['s'] aus", strpos($crmAdminContent, "\$search_term = isset(\$_REQUEST['s'])") !== false);
+        $this->assert("crm-admin.php filtert per SQL mit fields LIKE oder entry_id", strpos($crmAdminContent, "fields LIKE %s OR entry_id = %d") !== false);
+        $this->assert("crm-admin.php bindet crm-global-search-form mit name='s' ein", strpos($crmAdminContent, 'class="crm-global-search-form"') !== false);
+        $this->assert("crm-admin.php zeigt crm-search-results-notice bei aktiver Suche", strpos($crmAdminContent, 'class="crm-search-results-notice"') !== false);
+        $this->assert("crm-admin.php übergibt Suchparameter an Pagination", strpos($crmAdminContent, "\$pagination_args['s'] = \$search_term;") !== false);
+
+        // 4. Vermeidung von PHP Warnings in output-controler.php
+        $outputCtrlPath = dirname(__DIR__) . '/controler/output-controler.php';
+        $outputCtrlContent = file_get_contents($outputCtrlPath);
+        $this->assert("output-controler.php initialisiert \$ab_url", strpos($outputCtrlContent, "\$ab_url          = '';") !== false);
+        $this->assert("output-controler.php initialisiert \$antritt_url", strpos($outputCtrlContent, "\$antritt_url     = '';") !== false);
+
+        // 5. JavaScript Resilienz & Performance in crm-admin.js
+        $jsPath = dirname(__DIR__) . '/assets/crm-admin.js';
+        $jsContent = file_get_contents($jsPath);
+        $this->assert("crm-admin.js nutzt textContent für zero-reflow Filtering", strpos($jsContent, "row.textContent") !== false);
+        $this->assert("crm-admin.js besitzt crmFilterDebounce", strpos($jsContent, "crmFilterDebounce") !== false);
+        $this->assert("crm-admin.js nutzt activeNonce für crm-switch-to-preview-btn", strpos($jsContent, "const activeNonce =") !== false);
+        $this->assert("crm-admin.js enthält Fehlerausgabe für Vorschau-Switch", strpos($jsContent, "Vorschau konnte nicht geladen werden") !== false);
+
+        // 6. Live Datenbank-Suche nach Ines Sordje (Entry 997)
+        global $wpdb;
+        if (isset($wpdb)) {
+            $t = $wpdb->prefix . 'wpforms_entries';
+            $s_term = 'Sordje';
+            $found = $wpdb->get_var($wpdb->prepare(
+                "SELECT entry_id FROM {$t} WHERE status != 'trash' AND fields LIKE %s",
+                '%' . $wpdb->esc_like($s_term) . '%'
+            ));
+            $this->assert("Globale Suche nach 'Sordje' findet Entry 997 in wpforms_entries", intval($found) === 997);
         }
     }
 }
