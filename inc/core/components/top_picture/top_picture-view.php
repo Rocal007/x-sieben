@@ -4,15 +4,29 @@
  */
 function render_responsive_top_picture_bg($args = [])
 {
-    $post_id = get_the_ID();
-    
-    // Fetch layout setting from backend (default to split_screen)
-    $layout = get_post_meta($post_id, 'top_picture_layout', true);
-    if (!$layout) {
+    $queried = get_queried_object();
+    $is_taxonomy = (is_tax() || is_category() || is_tag() || is_archive()) && ($queried instanceof WP_Term);
+
+    if ($is_taxonomy) {
         $layout = 'split_screen';
+        $cache_key = 'hero_html_term_v10_' . $queried->term_id . '_' . $layout;
+        $post_id = get_the_ID();
+    } elseif (is_singular()) {
+        $post_id = get_the_ID();
+        $layout = get_post_meta($post_id, 'top_picture_layout', true);
+        if (!$layout) {
+            $layout = 'split_screen';
+        }
+        $cache_key = 'hero_html_post_v10_' . $post_id . '_' . $layout;
+    } else {
+        $post_id = get_the_ID();
+        $layout = $post_id ? get_post_meta($post_id, 'top_picture_layout', true) : 'split_screen';
+        if (!$layout) {
+            $layout = 'split_screen';
+        }
+        $cache_key = 'hero_html_misc_v10_' . ($post_id ?: md5($_SERVER['REQUEST_URI'] ?? 'home')) . '_' . $layout;
     }
 
-    $cache_key = 'hero_html_layout_v9_' . $post_id . '_' . $layout;
     if (!is_user_logged_in()) {
         $cached_html = get_transient($cache_key);
         if ($cached_html !== false && !empty($cached_html)) {
@@ -24,11 +38,16 @@ function render_responsive_top_picture_bg($args = [])
     ob_start();
 
     // 1. DATEN HOLEN
-    $acf_aktuelles = function_exists('get_field') ? get_field('aktuelles') : '';
+    $acf_aktuelles = function_exists('get_field') ? get_field('aktuelles', $post_id) : '';
 
     // Bilder abrufen
     $mobile_img_data = wp_get_attachment_image_src(get_post_thumbnail_id($post_id), 'mobile-top');
     $desktop_img_data = wp_get_attachment_image_src(get_post_thumbnail_id($post_id), 'hero-image');
+
+    // Fallback: Falls args explizite Bild-URLs liefern (z.B. bei Taxonomien)
+    if (!$desktop_img_data && !empty($args['desktop_image_url'])) {
+        $desktop_img_data = [$args['desktop_image_url'], 1448, 1086];
+    }
 
     // Fallback: Wenn kein Desktop-Bild, Abbruch.
     if (!$desktop_img_data) {
@@ -36,17 +55,21 @@ function render_responsive_top_picture_bg($args = [])
         return; 
     }
 
-    // Fallback: Wenn kein Mobile-Bild, nimm Desktop
+    // Fallback: Wenn kein Mobile-Bild, nimm Desktop bzw. args
     if (!$mobile_img_data) {
-        $mobile_img_data = $desktop_img_data;
+        if (!empty($args['mobile_image_url'])) {
+            $mobile_img_data = [$args['mobile_image_url'], 991, 557];
+        } else {
+            $mobile_img_data = $desktop_img_data;
+        }
     }
 
     $defaults = [
-        'title'        => $acf_aktuelles ?: get_the_title(),
+        'title'        => $acf_aktuelles ?: get_the_title($post_id),
         'show_buttons' => false,
         'show_logos'   => false,
         'logo_layout'  => 'vertical',
-        'alt_text'     => strip_tags(get_the_title()),
+        'alt_text'     => strip_tags(get_the_title($post_id)),
     ];
 
     $args = wp_parse_args($args, $defaults);
