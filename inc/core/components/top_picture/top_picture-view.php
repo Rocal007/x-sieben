@@ -9,7 +9,7 @@ function render_responsive_top_picture_bg($args = [])
 
     if ($is_taxonomy) {
         $layout = 'split_screen';
-        $cache_key = 'hero_html_term_v10_' . $queried->term_id . '_' . $layout;
+        $cache_key = 'hero_html_term_v12_' . $queried->term_id . '_' . $layout;
         $post_id = get_the_ID();
     } elseif (is_singular()) {
         $post_id = get_the_ID();
@@ -17,14 +17,14 @@ function render_responsive_top_picture_bg($args = [])
         if (!$layout) {
             $layout = 'split_screen';
         }
-        $cache_key = 'hero_html_post_v10_' . $post_id . '_' . $layout;
+        $cache_key = 'hero_html_post_v12_' . $post_id . '_' . $layout;
     } else {
         $post_id = get_the_ID();
         $layout = $post_id ? get_post_meta($post_id, 'top_picture_layout', true) : 'split_screen';
         if (!$layout) {
             $layout = 'split_screen';
         }
-        $cache_key = 'hero_html_misc_v10_' . ($post_id ?: md5($_SERVER['REQUEST_URI'] ?? 'home')) . '_' . $layout;
+        $cache_key = 'hero_html_misc_v12_' . ($post_id ?: md5($_SERVER['REQUEST_URI'] ?? 'home')) . '_' . $layout;
     }
 
     if (!is_user_logged_in()) {
@@ -132,6 +132,12 @@ function render_responsive_top_picture_bg($args = [])
 
                     <?php if ($args['show_logos']) : ?>
                         <div class="top-picture-logos-overlay hidden-xs">
+                            <style>
+                                .top-picture-logos-overlay { position: absolute; top: 18px; left: 18px; z-index: 10; pointer-events: auto; }
+                                .top-picture-logos-overlay .zert-images-vertical { display: flex; flex-direction: column; gap: 8px; }
+                                .top-picture-logos-overlay .zert-image-item { background: #ffffff !important; border-radius: 6px !important; padding: 4px 6px !important; border: 1px solid rgba(0,0,0,0.12) !important; box-shadow: 0 2px 6px rgba(0,0,0,0.15) !important; display: inline-flex !important; align-items: center; justify-content: center; }
+                                .top-picture-logos-overlay .zert-image-item img, .top-picture-logos-overlay img { max-width: 65px !important; max-height: 42px !important; width: auto !important; height: auto !important; object-fit: contain !important; display: block !important; }
+                            </style>
                             <?= certs_courses($post_id, $args['logo_layout']); ?>
                         </div>
                     <?php endif; ?>
