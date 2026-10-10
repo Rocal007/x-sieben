@@ -18,39 +18,13 @@ function trainer_course_single() {
                     echo '<span class="member-separator">, </span>';
                 }
 
-                $title   = get_the_title();
-                $excerpt = has_excerpt() ? get_the_excerpt() : wp_trim_words(get_the_content(), 20, '…');
-                $desc_id = 'member-desc-' . get_the_ID();
-
-                $thumbnail = get_the_post_thumbnail(
-                    get_the_ID(),
-                    'thumbnail',
-                    [
-                        'alt'        => esc_attr($title),
-                        'title'      => esc_attr($title),
-                        'role'       => 'img',
-                        'aria-label' => esc_attr($title),
-                        'class'      => 'trainer-thumb'
-                    ]
-                );
-
-                $tooltip_html  = '<div class="tooltip-content">';
-                $tooltip_html .= $thumbnail;
-                $tooltip_html .= '<p>' . esc_html($excerpt) . '</p>';
-                $tooltip_html .= '</div>';
-
-                $tooltip_json = htmlspecialchars(json_encode($tooltip_html), ENT_QUOTES, 'UTF-8');
+                $title = get_the_title();
 
                 printf(
-                    '<a href="%s" class="custom-tooltip" data-tooltip="%s" aria-describedby="%s">%s</a>',
+                    '<a href="%s">%s</a>',
                     esc_url(get_permalink()),
-                    $tooltip_json,
-                    esc_attr($desc_id),
                     esc_html($title)
                 );
-
-                // Excerpt als sr-only
-                echo '<span id="' . esc_attr($desc_id) . '" class="sr-only">' . esc_html($excerpt) . '</span>';
             }
             wp_reset_postdata();
         }
