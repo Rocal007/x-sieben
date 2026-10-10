@@ -108,12 +108,16 @@
     .top-picture-layout-split_screen .top-picture-flex-wrapper {
         flex-direction: row;
         position: static;
+        align-items: stretch;
     }
 
 .top-picture-layout-split_screen .top-picture-title {
-    min-height: 420px;
+    min-height: 500px;
     width: 50%;
     padding-left: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
     .top-picture-layout-split_screen .top-picture-image-wrapper > picture > img,
@@ -269,10 +273,14 @@
   }
 }
 
-/* X7 Hero Textbereich – Split Screen Desktop höher ausrichten */
+/* X7 Hero Textbereich – Split Screen Desktop vertikal mittig ausrichten */
 @media (min-width: 992px) {
   .top-picture-layout-split_screen .top-picture-title {
-    justify-content: flex-start;
-    padding-top: 35px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 500px;
+    padding-top: 20px;
+    padding-bottom: 20px;
   }
 }

@@ -9,7 +9,7 @@ function render_responsive_top_picture_bg($args = [])
 
     if ($is_taxonomy) {
         $layout = 'split_screen';
-        $cache_key = 'hero_html_term_v12_' . $queried->term_id . '_' . $layout;
+        $cache_key = 'hero_html_term_v13_' . $queried->term_id . '_' . $layout;
         $post_id = get_the_ID();
     } elseif (is_singular()) {
         $post_id = get_the_ID();
@@ -17,14 +17,14 @@ function render_responsive_top_picture_bg($args = [])
         if (!$layout) {
             $layout = 'split_screen';
         }
-        $cache_key = 'hero_html_post_v12_' . $post_id . '_' . $layout;
+        $cache_key = 'hero_html_post_v13_' . $post_id . '_' . $layout;
     } else {
         $post_id = get_the_ID();
         $layout = $post_id ? get_post_meta($post_id, 'top_picture_layout', true) : 'split_screen';
         if (!$layout) {
             $layout = 'split_screen';
         }
-        $cache_key = 'hero_html_misc_v12_' . ($post_id ?: md5($_SERVER['REQUEST_URI'] ?? 'home')) . '_' . $layout;
+        $cache_key = 'hero_html_misc_v13_' . ($post_id ?: md5($_SERVER['REQUEST_URI'] ?? 'home')) . '_' . $layout;
     }
 
     if (!is_user_logged_in()) {
@@ -89,6 +89,12 @@ function render_responsive_top_picture_bg($args = [])
     <link rel="preload" as="image" href="<?= $d_webp; ?>" media="(min-width: 992px)" fetchpriority="high">
 
     <div class="container-fluid top-picture-section top-picture-layout-<?= esc_attr($layout); ?>">
+        <style>
+            @media (min-width: 992px) {
+                .top-picture-layout-split_screen .top-picture-flex-wrapper { display: flex !important; align-items: stretch !important; }
+                .top-picture-layout-split_screen .top-picture-title { display: flex !important; flex-direction: column !important; justify-content: center !important; min-height: 500px !important; padding-top: 20px !important; padding-bottom: 20px !important; }
+            }
+        </style>
         <div class="container h-100">
             <div class="row top-picture-flex-wrapper">
 
