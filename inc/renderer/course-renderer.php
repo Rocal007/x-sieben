@@ -300,40 +300,38 @@ class CourseRenderer
     ?>
    <div class="container-fluid bg-image">
     <section aria-labelledby="interest-section-title" class="xs-course-promise">
-        <div class="container">
 
-            <div class="xs-course-promise__intro text-center">
-                <div class="xs-course-promise__eyebrow">
-                    X SIEBEN @ KOMPETENZENTWICKLUNG
-                </div>
-
-                <h3 id="interest-section-title" class="xs-course-promise__title">
-                    Kompetenz, die in der Praxis wirkt.
-                </h3>
-
-         
+        <div class="xs-course-promise__intro text-center">
+            <div class="xs-course-promise__eyebrow">
+                X SIEBEN @ KOMPETENZENTWICKLUNG
             </div>
 
-            <div class="xs-course-promise__items">
+            <h3 id="interest-section-title" class="xs-course-promise__title">
+                Kompetenz, die in der Praxis wirkt.
+            </h3>
 
-                <div class="xs-course-promise__item">
-                    <strong>Klarheit schaffen.</strong>
-                    <span>Wissen, was wirklich zählt.</span>
-                </div>
+     
+        </div>
 
-                <div class="xs-course-promise__item">
-                    <strong>Kompetenz entwickeln.</strong>
-                   <span>Können, was wirklich gebraucht wird.</span>
-                </div>
+        <div class="xs-course-promise__items">
 
-                <div class="xs-course-promise__item">
-                    <strong>Wirksam umsetzen.</strong>
-                    <span>Damit aus Wissen Wirkung wird.</span>
-                </div>
+            <div class="xs-course-promise__item">
+                <strong>Klarheit schaffen.</strong>
+                <span>Wissen, was wirklich zählt.</span>
+            </div>
 
+            <div class="xs-course-promise__item">
+                <strong>Kompetenz entwickeln.</strong>
+               <span>Können, was wirklich gebraucht wird.</span>
+            </div>
+
+            <div class="xs-course-promise__item">
+                <strong>Wirksam umsetzen.</strong>
+                <span>Damit aus Wissen Wirkung wird.</span>
             </div>
 
         </div>
+
     </section>
 </div>
     <?php

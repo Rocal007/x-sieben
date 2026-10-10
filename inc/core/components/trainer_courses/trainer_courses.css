@@ -26,3 +26,20 @@
   text-overflow: ellipsis;
   max-height: 3.9em; /* roughly 3 lines */
 }
+
+/* X7 – Kursseiten: Kompetenzblock saubere Zentrierung */
+.xs-course-promise {
+  max-width: 980px !important;
+  margin: 0 auto !important;
+  padding: 58px 0 54px !important;
+  text-align: center !important;
+}
+
+.xs-course-promise .container {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  margin: 0 auto !important;
+}
+
